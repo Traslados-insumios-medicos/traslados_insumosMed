@@ -147,7 +147,7 @@ export function AdminReportesPage() {
               className={`border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
                 tab === t.id
                   ? 'border-primary text-primary'
-                  : 'border-transparent text-slate-500 hover:text-slate-700:text-slate-300'
+                  : 'border-transparent text-slate-500 hover:text-slate-700'
               }`}
             >
               {t.label}

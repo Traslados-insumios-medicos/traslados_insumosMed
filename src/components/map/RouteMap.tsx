@@ -45,13 +45,38 @@ const stopIcon = (orden: number) =>
     iconAnchor: [14, 14],
   })
 
-function FitBounds({ positions }: { positions: [number, number][] }) {
+function FitBounds({
+  positions,
+  trigger,
+}: {
+  positions: [number, number][]
+  trigger?: number
+}) {
   const map = useMap()
   useEffect(() => {
     if (positions.length === 0) return
     const bounds = L.latLngBounds(positions as L.LatLngTuple[])
     map.fitBounds(bounds, { padding: [24, 24], maxZoom: 14 })
-  }, [map, positions])
+  }, [map, positions, trigger])
+  return null
+}
+
+function FlyToHighlightedStop({
+  stops,
+  highlightedStopId,
+}: {
+  stops: Stop[]
+  highlightedStopId?: string | null
+}) {
+  const map = useMap()
+  const position = useMemo(() => {
+    if (!highlightedStopId) return null
+    const s = stops.find((x) => x.id === highlightedStopId)
+    return s ? ([s.lat, s.lng] as [number, number]) : null
+  }, [stops, highlightedStopId])
+  useEffect(() => {
+    if (position) map.flyTo(position, 15, { duration: 0.5 })
+  }, [map, position])
   return null
 }
 
@@ -59,11 +84,20 @@ export interface RouteMapProps {
   stops: Stop[]
   /** Posición actual simulada del camión (opcional). Si se pasa, se muestra marcador en movimiento. */
   currentPosition?: { lat: number; lng: number } | null
+  /** ID del stop a resaltar; el mapa hace flyTo a ese marcador. */
+  highlightedStopId?: string | null
+  /** Incrementar para forzar fitBounds de toda la ruta (ej. botón "Ver ruta completa"). */
+  fitBoundsTrigger?: number
 }
 
 const QUITO_CENTER: [number, number] = [-0.18, -78.47]
 
-export function RouteMap({ stops, currentPosition }: RouteMapProps) {
+export function RouteMap({
+  stops,
+  currentPosition,
+  highlightedStopId,
+  fitBoundsTrigger = 0,
+}: RouteMapProps) {
   const positions = useMemo<[number, number][]>(
     () => stops.map((s) => [s.lat, s.lng] as [number, number]),
     [stops],
@@ -106,13 +140,14 @@ export function RouteMap({ stops, currentPosition }: RouteMapProps) {
           attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
-        <FitBounds positions={allPositions} />
+        <FitBounds positions={allPositions} trigger={fitBoundsTrigger} />
 
         <Polyline
           positions={positions}
           pathOptions={{ color: '#0284c5', weight: 4, opacity: 0.8 }}
         />
 
+        <FlyToHighlightedStop stops={stops} highlightedStopId={highlightedStopId} />
         {stops.map((stop) => (
           <Marker
             key={stop.id}

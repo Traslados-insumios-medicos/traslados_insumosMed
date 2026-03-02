@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
 import { useLogisticsStore } from '../../store/logisticsStore'
+import { ToastContainer } from '../ui/ToastContainer'
 
 const navItem =
   'flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors text-slate-600 hover:bg-slate-50'
@@ -177,6 +178,7 @@ export function MainLayout() {
           </div>
         </main>
       </div>
+      <ToastContainer />
     </div>
   )
 }

@@ -13,7 +13,7 @@ import type {
 } from '../types/models'
 import { seedState } from '../data/seed'
 import { loadState, saveState, resetState } from '../utils/storage'
-import { MAX_FOTOS_POR_GUIA } from '../utils/constants'
+import { MAX_FOTOS_POR_GUIA, MAX_FOTOS_HOJA_RUTA } from '../utils/constants'
 
 interface LogisticsState extends AppPersistedState {
   addCliente: (cliente: Cliente) => void
@@ -34,6 +34,7 @@ interface LogisticsState extends AppPersistedState {
   addFotosToGuia: (guiaId: string, fotos: Foto[]) => void
 
   addFotosToRuta: (rutaId: string, fotos: Foto[]) => void
+  removePhoto: (photoId: string) => void
 
   resetDemoData: () => void
 }
@@ -178,8 +179,21 @@ export const useLogisticsStore = create<LogisticsState>((set) => ({
 
   addFotosToRuta: (rutaId, nuevasFotos) =>
     set(
+      (state) => {
+        const existentes = state.fotos.filter((f) => f.rutaId === rutaId && f.tipo === 'HOJA_RUTA')
+        const disponibles = Math.max(MAX_FOTOS_HOJA_RUTA - existentes.length, 0)
+        const aAgregar = nuevasFotos
+          .slice(0, disponibles)
+          .map((f) => ({ ...f, rutaId, tipo: 'HOJA_RUTA' as const }))
+        return { fotos: [...state.fotos, ...aAgregar] }
+      },
+      false,
+    ),
+
+  removePhoto: (photoId) =>
+    set(
       (state) => ({
-        fotos: [...state.fotos, ...nuevasFotos.map((f) => ({ ...f, rutaId }))],
+        fotos: state.fotos.filter((f) => f.id !== photoId),
       }),
       false,
     ),
@@ -202,6 +216,7 @@ export const useLogisticsStore = create<LogisticsState>((set) => ({
       addNovedadToGuia: state.addNovedadToGuia,
       addFotosToGuia: state.addFotosToGuia,
       addFotosToRuta: state.addFotosToRuta,
+      removePhoto: state.removePhoto,
       resetDemoData: state.resetDemoData,
     }))
   },
