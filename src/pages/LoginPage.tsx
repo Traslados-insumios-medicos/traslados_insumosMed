@@ -1,4 +1,4 @@
-import { FormEvent, useState } from 'react'
+import { type FormEvent, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import { useLogisticsStore } from '../store/logisticsStore'
@@ -95,15 +95,15 @@ export function LoginPage() {
     (rol === 'CLIENTE' && (clienteId ? usuariosCliente.some((u) => u.clienteId === clienteId) : false))
 
   return (
-    <div className="flex min-h-screen flex-col bg-background-light font-display dark:bg-background-dark">
-      {/* Top Navigation */}
-      <header className="w-full border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-2">
-            <div className="rounded-lg bg-primary p-1.5">
+    <div className="flex min-h-screen flex-col bg-background-light font-display">
+      {/* Top Navigation - mobile first */}
+      <header className="w-full border-b border-slate-200 bg-white">
+        <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:h-16 sm:px-6 lg:px-8">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="rounded-lg bg-primary p-1.5 shrink-0">
               <span className="material-symbols-outlined text-2xl text-white">local_hospital</span>
             </div>
-            <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">MedLogix</h1>
+            <h1 className="truncate text-lg font-bold tracking-tight text-slate-900 sm:text-xl">MedLogix</h1>
           </div>
           <div className="flex items-center gap-4">
             <span className="rounded-full border border-primary/20 bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
@@ -113,44 +113,44 @@ export function LoginPage() {
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="flex flex-grow items-center justify-center p-6">
+      {/* Main Content - mobile first */}
+      <main className="flex flex-grow items-center justify-center p-4 sm:p-6">
         <div className="w-full max-w-4xl">
-          <div className="mb-10 text-center">
-            <h2 className="mb-3 text-4xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
+          <div className="mb-6 text-center sm:mb-10">
+            <h2 className="mb-2 text-2xl font-extrabold tracking-tight text-slate-900 sm:mb-3 sm:text-4xl">
               Acceso al Sistema
             </h2>
-            <p className="text-lg text-slate-600 dark:text-slate-400">
+            <p className="text-sm text-slate-600 sm:text-lg">
               Seleccione su perfil de usuario para continuar al panel de control
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Role Selection Grid */}
-            <div className="mb-10 grid grid-cols-1 gap-6 md:grid-cols-3">
+            <div className="mb-6 grid grid-cols-1 gap-4 sm:gap-6 sm:mb-10 md:grid-cols-3">
               {roles.map((r) => (
                 <button
                   key={r}
                   type="button"
                   onClick={() => handleRolChange(r)}
-                  className={`role-card group flex flex-col items-center rounded-xl border-2 bg-white p-8 text-left shadow-sm transition-all duration-300 hover:border-primary hover:shadow-xl dark:bg-slate-800 ${
+                  className={`role-card group flex flex-col items-center rounded-xl border-2 bg-white p-6 text-left shadow-sm transition-all duration-300 hover:border-primary hover:shadow-xl sm:p-8 ${
                     rol === r ? 'border-primary shadow-md' : 'border-transparent'
                   }`}
                 >
                   <div
-                    className={`role-icon-bg mb-6 flex h-20 w-20 items-center justify-center rounded-full transition-colors duration-300 ${
+                    className={`role-icon-bg mb-4 flex h-16 w-16 items-center justify-center rounded-full transition-colors duration-300 sm:mb-6 sm:h-20 sm:w-20 ${
                       rol === r ? 'bg-primary text-white' : 'bg-primary/10 text-primary'
                     }`}
                   >
-                    <span className="material-symbols-outlined text-4xl">{roleLabels[r].icon}</span>
+                    <span className="material-symbols-outlined text-3xl sm:text-4xl">{roleLabels[r].icon}</span>
                   </div>
-                  <h3 className="mb-2 text-xl font-bold text-slate-900 dark:text-slate-100">
+                  <h3 className="mb-1 text-lg font-bold text-slate-900 sm:mb-2 sm:text-xl">
                     {roleLabels[r].title}
                   </h3>
-                  <p className="text-center text-sm text-slate-500 dark:text-slate-400">{roleLabels[r].desc}</p>
+                  <p className="text-center text-xs text-slate-500 sm:text-sm">{roleLabels[r].desc}</p>
 
                   {r === 'CLIENTE' && rol === 'CLIENTE' && (
-                    <div className="mt-6 w-full">
+                    <div className="mt-4 w-full sm:mt-6">
                       <label
                         className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-400"
                         htmlFor="company"
@@ -161,7 +161,7 @@ export function LoginPage() {
                         id="company"
                         value={clienteId}
                         onChange={(e) => setClienteId(e.target.value)}
-                        className="w-full rounded-lg border border-slate-200 bg-background-light text-sm text-slate-700 focus:border-primary focus:ring-primary dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50 text-sm text-slate-700 focus:border-primary focus:ring-primary"
                       >
                         {clientes.map((c) => (
                           <option key={c.id} value={c.id}>
@@ -173,7 +173,7 @@ export function LoginPage() {
                   )}
 
                   {r === 'CHOFER' && rol === 'CHOFER' && (
-                    <div className="mt-6 w-full">
+                    <div className="mt-4 w-full sm:mt-6">
                       <label
                         className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-400"
                         htmlFor="chofer"
@@ -184,7 +184,7 @@ export function LoginPage() {
                         id="chofer"
                         value={userId}
                         onChange={(e) => setUserId(e.target.value)}
-                        className="w-full rounded-lg border border-slate-200 bg-background-light text-sm text-slate-700 focus:border-primary focus:ring-primary dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200"
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50 text-sm text-slate-700 focus:border-primary focus:ring-primary"
                       >
                         {choferes.map((u) => (
                           <option key={u.id} value={u.id}>
@@ -202,20 +202,20 @@ export function LoginPage() {
               <button
                 type="submit"
                 disabled={!canSubmit}
-                className="flex w-full max-w-md items-center justify-center gap-3 rounded-lg bg-primary px-8 py-4 font-bold text-white shadow-lg shadow-primary/30 transition-all hover:bg-primary/90 active:scale-95 disabled:opacity-50 disabled:active:scale-100"
+                className="flex w-full max-w-md items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3.5 font-bold text-white shadow-lg shadow-primary/30 transition-all hover:bg-primary/90 active:scale-95 disabled:opacity-50 disabled:active:scale-100 sm:gap-3 sm:px-8 sm:py-4"
               >
                 <span className="material-symbols-outlined">login</span>
-                Acceder al Sistema como {roleLabels[rol].title}
+                Acceder como {roleLabels[rol].title}
               </button>
 
-              <div className="mt-8 w-full max-w-lg rounded-xl border border-primary/10 bg-primary/5 p-4">
+              <div className="mt-6 w-full max-w-lg rounded-xl border border-primary/10 bg-primary/5 p-4 sm:mt-8">
                 <div className="flex items-start gap-3">
-                  <span className="material-symbols-outlined text-primary">info</span>
-                  <div>
-                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                  <span className="material-symbols-outlined text-primary shrink-0">info</span>
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-800">
                       Simulación de Acceso
                     </p>
-                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                    <p className="mt-1 text-xs text-slate-500">
                       Este portal es un entorno de demostración. Al seleccionar un rol se cargarán
                       datos pre-configurados para el perfil seleccionado.
                     </p>
@@ -227,9 +227,9 @@ export function LoginPage() {
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="w-full border-t border-slate-200 py-8 dark:border-slate-800">
-        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 text-sm text-slate-500 dark:text-slate-400 md:flex-row">
+      {/* Footer - mobile first */}
+      <footer className="w-full border-t border-slate-200 bg-white py-6 sm:py-8">
+        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 text-center text-sm text-slate-500 md:flex-row md:text-left">
           <div className="flex items-center gap-6">
             <span>© 2024 MedLogix Logistics. Todos los derechos reservados.</span>
             <span className="hidden md:inline">|</span>

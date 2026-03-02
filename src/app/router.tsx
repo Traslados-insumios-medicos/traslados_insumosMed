@@ -3,6 +3,9 @@ import { LoginPage } from '../pages/LoginPage'
 import { MainLayout } from '../components/layout/MainLayout'
 import { RoleGuard } from './RoleGuard'
 import { AdminDashboardPage } from '../features/admin/AdminDashboardPage'
+import { AdminClientesPage } from '../features/admin/AdminClientesPage'
+import { AdminChoferesPage } from '../features/admin/AdminChoferesPage'
+import { AdminReportesPage } from '../features/admin/AdminReportesPage'
 import { ChoferRutasPage } from '../features/chofer/ChoferRutasPage'
 import { ChoferRutaDetallePage } from '../features/chofer/ChoferRutaDetallePage'
 import { ClienteEnviosPage } from '../features/cliente/ClienteEnviosPage'
@@ -28,6 +31,18 @@ export const router = createBrowserRouter([
       {
         path: '/admin/dashboard',
         element: <AdminDashboardPage />,
+      },
+      {
+        path: '/admin/clientes',
+        element: <AdminClientesPage />,
+      },
+      {
+        path: '/admin/choferes',
+        element: <AdminChoferesPage />,
+      },
+      {
+        path: '/admin/reportes',
+        element: <AdminReportesPage />,
       },
       {
         path: '/chofer/rutas',

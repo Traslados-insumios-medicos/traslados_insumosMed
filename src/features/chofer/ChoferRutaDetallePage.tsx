@@ -3,12 +3,13 @@ import { Link, useParams } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
 import { useLogisticsStore } from '../../store/logisticsStore'
 import { RouteMap } from '../../components/map/RouteMap'
+import { useSimulatedRoute } from '../../utils/mapSimulation'
 
 export function ChoferRutaDetallePage() {
   const { id } = useParams<{ id: string }>()
   const { currentUser } = useAuthStore()
   const { rutas, stops, guias, updateGuiaEstado } = useLogisticsStore()
-  const [selectedGuiaId, setSelectedGuiaId] = useState<string | null>(null)
+  const [, setSelectedGuiaId] = useState<string | null>(null)
 
   const ruta = rutas.find((r) => r.id === id)
 
@@ -17,13 +18,19 @@ export function ChoferRutaDetallePage() {
     [ruta, stops],
   )
 
+  const coordinates = useMemo(
+    () => stopsRuta.map((s) => ({ lat: s.lat, lng: s.lng })),
+    [stopsRuta],
+  )
+  const { currentPosition } = useSimulatedRoute({ coordinates, intervalMs: 4000 })
+
   const guiasPorRuta = guias.filter((g) => g.rutaId === id)
   const entregadas = guiasPorRuta.filter((g) => g.estado === 'ENTREGADO').length
   const progreso = guiasPorRuta.length ? Math.round((entregadas / guiasPorRuta.length) * 100) : 0
 
   if (!ruta) {
     return (
-      <div className="rounded-xl border border-slate-200 bg-white p-8 dark:border-slate-800 dark:bg-slate-900">
+      <div className="rounded-xl border border-slate-200 bg-white p-8">
         <p className="text-sm text-slate-500">Ruta no encontrada.</p>
         <Link to="/chofer/rutas" className="mt-2 inline-block text-sm font-medium text-primary hover:underline">
           Volver a Mis rutas
@@ -39,14 +46,14 @@ export function ChoferRutaDetallePage() {
   return (
     <div className="mx-auto max-w-2xl space-y-4 pb-24 md:max-w-md">
       {/* Header Section */}
-      <div className="flex items-center justify-between border-b border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+      <div className="flex items-center justify-between border-b border-slate-200 bg-white p-4">
         <div className="flex items-center gap-3">
-          <div className="size-10 shrink-0 rounded-full border-2 border-primary/20 bg-slate-200 dark:bg-slate-700" />
+          <div className="size-10 shrink-0 rounded-full border-2 border-primary/20 bg-slate-200" />
           <div>
-            <p className="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            <p className="text-xs font-medium uppercase tracking-wider text-slate-500">
               Chofer Logística
             </p>
-            <h2 className="text-lg font-bold leading-tight text-slate-900 dark:text-slate-100">
+            <h2 className="text-lg font-bold leading-tight text-slate-900">
               Hola, {currentUser?.nombre}
             </h2>
           </div>
@@ -58,40 +65,40 @@ export function ChoferRutaDetallePage() {
       </div>
 
       {/* Route Summary Card */}
-      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-800/50">
+      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
         <div className="mb-4 flex items-start justify-between">
           <div>
-            <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
+            <h3 className="text-base font-bold text-slate-900">
               Ruta Activa #{ruta.id.replace('ruta-', '')}
             </h3>
-            <p className="text-sm text-slate-500 dark:text-slate-400">
+            <p className="text-sm text-slate-500">
               Distribución de Insumos Médicos
             </p>
           </div>
-          <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold uppercase text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400">
+          <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold uppercase text-emerald-700">
             En Curso
           </span>
         </div>
         <div className="space-y-3">
           <div className="flex justify-between text-sm">
-            <span className="text-slate-600 dark:text-slate-400">Progreso de entrega: {progreso}%</span>
+            <span className="text-slate-600">Progreso de entrega: {progreso}%</span>
             <span className="font-bold text-primary">
               {entregadas} / {guiasPorRuta.length} Paradas
             </span>
           </div>
-          <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-100 dark:bg-slate-700">
+          <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
             <div className="h-2.5 rounded-full bg-primary" style={{ width: `${progreso}%` }} />
           </div>
         </div>
       </div>
 
-      {/* Map Section */}
-      <div className="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700">
-        <RouteMap stops={stopsRuta} />
+      {/* Map Section - Leaflet con posición simulada del camión */}
+      <div className="overflow-hidden rounded-xl border border-slate-200">
+        <RouteMap stops={stopsRuta} currentPosition={currentPosition} />
       </div>
 
       {/* Stops List */}
-      <h4 className="flex items-center gap-2 font-bold text-slate-900 dark:text-slate-100">
+      <h4 className="flex items-center gap-2 font-bold text-slate-900">
         <span className="material-symbols-outlined text-primary">format_list_bulleted</span>
         Listado de Paradas
       </h4>
@@ -102,10 +109,10 @@ export function ChoferRutaDetallePage() {
         return (
           <div
             key={stop.id}
-            className={`rounded-r-xl border border-slate-200 shadow-sm dark:border-slate-800 ${
+            className={`rounded-r-xl border border-slate-200 shadow-sm ${
               index === 0
-                ? 'border-l-4 border-l-primary bg-white dark:bg-slate-800/40'
-                : 'border-l-4 border-l-transparent bg-white opacity-90 dark:bg-slate-800/40'
+                ? 'border-l-4 border-l-primary bg-white'
+                : 'border-l-4 border-l-transparent bg-white opacity-90'
             }`}
           >
             <div className="p-4">
@@ -114,14 +121,14 @@ export function ChoferRutaDetallePage() {
                   <p className="text-xs font-bold uppercase text-primary">
                     Parada #{stop.orden} {index === 0 ? '(Actual)' : ''}
                   </p>
-                  <h5 className="font-bold text-slate-900 dark:text-white">{stop.direccion}</h5>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">{stop.notas ?? '—'}</p>
+                  <h5 className="font-bold text-slate-900">{stop.direccion}</h5>
+                  <p className="text-xs text-slate-500">{stop.notas ?? '—'}</p>
                 </div>
                 <span
                   className={`rounded border px-2 py-0.5 text-[10px] font-bold ${
                     index === 0
                       ? 'border-primary/20 bg-primary/10 text-primary'
-                      : 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400'
+                      : 'bg-slate-100 text-slate-500'
                   }`}
                 >
                   {index === 0 ? 'EN CURSO' : 'PENDIENTE'}
@@ -137,12 +144,12 @@ export function ChoferRutaDetallePage() {
                     key={g.id}
                     className={`rounded-lg border p-3 ${
                       g.estado === 'INCIDENCIA'
-                        ? 'border-red-100 bg-red-50 dark:border-red-900/30 dark:bg-red-900/10'
-                        : 'border-slate-100 bg-slate-50 dark:border-slate-700 dark:bg-slate-800'
+                        ? 'border-red-100 bg-red-50'
+                        : 'border-slate-100 bg-slate-50'
                     }`}
                   >
                     <div className="mb-3 flex items-center justify-between">
-                      <span className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                      <span className="text-sm font-bold text-slate-700">
                         Guía: #{g.numeroGuia}
                       </span>
                       <div className="flex gap-1">
@@ -155,7 +162,7 @@ export function ChoferRutaDetallePage() {
                           className={`rounded px-2 py-1 text-[10px] font-medium ${
                             g.estado === 'PENDIENTE'
                               ? 'bg-primary text-white'
-                              : 'border border-slate-200 bg-white dark:border-slate-600 dark:bg-slate-700'
+                              : 'border border-slate-200 bg-white'
                           }`}
                         >
                           Pendiente
@@ -169,7 +176,7 @@ export function ChoferRutaDetallePage() {
                           className={`rounded px-2 py-1 text-[10px] font-medium ${
                             g.estado === 'ENTREGADO'
                               ? 'bg-primary text-white'
-                              : 'border border-slate-200 bg-white dark:border-slate-600 dark:bg-slate-700'
+                              : 'border border-slate-200 bg-white'
                           }`}
                         >
                           Entregado
@@ -183,18 +190,18 @@ export function ChoferRutaDetallePage() {
                           className={`rounded px-2 py-1 text-[10px] font-medium ${
                             g.estado === 'INCIDENCIA'
                               ? 'bg-red-600 text-white'
-                              : 'border border-slate-200 bg-white dark:border-slate-600 dark:bg-slate-700'
+                              : 'border border-slate-200 bg-white'
                           }`}
                         >
                           Incidencia
                         </button>
                       </div>
                     </div>
-                    <p className="text-xs text-slate-600 dark:text-slate-400">{g.descripcion}</p>
+                    <p className="text-xs text-slate-600">{g.descripcion}</p>
                     <div className="mt-2 flex gap-2">
                       <button
                         type="button"
-                        className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-slate-200 py-2 text-xs font-bold transition-colors hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600"
+                        className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-slate-200 py-2 text-xs font-bold transition-colors hover:bg-slate-300:bg-slate-600"
                       >
                         <span className="material-symbols-outlined text-sm">photo_camera</span>
                         Subir Fotos (0/8)
@@ -209,9 +216,9 @@ export function ChoferRutaDetallePage() {
       })}
 
       {/* Finalizar Jornada */}
-      <div className="mt-4 border-t border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-800/80">
+      <div className="mt-4 border-t border-slate-200 bg-slate-50 p-4">
         <div className="mb-4">
-          <label className="mb-2 block text-sm font-bold text-slate-700 dark:text-slate-300">
+          <label className="mb-2 block text-sm font-bold text-slate-700">
             Finalizar Jornada
           </label>
           <button
@@ -233,7 +240,7 @@ export function ChoferRutaDetallePage() {
       </div>
 
       {/* Bottom Nav (mobile style) */}
-      <nav className="fixed bottom-0 left-0 right-0 flex gap-2 border-t border-slate-200 bg-white px-4 pb-6 pt-2 dark:border-slate-800 dark:bg-slate-900 md:relative md:bottom-auto md:left-auto md:right-auto md:mt-6 md:flex md:rounded-xl md:border md:p-2">
+      <nav className="fixed bottom-0 left-0 right-0 flex gap-2 border-t border-slate-200 bg-white px-4 pb-6 pt-2 md:relative md:bottom-auto md:left-auto md:right-auto md:mt-6 md:flex md:rounded-xl md:border md:p-2">
         <Link
           to={`/chofer/rutas/${id}`}
           className="flex flex-1 flex-col items-center justify-center gap-1 text-primary"

@@ -11,7 +11,7 @@ export function ClienteEnvioDetallePage() {
 
   if (!guia) {
     return (
-      <div className="rounded-xl border border-slate-200 bg-white p-8 dark:border-slate-800 dark:bg-slate-900">
+      <div className="rounded-xl border border-slate-200 bg-white p-8">
         <p className="text-sm text-slate-500">Guía no encontrada.</p>
         <Link to="/cliente/envios" className="mt-2 inline-block text-sm font-medium text-primary hover:underline">
           Volver a Envíos
@@ -31,18 +31,18 @@ export function ClienteEnvioDetallePage() {
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+          <h1 className="text-2xl font-bold text-slate-900">
             Detalle de envío · {guia.numeroGuia}
           </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">{guia.descripcion}</p>
+          <p className="text-sm text-slate-500">{guia.descripcion}</p>
         </div>
         <span
           className={`rounded-full px-2.5 py-1 text-xs font-medium ${
             guia.estado === 'ENTREGADO'
-              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300'
+              ? 'bg-emerald-100 text-emerald-800'
               : guia.estado === 'INCIDENCIA'
-                ? 'bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-300'
-                : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
+                ? 'bg-rose-100 text-rose-800'
+                : 'bg-blue-100 text-blue-800'
           }`}
         >
           {guia.estado}
@@ -53,11 +53,11 @@ export function ClienteEnvioDetallePage() {
         {/* Main: Timeline + Gallery */}
         <div className="space-y-6 lg:col-span-2">
           {/* Delivery Progress Timeline */}
-          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <h3 className="mb-6 text-lg font-bold text-slate-900 dark:text-white">
+          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h3 className="mb-6 text-lg font-bold text-slate-900">
               Progreso de entrega
             </h3>
-            <div className="relative space-y-8 before:absolute before:left-5 before:h-full before:w-0.5 before:bg-slate-200 before:content-[''] dark:before:bg-slate-800">
+            <div className="relative space-y-8 before:absolute before:left-5 before:h-full before:w-0.5 before:bg-slate-200 before:content-['']:bg-slate-800">
               {statusSteps.map((step, i) => (
                 <div key={step.key} className="relative flex items-center gap-6">
                   <div
@@ -66,7 +66,7 @@ export function ClienteEnvioDetallePage() {
                         ? 'border-2 border-primary bg-primary/20 text-primary ring-4 ring-primary/10'
                         : step.done
                           ? 'bg-primary text-white'
-                          : 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500'
+                          : 'bg-slate-100 text-slate-400'
                     }`}
                   >
                     <span className="material-symbols-outlined text-lg">
@@ -82,7 +82,7 @@ export function ClienteEnvioDetallePage() {
                   <div>
                     <h4
                       className={`text-sm font-bold ${
-                        step.active ? 'text-primary' : step.done ? 'text-slate-900 dark:text-white' : 'text-slate-400'
+                        step.active ? 'text-primary' : step.done ? 'text-slate-900' : 'text-slate-400'
                       }`}
                     >
                       {step.label}
@@ -101,8 +101,8 @@ export function ClienteEnvioDetallePage() {
           </div>
 
           {/* Novedades */}
-          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <h3 className="mb-4 text-lg font-bold text-slate-900 dark:text-white">Novedades</h3>
+          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h3 className="mb-4 text-lg font-bold text-slate-900">Novedades</h3>
             {novedadesGuia.length === 0 ? (
               <p className="text-sm text-slate-500">Sin novedades registradas para esta guía.</p>
             ) : (
@@ -110,13 +110,13 @@ export function ClienteEnvioDetallePage() {
                 {novedadesGuia.map((n) => (
                   <li
                     key={n.id}
-                    className="rounded-lg border border-slate-100 p-3 text-sm dark:border-slate-800 dark:bg-slate-800/50"
+                    className="rounded-lg border border-slate-100 p-3 text-sm"
                   >
-                    <p className="font-semibold text-slate-900 dark:text-white">{n.tipo}</p>
+                    <p className="font-semibold text-slate-900">{n.tipo}</p>
                     <p className="text-xs text-slate-500">
                       {new Date(n.createdAt).toLocaleString('es-ES')}
                     </p>
-                    <p className="mt-1 text-slate-600 dark:text-slate-400">{n.descripcion}</p>
+                    <p className="mt-1 text-slate-600">{n.descripcion}</p>
                   </li>
                 ))}
               </ul>
@@ -126,9 +126,9 @@ export function ClienteEnvioDetallePage() {
 
         {/* Sidebar: Photo Gallery */}
         <div className="flex flex-col gap-6">
-          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
             <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+              <h3 className="text-lg font-bold text-slate-900">
                 Fotos de entrega
               </h3>
               {fotosGuia.length > 0 && (
@@ -144,7 +144,7 @@ export function ClienteEnvioDetallePage() {
                 {fotosGuia.map((f) => (
                   <div
                     key={f.id}
-                    className="group relative aspect-square overflow-hidden rounded-lg border border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-800"
+                    className="group relative aspect-square overflow-hidden rounded-lg border border-slate-200 bg-slate-100"
                   >
                     <img
                       src={f.urlPreview}

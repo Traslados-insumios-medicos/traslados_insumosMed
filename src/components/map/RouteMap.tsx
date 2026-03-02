@@ -1,36 +1,141 @@
+import { useEffect, useMemo } from 'react'
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet'
+import L from 'leaflet'
 import type { Stop } from '../../types/models'
 
-interface RouteMapProps {
-  stops: Stop[]
+import 'leaflet/dist/leaflet.css'
+
+const truckIcon = L.divIcon({
+  className: 'truck-marker',
+  html: `<div style="
+    background:#0284c5;
+    color:white;
+    width:32px;
+    height:32px;
+    border-radius:50%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:18px;
+    border:2px solid white;
+    box-shadow:0 2px 6px rgba(0,0,0,0.3);
+  ">🚚</div>`,
+  iconSize: [32, 32],
+  iconAnchor: [16, 16],
+})
+
+const stopIcon = (orden: number) =>
+  L.divIcon({
+    className: 'stop-marker',
+    html: `<div style="
+      background:#0f172a;
+      color:white;
+      width:28px;
+      height:28px;
+      border-radius:50%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size:12px;
+      font-weight:bold;
+      border:2px solid white;
+      box-shadow:0 2px 4px rgba(0,0,0,0.2);
+    ">${orden}</div>`,
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+  })
+
+function FitBounds({ positions }: { positions: [number, number][] }) {
+  const map = useMap()
+  useEffect(() => {
+    if (positions.length === 0) return
+    const bounds = L.latLngBounds(positions as L.LatLngTuple[])
+    map.fitBounds(bounds, { padding: [24, 24], maxZoom: 14 })
+  }, [map, positions])
+  return null
 }
 
-/**
- * Placeholder visual de mapa.
- * En una iteración posterior se conectará con Google Maps / Leaflet.
- */
-export function RouteMap({ stops }: RouteMapProps) {
+export interface RouteMapProps {
+  stops: Stop[]
+  /** Posición actual simulada del camión (opcional). Si se pasa, se muestra marcador en movimiento. */
+  currentPosition?: { lat: number; lng: number } | null
+}
+
+const QUITO_CENTER: [number, number] = [-0.18, -78.47]
+
+export function RouteMap({ stops, currentPosition }: RouteMapProps) {
+  const positions = useMemo<[number, number][]>(
+    () => stops.map((s) => [s.lat, s.lng] as [number, number]),
+    [stops],
+  )
+
+  const center = useMemo(() => {
+    if (positions.length === 0) return QUITO_CENTER
+    const sum = positions.reduce(
+      (acc, [lat, lng]) => ({ lat: acc.lat + lat, lng: acc.lng + lng }),
+      { lat: 0, lng: 0 },
+    )
+    return [sum.lat / positions.length, sum.lng / positions.length] as [number, number]
+  }, [positions])
+
+  const allPositions = useMemo(() => {
+    if (currentPosition && positions.length > 0) {
+      return [...positions, [currentPosition.lat, currentPosition.lng] as [number, number]]
+    }
+    return positions
+  }, [positions, currentPosition])
+
+  if (stops.length === 0) {
+    return (
+      <div className="flex h-64 items-center justify-center rounded-xl border border-slate-200 bg-slate-100 text-slate-500">
+        <span className="material-symbols-outlined text-4xl">map</span>
+        <p className="ml-2 text-sm">Sin paradas para mostrar</p>
+      </div>
+    )
+  }
+
   return (
-    <div className="relative h-48 w-full overflow-hidden rounded-xl border border-slate-200 bg-slate-200 dark:border-slate-700 dark:bg-slate-800">
-      <div className="absolute inset-0 flex items-center justify-center bg-slate-100 dark:bg-slate-800/80">
-        <span className="material-symbols-outlined text-4xl text-primary drop-shadow-md">
-          local_shipping
-        </span>
-      </div>
-      <div className="absolute bottom-8 left-12">
-        <span className="material-symbols-outlined text-2xl text-emerald-500">check_circle</span>
-      </div>
-      <div className="absolute right-20 top-10">
-        <span className="material-symbols-outlined text-2xl text-red-500">location_on</span>
-      </div>
-      <button
-        type="button"
-        className="absolute bottom-3 right-3 rounded-lg border border-slate-200 bg-white p-2 shadow-lg dark:border-slate-700 dark:bg-slate-800"
+    <div className="h-full min-h-64 w-full overflow-hidden rounded-xl [&_.leaflet-container]:h-full [&_.leaflet-container]:z-0">
+      <MapContainer
+        center={center}
+        zoom={12}
+        className="h-full w-full"
+        scrollWheelZoom={false}
       >
-        <span className="material-symbols-outlined text-slate-700 dark:text-slate-300">
-          my_location
-        </span>
-      </button>
+        <TileLayer
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        />
+        <FitBounds positions={allPositions} />
+
+        <Polyline
+          positions={positions}
+          pathOptions={{ color: '#0284c5', weight: 4, opacity: 0.8 }}
+        />
+
+        {stops.map((stop) => (
+          <Marker
+            key={stop.id}
+            position={[stop.lat, stop.lng]}
+            icon={stopIcon(stop.orden)}
+          >
+            <Popup>
+              <strong>Parada {stop.orden}</strong>
+              <br />
+              {stop.direccion}
+            </Popup>
+          </Marker>
+        ))}
+
+        {currentPosition && (
+          <Marker
+            position={[currentPosition.lat, currentPosition.lng]}
+            icon={truckIcon}
+          >
+            <Popup>Posición actual del camión (simulada)</Popup>
+          </Marker>
+        )}
+      </MapContainer>
     </div>
   )
 }
-

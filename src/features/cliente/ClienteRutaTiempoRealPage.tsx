@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useAuthStore } from '../../store/authStore'
 import { useLogisticsStore } from '../../store/logisticsStore'
 import { RouteMap } from '../../components/map/RouteMap'
+import { useSimulatedRoute } from '../../utils/mapSimulation'
 
 export function ClienteRutaTiempoRealPage() {
   const { currentUser } = useAuthStore()
@@ -23,20 +24,26 @@ export function ClienteRutaTiempoRealPage() {
     [ruta, stops],
   )
 
+  const coordinates = useMemo(
+    () => stopsRuta.map((s) => ({ lat: s.lat, lng: s.lng })),
+    [stopsRuta],
+  )
+  const { currentPosition } = useSimulatedRoute({ coordinates, intervalMs: 4000 })
+
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+        <h1 className="text-2xl font-bold text-slate-900">
           Ruta en tiempo real
         </h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400">
+        <p className="text-sm text-slate-500">
           Seguimiento en vivo del envío seleccionado
         </p>
       </div>
 
       {!guiaActiva || !ruta ? (
-        <div className="rounded-xl border border-slate-200 bg-white p-8 dark:border-slate-800 dark:bg-slate-900">
-          <span className="material-symbols-outlined text-4xl text-slate-300 dark:text-slate-600">
+        <div className="rounded-xl border border-slate-200 bg-white p-8">
+          <span className="material-symbols-outlined text-4xl text-slate-300">
             map
           </span>
           <p className="mt-2 text-sm text-slate-500">
@@ -45,11 +52,11 @@ export function ClienteRutaTiempoRealPage() {
         </div>
       ) : (
         <>
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-primary">map</span>
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white">
+                <h3 className="text-lg font-bold text-slate-900">
                   Seguimiento en vivo: {guiaActiva.numeroGuia}
                 </h3>
               </div>
@@ -60,27 +67,20 @@ export function ClienteRutaTiempoRealPage() {
             </div>
           </div>
 
-          <div className="relative overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <div className="relative aspect-video w-full bg-slate-100 dark:bg-slate-800">
-              <RouteMap stops={stopsRuta} />
-              <div className="absolute top-1/2 left-1/2 flex flex-col items-center -translate-x-1/2 -translate-y-1/2">
-                <div className="animate-bounce rounded-lg border border-primary bg-white p-2 shadow-xl dark:bg-slate-900">
-                  <span className="material-symbols-outlined text-3xl text-primary">
-                    local_shipping
-                  </span>
-                </div>
-                <div className="mt-2 rounded-full bg-slate-900/80 px-3 py-1 text-[10px] font-bold uppercase text-white backdrop-blur-sm">
-                  Vehículo en ruta
-                </div>
-              </div>
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div className="aspect-video min-h-64 w-full">
+              <RouteMap stops={stopsRuta} currentPosition={currentPosition} />
             </div>
+            <p className="border-t border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
+              Posición del camión simulada cada 4 s. Mapa: OpenStreetMap · Leaflet.
+            </p>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-            <p className="text-sm font-semibold text-slate-900 dark:text-white">
+          <div className="rounded-xl border border-slate-200 bg-white p-4">
+            <p className="text-sm font-semibold text-slate-900">
               Guía {guiaActiva.numeroGuia}
             </p>
-            <p className="text-xs text-slate-500 dark:text-slate-400">{guiaActiva.descripcion}</p>
+            <p className="text-xs text-slate-500">{guiaActiva.descripcion}</p>
             <p className="mt-1 text-xs text-slate-500">Ruta {ruta.id}</p>
           </div>
         </>

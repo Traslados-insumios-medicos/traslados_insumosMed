@@ -5,7 +5,6 @@ import type {
   EstadoGuia,
   EstadoRuta,
   Foto,
-  GuiaEntrega,
   Novedad,
   Ruta,
   Stop,
@@ -41,7 +40,7 @@ interface LogisticsState extends AppPersistedState {
 
 const initialState = loadState(seedState)
 
-export const useLogisticsStore = create<LogisticsState>((set, get) => ({
+export const useLogisticsStore = create<LogisticsState>((set) => ({
   ...initialState,
 
   addCliente: (cliente) =>
@@ -187,7 +186,24 @@ export const useLogisticsStore = create<LogisticsState>((set, get) => ({
 
   resetDemoData: () => {
     const reset = resetState(seedState)
-    set(() => reset, true)
+    set((state) => ({
+      ...reset,
+      addCliente: state.addCliente,
+      updateCliente: state.updateCliente,
+      toggleClienteActivo: state.toggleClienteActivo,
+      addChofer: state.addChofer,
+      updateChofer: state.updateChofer,
+      toggleChoferActivo: state.toggleChoferActivo,
+      addRuta: state.addRuta,
+      updateRuta: state.updateRuta,
+      assignRutaToChofer: state.assignRutaToChofer,
+      updateRutaEstado: state.updateRutaEstado,
+      updateGuiaEstado: state.updateGuiaEstado,
+      addNovedadToGuia: state.addNovedadToGuia,
+      addFotosToGuia: state.addFotosToGuia,
+      addFotosToRuta: state.addFotosToRuta,
+      resetDemoData: state.resetDemoData,
+    }))
   },
 }))
 
