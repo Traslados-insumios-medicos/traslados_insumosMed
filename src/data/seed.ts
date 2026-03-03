@@ -175,5 +175,6 @@ export const seedState: AppPersistedState = {
   guias,
   fotos,
   novedades,
+  seguimientosNovedades: [],
 }
 

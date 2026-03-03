@@ -78,6 +78,13 @@ export interface Novedad {
   createdAt: string
 }
 
+export interface SeguimientoNovedad {
+  id: string
+  novedadId: string
+  nota: string
+  createdAt: string
+}
+
 export interface AppPersistedState {
   clientes: Cliente[]
   usuarios: Usuario[]
@@ -86,5 +93,6 @@ export interface AppPersistedState {
   guias: GuiaEntrega[]
   fotos: Foto[]
   novedades: Novedad[]
+  seguimientosNovedades: SeguimientoNovedad[]
 }
 

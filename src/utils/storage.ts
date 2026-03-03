@@ -7,8 +7,8 @@ export function loadState(seed: AppPersistedState): AppPersistedState {
   try {
     const raw = window.localStorage.getItem(LOCAL_STORAGE_KEY)
     if (!raw) return seed
-    const parsed = JSON.parse(raw) as AppPersistedState
-    return parsed
+    const parsed = JSON.parse(raw) as Partial<AppPersistedState>
+    return { ...seed, ...parsed }
   } catch {
     return seed
   }

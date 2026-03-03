@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useLogisticsStore } from '../../store/logisticsStore'
 import type { GuiaEntrega } from '../../types/models'
 
-type TabId = 'cliente' | 'fechas' | 'chofer' | 'novedades'
+type TabId = 'cliente' | 'fechas' | 'chofer'
 
 /** Insumos mock para prototipo: lista básica por guía */
 function getInsumosMock(guia: GuiaEntrega): string[] {
@@ -17,11 +17,10 @@ const tabs: { id: TabId; label: string }[] = [
   { id: 'cliente', label: 'Por cliente' },
   { id: 'fechas', label: 'Por rango de fechas' },
   { id: 'chofer', label: 'Por chofer' },
-  { id: 'novedades', label: 'Novedades' },
 ]
 
 export function AdminReportesPage() {
-  const { clientes, usuarios, rutas, guias, novedades } = useLogisticsStore()
+  const { clientes, usuarios, rutas, guias } = useLogisticsStore()
 
   const [tab, setTab] = useState<TabId>('cliente')
   const [clienteId, setClienteId] = useState<string>('')
@@ -48,21 +47,6 @@ export function AdminReportesPage() {
       return true
     })
   }, [guiasPorCliente, fechaDesde, fechaHasta])
-
-  const novedadesFiltradas = useMemo(() => {
-    let list = [...novedades]
-    if (clienteId) {
-      const guiaIdsCliente = new Set(guias.filter((g) => g.clienteId === clienteId).map((g) => g.id))
-      list = list.filter((n) => guiaIdsCliente.has(n.guiaId))
-    }
-    if (fechaDesde)
-      list = list.filter((n) => new Date(n.createdAt).getTime() >= new Date(fechaDesde).getTime())
-    if (fechaHasta)
-      list = list.filter(
-        (n) => new Date(n.createdAt).getTime() <= new Date(fechaHasta + 'T23:59:59').getTime(),
-      )
-    return list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-  }, [novedades, clienteId, fechaDesde, fechaHasta, guias])
 
   const resumenPorCliente = useMemo(() => {
     return clientes.map((c) => {
@@ -274,42 +258,6 @@ export function AdminReportesPage() {
                   ))}
               </tbody>
             </table>
-          </div>
-        )}
-
-        {tab === 'novedades' && (
-          <div className="p-4">
-            <p className="mb-4 text-sm text-slate-500">
-              Total novedades (filtradas): <strong className="text-slate-900 dark:text-white">{novedadesFiltradas.length}</strong>
-            </p>
-            <div className="space-y-3">
-              {novedadesFiltradas.length === 0 ? (
-                <p className="text-sm text-slate-500">No hay novedades con los filtros aplicados.</p>
-              ) : (
-                novedadesFiltradas.map((n) => (
-                  <div
-                    key={n.id}
-                    className="rounded-lg border border-slate-200 p-3 dark:border-slate-600"
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">{n.tipo}</span>
-                      <span className="text-xs text-slate-500 dark:text-slate-400">{new Date(n.createdAt).toLocaleString('es-ES')}</span>
-                    </div>
-                    <p className="mt-1 text-sm text-slate-900 dark:text-white">{n.descripcion}</p>
-                    <p className="mt-1 flex items-center gap-2">
-                      <span className="text-xs text-slate-500 dark:text-slate-400">Guía: {n.guiaId}</span>
-                      <button
-                        type="button"
-                        onClick={() => setGuiaVerId(n.guiaId)}
-                        className="text-xs font-medium text-primary hover:underline dark:text-primary"
-                      >
-                        Ver guía
-                      </button>
-                    </p>
-                  </div>
-                ))
-              )}
-            </div>
           </div>
         )}
       </div>

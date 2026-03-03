@@ -82,9 +82,9 @@ export function MainLayout() {
                 <span className="material-symbols-outlined">analytics</span>
                 <span>Reportes</span>
               </NavLink>
-              <NavLink to="/admin/soportes" className={({ isActive }) => (isActive ? navItemActive : navItem)} onClick={() => setSidebarOpen(false)}>
-                <span className="material-symbols-outlined">support_agent</span>
-                <span>Soportes</span>
+              <NavLink to="/admin/novedades" className={({ isActive }) => (isActive ? navItemActive : navItem)} onClick={() => setSidebarOpen(false)}>
+                <span className="material-symbols-outlined">warning</span>
+                <span>Novedades</span>
               </NavLink>
             </>
           )}

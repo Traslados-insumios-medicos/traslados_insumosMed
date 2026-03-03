@@ -7,7 +7,7 @@ import { AdminClientesPage } from '../features/admin/AdminClientesPage'
 import { AdminChoferesPage } from '../features/admin/AdminChoferesPage'
 import { AdminReportesPage } from '../features/admin/AdminReportesPage'
 import { AdminRutasPage } from '../features/admin/AdminRutasPage'
-import { AdminSoportesPage } from '../features/admin/AdminSoportesPage'
+import { AdminNovedadesPage } from '../features/admin/AdminNovedadesPage'
 import { ChoferRutasPage } from '../features/chofer/ChoferRutasPage'
 import { ChoferRutaDetallePage } from '../features/chofer/ChoferRutaDetallePage'
 import { ClienteEnviosPage } from '../features/cliente/ClienteEnviosPage'
@@ -51,8 +51,8 @@ export const router = createBrowserRouter([
         element: <AdminRutasPage />,
       },
       {
-        path: '/admin/soportes',
-        element: <AdminSoportesPage />,
+        path: '/admin/novedades',
+        element: <AdminNovedadesPage />,
       },
       {
         path: '/chofer/rutas',

@@ -7,10 +7,12 @@ import type {
   Foto,
   Novedad,
   Ruta,
+  SeguimientoNovedad,
   Stop,
   TipoNovedad,
   Usuario,
 } from '../types/models'
+import { generateId } from '../utils/generateId'
 import { seedState } from '../data/seed'
 import { loadState, saveState, resetState } from '../utils/storage'
 import { MAX_FOTOS_POR_GUIA, MAX_FOTOS_HOJA_RUTA } from '../utils/constants'
@@ -35,6 +37,8 @@ interface LogisticsState extends AppPersistedState {
 
   addFotosToRuta: (rutaId: string, fotos: Foto[]) => void
   removePhoto: (photoId: string) => void
+
+  addSeguimientoToNovedad: (novedadId: string, nota: string) => void
 
   resetDemoData: () => void
 }
@@ -198,6 +202,22 @@ export const useLogisticsStore = create<LogisticsState>((set) => ({
       false,
     ),
 
+  addSeguimientoToNovedad: (novedadId, nota) =>
+    set(
+      (state) => {
+        const nuevo: SeguimientoNovedad = {
+          id: generateId('seg'),
+          novedadId,
+          nota,
+          createdAt: new Date().toISOString(),
+        }
+        return {
+          seguimientosNovedades: [...(state.seguimientosNovedades ?? []), nuevo],
+        }
+      },
+      false,
+    ),
+
   resetDemoData: () => {
     const reset = resetState(seedState)
     set((state) => ({
@@ -217,6 +237,7 @@ export const useLogisticsStore = create<LogisticsState>((set) => ({
       addFotosToGuia: state.addFotosToGuia,
       addFotosToRuta: state.addFotosToRuta,
       removePhoto: state.removePhoto,
+      addSeguimientoToNovedad: state.addSeguimientoToNovedad,
       resetDemoData: state.resetDemoData,
     }))
   },
