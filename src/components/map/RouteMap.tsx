@@ -121,7 +121,7 @@ export function RouteMap({
 
   if (stops.length === 0) {
     return (
-      <div className="flex h-64 items-center justify-center rounded-xl border border-slate-200 bg-slate-100 text-slate-500">
+      <div className="flex h-64 items-center justify-center rounded-xl border border-slate-200 bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 text-slate-500">
         <span className="material-symbols-outlined text-4xl">map</span>
         <p className="ml-2 text-sm">Sin paradas para mostrar</p>
       </div>

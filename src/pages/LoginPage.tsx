@@ -95,15 +95,15 @@ export function LoginPage() {
     (rol === 'CLIENTE' && (clienteId ? usuariosCliente.some((u) => u.clienteId === clienteId) : false))
 
   return (
-    <div className="flex min-h-screen flex-col bg-background-light font-display">
+    <div className="flex min-h-screen flex-col bg-background-light font-display dark:bg-background-dark">
       {/* Top Navigation - mobile first */}
-      <header className="w-full border-b border-slate-200 bg-white">
+      <header className="w-full border-b border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
         <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:h-16 sm:px-6 lg:px-8">
           <div className="flex items-center gap-2 min-w-0">
             <div className="rounded-lg bg-primary p-1.5 shrink-0">
               <span className="material-symbols-outlined text-2xl text-white">local_hospital</span>
             </div>
-            <h1 className="truncate text-lg font-bold tracking-tight text-slate-900 sm:text-xl">MedLogix</h1>
+            <h1 className="truncate text-lg font-bold tracking-tight text-slate-900 dark:text-white sm:text-xl">MedLogix</h1>
           </div>
           <div className="flex items-center gap-4">
             <span className="rounded-full border border-primary/20 bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
@@ -117,10 +117,10 @@ export function LoginPage() {
       <main className="flex flex-grow items-center justify-center p-4 sm:p-6">
         <div className="w-full max-w-4xl">
           <div className="mb-6 text-center sm:mb-10">
-            <h2 className="mb-2 text-2xl font-extrabold tracking-tight text-slate-900 sm:mb-3 sm:text-4xl">
+            <h2 className="mb-2 text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white sm:mb-3 sm:text-4xl">
               Acceso al Sistema
             </h2>
-            <p className="text-sm text-slate-600 sm:text-lg">
+            <p className="text-sm text-slate-600 dark:text-slate-400 sm:text-lg">
               Seleccione su perfil de usuario para continuar al panel de control
             </p>
           </div>
@@ -133,8 +133,8 @@ export function LoginPage() {
                   key={r}
                   type="button"
                   onClick={() => handleRolChange(r)}
-                  className={`role-card group flex flex-col items-center rounded-xl border-2 bg-white p-6 text-left shadow-sm transition-all duration-300 hover:border-primary hover:shadow-xl sm:p-8 ${
-                    rol === r ? 'border-primary shadow-md' : 'border-transparent'
+                  className={`role-card group flex flex-col items-center rounded-xl border-2 bg-white p-6 text-left shadow-sm transition-all duration-300 hover:border-primary hover:shadow-xl dark:bg-slate-800 dark:border-slate-600 dark:hover:border-primary sm:p-8 ${
+                    rol === r ? 'border-primary shadow-md dark:border-primary' : 'border-transparent'
                   }`}
                 >
                   <div
@@ -144,10 +144,10 @@ export function LoginPage() {
                   >
                     <span className="material-symbols-outlined text-3xl sm:text-4xl">{roleLabels[r].icon}</span>
                   </div>
-                  <h3 className="mb-1 text-lg font-bold text-slate-900 sm:mb-2 sm:text-xl">
+                  <h3 className="mb-1 text-lg font-bold text-slate-900 dark:text-white sm:mb-2 sm:text-xl">
                     {roleLabels[r].title}
                   </h3>
-                  <p className="text-center text-xs text-slate-500 sm:text-sm">{roleLabels[r].desc}</p>
+                  <p className="text-center text-xs text-slate-500 dark:text-slate-400 sm:text-sm">{roleLabels[r].desc}</p>
 
                   {r === 'CLIENTE' && rol === 'CLIENTE' && (
                     <div className="mt-4 w-full sm:mt-6">
@@ -161,7 +161,7 @@ export function LoginPage() {
                         id="company"
                         value={clienteId}
                         onChange={(e) => setClienteId(e.target.value)}
-                        className="w-full rounded-lg border border-slate-200 bg-slate-50 text-sm text-slate-700 focus:border-primary focus:ring-primary"
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50 text-sm text-slate-700 focus:border-primary focus:ring-primary dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200"
                       >
                         {clientes.map((c) => (
                           <option key={c.id} value={c.id}>
@@ -184,7 +184,7 @@ export function LoginPage() {
                         id="chofer"
                         value={userId}
                         onChange={(e) => setUserId(e.target.value)}
-                        className="w-full rounded-lg border border-slate-200 bg-slate-50 text-sm text-slate-700 focus:border-primary focus:ring-primary"
+                        className="w-full rounded-lg border border-slate-200 bg-slate-50 text-sm text-slate-700 focus:border-primary focus:ring-primary dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200"
                       >
                         {choferes.map((u) => (
                           <option key={u.id} value={u.id}>
@@ -208,14 +208,14 @@ export function LoginPage() {
                 Acceder como {roleLabels[rol].title}
               </button>
 
-              <div className="mt-6 w-full max-w-lg rounded-xl border border-primary/10 bg-primary/5 p-4 sm:mt-8">
+              <div className="mt-6 w-full max-w-lg rounded-xl border border-primary/10 bg-primary/5 p-4 dark:border-primary/20 dark:bg-primary/10 sm:mt-8">
                 <div className="flex items-start gap-3">
                   <span className="material-symbols-outlined text-primary shrink-0">info</span>
                   <div className="min-w-0">
-                    <p className="text-sm font-semibold text-slate-800">
+                    <p className="text-sm font-semibold text-slate-800 dark:text-white">
                       Simulación de Acceso
                     </p>
-                    <p className="mt-1 text-xs text-slate-500">
+                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                       Este portal es un entorno de demostración. Al seleccionar un rol se cargarán
                       datos pre-configurados para el perfil seleccionado.
                     </p>
@@ -228,8 +228,8 @@ export function LoginPage() {
       </main>
 
       {/* Footer - mobile first */}
-      <footer className="w-full border-t border-slate-200 bg-white py-6 sm:py-8">
-        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 text-center text-sm text-slate-500 md:flex-row md:text-left">
+      <footer className="w-full border-t border-slate-200 bg-white py-6 dark:border-slate-700 dark:bg-slate-900 sm:py-8">
+        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 text-center text-sm text-slate-500 dark:text-slate-400 md:flex-row md:text-left">
           <div className="flex items-center gap-6">
             <span>© 2024 MedLogix Logistics. Todos los derechos reservados.</span>
             <span className="hidden md:inline">|</span>

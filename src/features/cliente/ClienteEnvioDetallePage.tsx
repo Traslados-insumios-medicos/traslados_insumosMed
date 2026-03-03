@@ -11,8 +11,8 @@ export function ClienteEnvioDetallePage() {
 
   if (!guia) {
     return (
-      <div className="rounded-xl border border-slate-200 bg-white p-8">
-        <p className="text-sm text-slate-500">Guía no encontrada.</p>
+      <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 p-8">
+        <p className="text-sm text-slate-500 dark:text-slate-400">Guía no encontrada.</p>
         <Link to="/cliente/envios" className="mt-2 inline-block text-sm font-medium text-primary hover:underline">
           Volver a Envíos
         </Link>
@@ -31,10 +31,10 @@ export function ClienteEnvioDetallePage() {
     <div className="space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
             Detalle de envío · {guia.numeroGuia}
           </h1>
-          <p className="text-sm text-slate-500">{guia.descripcion}</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">{guia.descripcion}</p>
         </div>
         <span
           className={`rounded-full px-2.5 py-1 text-xs font-medium ${
@@ -53,8 +53,8 @@ export function ClienteEnvioDetallePage() {
         {/* Main: Timeline + Gallery */}
         <div className="space-y-6 lg:col-span-2">
           {/* Delivery Progress Timeline */}
-          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h3 className="mb-6 text-lg font-bold text-slate-900">
+          <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 p-6 shadow-sm">
+            <h3 className="mb-6 text-lg font-bold text-slate-900 dark:text-white">
               Progreso de entrega
             </h3>
             <div className="relative space-y-8 before:absolute before:left-5 before:h-full before:w-0.5 before:bg-slate-200 before:content-['']:bg-slate-800">
@@ -87,7 +87,7 @@ export function ClienteEnvioDetallePage() {
                     >
                       {step.label}
                     </h4>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
                       {guia.createdAt && i === 0
                         ? new Date(guia.createdAt).toLocaleString('es-ES')
                         : step.done && guia.updatedAt && i >= 2
@@ -101,10 +101,10 @@ export function ClienteEnvioDetallePage() {
           </div>
 
           {/* Novedades */}
-          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h3 className="mb-4 text-lg font-bold text-slate-900">Novedades</h3>
+          <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 p-6 shadow-sm">
+            <h3 className="mb-4 text-lg font-bold text-slate-900 dark:text-white">Novedades</h3>
             {novedadesGuia.length === 0 ? (
-              <p className="text-sm text-slate-500">Sin novedades registradas para esta guía.</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">Sin novedades registradas para esta guía.</p>
             ) : (
               <ul className="space-y-3">
                 {novedadesGuia.map((n) => (
@@ -112,8 +112,8 @@ export function ClienteEnvioDetallePage() {
                     key={n.id}
                     className="rounded-lg border border-slate-100 p-3 text-sm"
                   >
-                    <p className="font-semibold text-slate-900">{n.tipo}</p>
-                    <p className="text-xs text-slate-500">
+                    <p className="font-semibold text-slate-900 dark:text-white">{n.tipo}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">
                       {new Date(n.createdAt).toLocaleString('es-ES')}
                     </p>
                     <p className="mt-1 text-slate-600">{n.descripcion}</p>
@@ -126,9 +126,9 @@ export function ClienteEnvioDetallePage() {
 
         {/* Sidebar: Photo Gallery */}
         <div className="flex flex-col gap-6">
-          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+          <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 p-6 shadow-sm">
             <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-bold text-slate-900">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">
                 Fotos de entrega
               </h3>
               {fotosGuia.length > 0 && (
@@ -138,7 +138,7 @@ export function ClienteEnvioDetallePage() {
               )}
             </div>
             {fotosGuia.length === 0 ? (
-              <p className="text-sm text-slate-500">No hay fotos registradas para esta guía.</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">No hay fotos registradas para esta guía.</p>
             ) : (
               <div className="grid grid-cols-2 gap-3">
                 {fotosGuia.map((f) => (

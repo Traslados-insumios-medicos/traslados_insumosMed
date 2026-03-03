@@ -57,8 +57,8 @@ export function AdminChoferesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-xl font-bold text-slate-900">Choferes</h2>
-          <p className="text-sm text-slate-500">
+          <h2 className="text-xl font-bold text-slate-900 dark:text-white">Choferes</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
             Gestión de choferes y asignaciones de rutas.
           </p>
         </div>
@@ -70,17 +70,17 @@ export function AdminChoferesPage() {
       {/* Formulario creación/edición */}
       <form
         onSubmit={handleSubmit}
-        className="space-y-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+        className="space-y-4 rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 p-4 shadow-sm"
       >
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-slate-900">
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
             {editingId ? 'Editar chofer' : 'Nuevo chofer'}
           </h3>
           {editingId && (
             <button
               type="button"
               onClick={resetForm}
-              className="text-xs font-medium text-slate-500 hover:text-primary"
+              className="text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-primary"
             >
               Cancelar edición
             </button>
@@ -89,9 +89,9 @@ export function AdminChoferesPage() {
 
         <div className="grid gap-3 md:grid-cols-2">
           <div className="space-y-1 md:col-span-2">
-            <label className="text-xs font-medium text-slate-500">Nombre</label>
+            <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Nombre</label>
             <input
-              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:ring-2 focus:ring-primary"
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 dark:border-slate-600 dark:bg-slate-700 dark:text-white px-3 py-2 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-primary"
               value={nombre}
               onChange={(e) => setNombre(e.target.value)}
               required
@@ -112,7 +112,7 @@ export function AdminChoferesPage() {
             >
               {activoInicial ? 'Activo' : 'Inactivo'}
             </button>
-            <span className="text-xs text-slate-500">
+            <span className="text-xs text-slate-500 dark:text-slate-400">
               Estado inicial del chofer
             </span>
           </div>
@@ -127,21 +127,21 @@ export function AdminChoferesPage() {
       </form>
 
       {/* Listado de choferes */}
-      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 shadow-sm">
         <table className="w-full min-w-[280px] text-left text-sm">
-          <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wider text-slate-500">
+          <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:bg-slate-700 dark:text-slate-400">
             <tr>
               <th className="px-4 py-3">Nombre</th>
               <th className="px-4 py-3">Estado</th>
               <th className="px-4 py-3 text-right">Acciones</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
             {choferes.map((ch) => (
-              <tr key={ch.id} className="hover:bg-slate-50">
+              <tr key={ch.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
                 <td className="px-4 py-3">
-                  <div className="font-medium text-slate-900">{ch.nombre}</div>
-                  <div className="text-xs text-slate-500">ID: {ch.id}</div>
+                  <div className="font-medium text-slate-900 dark:text-white">{ch.nombre}</div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400">ID: {ch.id}</div>
                 </td>
                 <td className="px-4 py-3">
                   <button
@@ -149,8 +149,8 @@ export function AdminChoferesPage() {
                     onClick={() => toggleChoferActivo(ch.id)}
                     className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
                       ch.activo
-                        ? 'bg-emerald-100 text-emerald-700'
-                        : 'bg-slate-100 text-slate-600'
+                        ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                        : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
                     }`}
                   >
                     {ch.activo ? 'Activo' : 'Inactivo'}

@@ -83,7 +83,7 @@ export function PhotoUploader({
   return (
     <div className="space-y-2">
       {label && (
-        <p className="text-xs font-semibold uppercase tracking-tight text-slate-500">
+        <p className="text-xs font-semibold uppercase tracking-tight text-slate-500 dark:text-slate-400">
           {label} ({list.length}/{max})
         </p>
       )}
@@ -93,7 +93,7 @@ export function PhotoUploader({
             <img
               src={f.urlPreview}
               alt="Preview"
-              className="h-16 w-16 rounded-lg border border-slate-200 object-cover sm:h-20 sm:w-20"
+              className="h-16 w-16 rounded-lg border border-slate-200 dark:border-slate-600 object-cover sm:h-20 sm:w-20"
             />
             <button
               type="button"
@@ -119,7 +119,7 @@ export function PhotoUploader({
             <button
               type="button"
               onClick={() => inputRef.current?.click()}
-              className="flex h-16 w-16 flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 text-slate-500 transition-colors hover:border-primary hover:bg-primary/5 hover:text-primary sm:h-20 sm:w-20"
+              className="flex h-16 w-16 flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors hover:border-primary hover:bg-primary/5 hover:text-primary sm:h-20 sm:w-20"
             >
               <span className="material-symbols-outlined text-2xl">add_photo_alternate</span>
               <span className="text-[10px] font-medium">+{remaining}</span>

@@ -25,6 +25,10 @@ body {
   @apply bg-background-light text-slate-900 antialiased;
 }
 
+.dark body {
+  @apply bg-background-dark text-slate-100;
+}
+
 .role-card:hover .role-icon-bg {
   background-color: #0284c5;
   color: white;

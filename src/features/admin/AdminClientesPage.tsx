@@ -70,8 +70,8 @@ export function AdminClientesPage() {
     <div className="space-y-4 sm:space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h2 className="text-lg font-bold text-slate-900 sm:text-xl">Clientes</h2>
-          <p className="text-xs text-slate-500 sm:text-sm">
+          <h2 className="text-lg font-bold text-slate-900 dark:text-white sm:text-xl">Clientes</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 sm:text-sm">
             Gestión de clientes corporativos de logística médica.
           </p>
         </div>
@@ -83,10 +83,10 @@ export function AdminClientesPage() {
       {/* Formulario creación/edición - mobile first */}
       <form
         onSubmit={handleSubmit}
-        className="space-y-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+        className="space-y-4 rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 p-4 shadow-sm"
       >
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-slate-900">
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
             {editingId ? 'Editar cliente' : 'Nuevo cliente'}
           </h3>
           {editingId && (
@@ -104,7 +104,7 @@ export function AdminClientesPage() {
           <div className="space-y-1">
             <label className="text-xs font-medium text-slate-500">Nombre</label>
             <input
-              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:ring-2 focus:ring-primary"
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 dark:border-slate-600 dark:bg-slate-700 dark:text-white px-3 py-2 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-primary"
               value={nombre}
               onChange={(e) => setNombre(e.target.value)}
               required
@@ -113,7 +113,7 @@ export function AdminClientesPage() {
           <div className="space-y-1">
             <label className="text-xs font-medium text-slate-500">RUC</label>
             <input
-              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:ring-2 focus:ring-primary"
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 dark:border-slate-600 dark:bg-slate-700 dark:text-white px-3 py-2 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-primary"
               value={ruc}
               onChange={(e) => setRuc(e.target.value)}
               required
@@ -124,7 +124,7 @@ export function AdminClientesPage() {
         <div className="space-y-1">
           <label className="text-xs font-medium text-slate-500">Dirección</label>
           <input
-            className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:ring-2 focus:ring-primary"
+            className="w-full rounded-lg border border-slate-200 bg-slate-50 dark:border-slate-600 dark:bg-slate-700 dark:text-white px-3 py-2 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-primary"
             value={direccion}
             onChange={(e) => setDireccion(e.target.value)}
             required
@@ -135,7 +135,7 @@ export function AdminClientesPage() {
           <div className="space-y-1">
             <label className="text-xs font-medium text-slate-500">Teléfono</label>
             <input
-              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:ring-2 focus:ring-primary"
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 dark:border-slate-600 dark:bg-slate-700 dark:text-white px-3 py-2 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-primary"
               value={telefono}
               onChange={(e) => setTelefono(e.target.value)}
             />
@@ -144,7 +144,7 @@ export function AdminClientesPage() {
             <label className="text-xs font-medium text-slate-500">Email contacto</label>
             <input
               type="email"
-              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 focus:ring-2 focus:ring-primary"
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 dark:border-slate-600 dark:bg-slate-700 dark:text-white px-3 py-2 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-primary"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
             />
@@ -162,9 +162,9 @@ export function AdminClientesPage() {
       </form>
 
       {/* Tabla de clientes - scroll horizontal en móvil */}
-      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 shadow-sm">
         <table className="w-full min-w-[520px] text-left text-sm">
-          <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wider text-slate-500">
+          <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:bg-slate-700/50 dark:text-slate-400">
             <tr>
               <th className="px-4 py-3">Nombre</th>
               <th className="px-4 py-3">RUC</th>
@@ -173,22 +173,22 @@ export function AdminClientesPage() {
               <th className="px-4 py-3 text-right">Acciones</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
             {clientes.map((c) => (
-              <tr key={c.id} className="hover:bg-slate-50">
+              <tr key={c.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
                 <td className="px-4 py-3">
-                  <div className="font-medium text-slate-900">{c.nombre}</div>
-                  <div className="text-xs text-slate-500 truncate max-w-[180px] sm:max-w-none">
+                  <div className="font-medium text-slate-900 dark:text-white">{c.nombre}</div>
+                  <div className="text-xs text-slate-500 dark:text-slate-400 truncate max-w-[180px] sm:max-w-none">
                     {c.telefonoContacto} {c.emailContacto ? `· ${c.emailContacto}` : ''}
                   </div>
                 </td>
-                <td className="px-4 py-3 text-slate-600">{c.ruc}</td>
-                <td className="px-4 py-3 text-xs text-slate-600 max-w-[120px] truncate sm:max-w-none sm:whitespace-normal">{c.direccion}</td>
+                <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{c.ruc}</td>
+                <td className="px-4 py-3 text-xs text-slate-600 dark:text-slate-300 max-w-[120px] truncate sm:max-w-none sm:whitespace-normal">{c.direccion}</td>
                 <td className="px-4 py-3">
                   <button
                     type="button"
                     onClick={() => toggleClienteActivo(c.id)}
-                    className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${c.activo ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}
+                    className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${c.activo ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}
                   >
                     {c.activo ? 'Activo' : 'Inactivo'}
                   </button>
