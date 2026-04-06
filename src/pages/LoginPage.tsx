@@ -1,255 +1,213 @@
 import { type FormEvent, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
-import { useLogisticsStore } from '../store/logisticsStore'
+import { api } from '../services/api'
 import type { Rol, Usuario } from '../types/models'
 
-const roles: Rol[] = ['ADMIN', 'CHOFER', 'CLIENTE']
-
-const roleLabels: Record<Rol, { title: string; desc: string; icon: string }> = {
+const roleCredentials: Record<Rol, { email: string; password: string; label: string; desc: string; icon: string }> = {
   ADMIN: {
-    title: 'Administrador',
+    email: 'admin@medlogix.pe',
+    password: 'admin123',
+    label: 'Administrador',
     desc: 'Gestión global de flota, rutas y facturación',
     icon: 'admin_panel_settings',
   },
   CHOFER: {
-    title: 'Chofer',
+    email: 'chofer1@medlogix.pe',
+    password: 'chofer123',
+    label: 'Chofer',
     desc: 'Gestión de entregas, hojas de ruta y estados',
     icon: 'local_shipping',
   },
   CLIENTE: {
-    title: 'Cliente',
+    email: 'cliente@hospitalcentral.pe',
+    password: 'cliente123',
+    label: 'Cliente',
     desc: 'Seguimiento de pedidos y reportes',
     icon: 'corporate_fare',
   },
 }
 
+const roles: Rol[] = ['ADMIN', 'CHOFER', 'CLIENTE']
+
 export function LoginPage() {
   const navigate = useNavigate()
   const { loginAsRole } = useAuthStore()
-  const { usuarios, clientes, resetDemoData } = useLogisticsStore()
 
   const [rol, setRol] = useState<Rol>('ADMIN')
-  const [userId, setUserId] = useState<string>('')
-  const [clienteId, setClienteId] = useState<string>('')
-
-  const choferes = usuarios.filter((u) => u.rol === 'CHOFER')
-  const usuariosCliente = usuarios.filter((u) => u.rol === 'CLIENTE')
-  // Solo clientes PRINCIPALES tienen acceso al panel
-  const clientesPrincipales = clientes.filter((c) => c.tipo === 'PRINCIPAL')
-
-  const usuariosPorRol: Record<Rol, Usuario[]> = {
-    ADMIN: [],
-    CHOFER: choferes,
-    CLIENTE: usuariosCliente,
-  }
-
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault()
-
-    if (rol === 'ADMIN') {
-      const fakeAdmin: Usuario = {
-        id: 'admin-1',
-        nombre: 'Admin Demo',
-        rol: 'ADMIN',
-        activo: true,
-      }
-      loginAsRole('ADMIN', fakeAdmin)
-      navigate('/admin/dashboard')
-      return
-    }
-
-    if (rol === 'CLIENTE' && clienteId) {
-      const selected = usuariosCliente.find((u) => u.clienteId === clienteId) ?? usuariosCliente[0]
-      if (selected) {
-        loginAsRole('CLIENTE', selected)
-        navigate('/cliente/envios')
-      }
-      return
-    }
-
-    if (rol === 'CHOFER') {
-      const selected = choferes.find((u) => u.id === userId) ?? choferes[0]
-      if (selected) {
-        loginAsRole('CHOFER', selected)
-        navigate('/chofer/rutas')
-      }
-      return
-    }
-  }
+  const [email, setEmail] = useState(roleCredentials.ADMIN.email)
+  const [password, setPassword] = useState(roleCredentials.ADMIN.password)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const handleRolChange = (nuevoRol: Rol) => {
     setRol(nuevoRol)
-    const lista = usuariosPorRol[nuevoRol]
-    setUserId(lista[0]?.id ?? '')
-    if (nuevoRol === 'CLIENTE' && clientesPrincipales[0]) {
-      setClienteId(clientesPrincipales[0].id)
+    setEmail(roleCredentials[nuevoRol].email)
+    setPassword(roleCredentials[nuevoRol].password)
+    setError(null)
+  }
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    setError(null)
+
+    try {
+      const { data } = await api.post<{ token: string; usuario: Usuario & { rol: Rol } }>(
+        '/auth/login',
+        { email, password },
+      )
+
+      // Guardar token para el interceptor de Axios
+      localStorage.setItem('token', data.token)
+
+      // Guardar usuario en el store
+      loginAsRole(data.usuario.rol, data.usuario)
+
+      // Redirigir según rol
+      if (data.usuario.rol === 'ADMIN') navigate('/admin/dashboard')
+      else if (data.usuario.rol === 'CHOFER') navigate('/chofer/rutas')
+      else navigate('/cliente/envios')
+    } catch (err: any) {
+      setError(err.response?.data?.message ?? 'Credenciales incorrectas')
+    } finally {
+      setLoading(false)
     }
   }
 
-  const handleResetDemo = () => {
-    resetDemoData()
-  }
-
-  const canSubmit =
-    rol === 'ADMIN' ||
-    (rol === 'CHOFER' && userId) ||
-    (rol === 'CLIENTE' && (clienteId ? usuariosCliente.some((u) => u.clienteId === clienteId) : false))
-
   return (
     <div className="flex min-h-screen flex-col bg-background-light font-display dark:bg-background-dark">
-      {/* Top Navigation - mobile first */}
+      {/* Header */}
       <header className="w-full border-b border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
         <div className="mx-auto flex h-14 max-w-7xl items-center justify-between px-4 sm:h-16 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="rounded-lg bg-primary p-1.5 shrink-0">
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="shrink-0 rounded-lg bg-primary p-1.5">
               <span className="material-symbols-outlined text-2xl text-white">local_hospital</span>
             </div>
-            <h1 className="truncate text-lg font-bold tracking-tight text-slate-900 dark:text-white sm:text-xl">MedLogix</h1>
+            <h1 className="truncate text-lg font-bold tracking-tight text-slate-900 dark:text-white sm:text-xl">
+              MedLogix
+            </h1>
           </div>
-          <div className="flex items-center gap-4">
-            <span className="rounded-full border border-primary/20 bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
-              MVP v1.0.4
-            </span>
-          </div>
+          <span className="rounded-full border border-primary/20 bg-primary/10 px-2.5 py-0.5 text-xs font-medium text-primary">
+            v1.0.5
+          </span>
         </div>
       </header>
 
-      {/* Main Content - mobile first */}
+      {/* Main */}
       <main className="flex flex-grow items-center justify-center p-4 sm:p-6">
         <div className="w-full max-w-4xl">
           <div className="mb-6 text-center sm:mb-10">
-            <h2 className="mb-2 text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white sm:mb-3 sm:text-4xl">
+            <h2 className="mb-2 text-2xl font-extrabold tracking-tight text-slate-900 dark:text-white sm:text-4xl">
               Acceso al Sistema
             </h2>
             <p className="text-sm text-slate-600 dark:text-slate-400 sm:text-lg">
-              Seleccione su perfil de usuario para continuar al panel de control
+              Seleccioná tu perfil e ingresá tus credenciales
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Role Selection Grid */}
-            <div className="mb-6 grid grid-cols-1 gap-4 sm:gap-6 sm:mb-10 md:grid-cols-3">
-              {roles.map((r) => (
-                <button
-                  key={r}
-                  type="button"
-                  onClick={() => handleRolChange(r)}
-                  className={`role-card group flex flex-col items-center rounded-xl border-2 bg-white p-6 text-left shadow-sm transition-all duration-300 hover:border-primary hover:shadow-xl dark:bg-slate-800 dark:border-slate-600 dark:hover:border-primary sm:p-8 ${
-                    rol === r ? 'border-primary shadow-md dark:border-primary' : 'border-transparent'
-                  }`}
-                >
-                  <div
-                    className={`role-icon-bg mb-4 flex h-16 w-16 items-center justify-center rounded-full transition-colors duration-300 sm:mb-6 sm:h-20 sm:w-20 ${
-                      rol === r ? 'bg-primary text-white' : 'bg-primary/10 text-primary'
+            {/* Selector de rol */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:gap-6">
+              {roles.map((r) => {
+                const cfg = roleCredentials[r]
+                return (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => handleRolChange(r)}
+                    className={`flex flex-col items-center rounded-xl border-2 bg-white p-6 text-left shadow-sm transition-all hover:border-primary hover:shadow-xl dark:bg-slate-800 dark:border-slate-600 dark:hover:border-primary sm:p-8 ${
+                      rol === r ? 'border-primary shadow-md dark:border-primary' : 'border-transparent'
                     }`}
                   >
-                    <span className="material-symbols-outlined text-3xl sm:text-4xl">{roleLabels[r].icon}</span>
-                  </div>
-                  <h3 className="mb-1 text-lg font-bold text-slate-900 dark:text-white sm:mb-2 sm:text-xl">
-                    {roleLabels[r].title}
-                  </h3>
-                  <p className="text-center text-xs text-slate-500 dark:text-slate-400 sm:text-sm">{roleLabels[r].desc}</p>
-
-                  {r === 'CLIENTE' && rol === 'CLIENTE' && (
-                    <div className="mt-4 w-full sm:mt-6">
-                      <label
-                        className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-400"
-                        htmlFor="company"
-                      >
-                        Seleccionar Empresa
-                      </label>
-                      <select
-                        id="company"
-                        value={clienteId}
-                        onChange={(e) => setClienteId(e.target.value)}
-                        className="w-full rounded-lg border border-slate-200 bg-slate-50 text-sm text-slate-700 focus:border-primary focus:ring-primary dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200"
-                      >
-                        {clientesPrincipales.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.nombre}
-                          </option>
-                        ))}
-                      </select>
+                    <div className={`mb-4 flex h-16 w-16 items-center justify-center rounded-full transition-colors sm:mb-6 sm:h-20 sm:w-20 ${
+                      rol === r ? 'bg-primary text-white' : 'bg-primary/10 text-primary'
+                    }`}>
+                      <span className="material-symbols-outlined text-3xl sm:text-4xl">{cfg.icon}</span>
                     </div>
-                  )}
-
-                  {r === 'CHOFER' && rol === 'CHOFER' && (
-                    <div className="mt-4 w-full sm:mt-6">
-                      <label
-                        className="mb-2 block text-xs font-bold uppercase tracking-wider text-slate-400"
-                        htmlFor="chofer"
-                      >
-                        Seleccionar Chofer
-                      </label>
-                      <select
-                        id="chofer"
-                        value={userId}
-                        onChange={(e) => setUserId(e.target.value)}
-                        className="w-full rounded-lg border border-slate-200 bg-slate-50 text-sm text-slate-700 focus:border-primary focus:ring-primary dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200"
-                      >
-                        {choferes.map((u) => (
-                          <option key={u.id} value={u.id}>
-                            {u.nombre}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-                </button>
-              ))}
+                    <h3 className="mb-1 text-lg font-bold text-slate-900 dark:text-white sm:text-xl">
+                      {cfg.label}
+                    </h3>
+                    <p className="text-center text-xs text-slate-500 dark:text-slate-400 sm:text-sm">
+                      {cfg.desc}
+                    </p>
+                  </button>
+                )
+              })}
             </div>
 
-            <div className="flex flex-col items-center">
+            {/* Credenciales */}
+            <div className="mx-auto max-w-md space-y-4">
+              <div>
+                <label htmlFor="email" className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Email
+                </label>
+                <input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
+                />
+              </div>
+              <div>
+                <label htmlFor="password" className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Contraseña
+                </label>
+                <input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 dark:border-slate-600 dark:bg-slate-800 dark:text-white"
+                />
+              </div>
+
+              {error && (
+                <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600 dark:border-red-900/50 dark:bg-red-900/20 dark:text-red-400">
+                  <span className="material-symbols-outlined text-base">error</span>
+                  {error}
+                </div>
+              )}
+
               <button
                 type="submit"
-                disabled={!canSubmit}
-                className="flex w-full max-w-md items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3.5 font-bold text-white shadow-lg shadow-primary/30 transition-all hover:bg-primary/90 active:scale-95 disabled:opacity-50 disabled:active:scale-100 sm:gap-3 sm:px-8 sm:py-4"
+                disabled={loading}
+                className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary px-6 py-3.5 font-bold text-white shadow-lg shadow-primary/30 transition-all hover:bg-primary/90 active:scale-95 disabled:opacity-60"
               >
-                <span className="material-symbols-outlined">login</span>
-                Acceder como {roleLabels[rol].title}
+                {loading ? (
+                  <>
+                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    Ingresando...
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined">login</span>
+                    Acceder como {roleCredentials[rol].label}
+                  </>
+                )}
               </button>
 
-              <div className="mt-6 w-full max-w-lg rounded-xl border border-primary/10 bg-primary/5 p-4 dark:border-primary/20 dark:bg-primary/10 sm:mt-8">
-                <div className="flex items-start gap-3">
-                  <span className="material-symbols-outlined text-primary shrink-0">info</span>
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-slate-800 dark:text-white">
-                      Simulación de Acceso
-                    </p>
-                    <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                      Este portal es un entorno de demostración. Al seleccionar un rol se cargarán
-                      datos pre-configurados para el perfil seleccionado.
-                    </p>
-                  </div>
-                </div>
+              {/* Hint credenciales */}
+              <div className="rounded-xl border border-primary/10 bg-primary/5 p-4 dark:border-primary/20 dark:bg-primary/10">
+                <p className="text-xs font-semibold text-slate-700 dark:text-white">
+                  Credenciales de prueba — {roleCredentials[rol].label}
+                </p>
+                <p className="mt-1 font-mono text-xs text-slate-500 dark:text-slate-400">
+                  {roleCredentials[rol].email} / {roleCredentials[rol].password}
+                </p>
               </div>
             </div>
           </form>
         </div>
       </main>
 
-      {/* Footer - mobile first */}
-      <footer className="w-full border-t border-slate-200 bg-white py-6 dark:border-slate-700 dark:bg-slate-900 sm:py-8">
-        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-4 text-center text-sm text-slate-500 dark:text-slate-400 md:flex-row md:text-left">
-          <div className="flex items-center gap-6">
-            <span>© 2024 MedLogix Logistics. Todos los derechos reservados.</span>
-            <span className="hidden md:inline">|</span>
-            <span className="font-mono text-xs">Build: 2024.11.05.001</span>
-          </div>
-          <div className="flex items-center gap-6">
-            <button
-              type="button"
-              onClick={handleResetDemo}
-              className="flex items-center gap-1 transition-colors hover:text-primary"
-            >
-              <span className="material-symbols-outlined text-sm">refresh</span>
-              Reiniciar Datos Demo
-            </button>
-            <a className="transition-colors hover:text-primary" href="#">
-              Soporte Técnico
-            </a>
-          </div>
+      {/* Footer */}
+      <footer className="w-full border-t border-slate-200 bg-white py-6 dark:border-slate-700 dark:bg-slate-900">
+        <div className="mx-auto flex max-w-7xl items-center justify-center px-4 text-xs text-slate-400">
+          © 2026 MedLogix Logistics — Entorno de desarrollo
         </div>
       </footer>
     </div>

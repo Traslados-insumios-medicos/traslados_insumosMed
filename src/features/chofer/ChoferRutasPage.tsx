@@ -1,26 +1,23 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
-import { useLogisticsStore } from '../../store/logisticsStore'
+import { useChoferStore } from './model/choferStore'
 
 export function ChoferRutasPage() {
   const { currentUser } = useAuthStore()
-  const { rutas, stops, guias } = useLogisticsStore()
+  const { rutas, loading, error, fetchMisRutas } = useChoferStore()
   const [filtro, setFiltro] = useState<'todas' | 'activas' | 'completadas'>('activas')
 
-  const misRutas = rutas.filter((r) => r.choferId === currentUser?.id)
+  useEffect(() => { fetchMisRutas() }, [fetchMisRutas])
 
-  // Stats del día
-  const totalGuias = guias.filter((g) => misRutas.some((r) => r.id === g.rutaId)).length
-  const entregadasTotal = guias.filter(
-    (g) => misRutas.some((r) => r.id === g.rutaId) && g.estado === 'ENTREGADO',
-  ).length
-  const incidenciasTotal = guias.filter(
-    (g) => misRutas.some((r) => r.id === g.rutaId) && g.estado === 'INCIDENCIA',
-  ).length
-  const rutasEnCurso = misRutas.filter((r) => r.estado === 'EN_CURSO').length
+  // Stats globales del chofer
+  const todasGuias = rutas.flatMap((r) => r.guias)
+  const totalGuias = todasGuias.length
+  const entregadasTotal = todasGuias.filter((g) => g.estado === 'ENTREGADO').length
+  const incidenciasTotal = todasGuias.filter((g) => g.estado === 'INCIDENCIA').length
+  const rutasEnCurso = rutas.filter((r) => r.estado === 'EN_CURSO').length
 
-  const rutasFiltradas = misRutas.filter((r) => {
+  const rutasFiltradas = rutas.filter((r) => {
     if (filtro === 'activas') return r.estado === 'PENDIENTE' || r.estado === 'EN_CURSO'
     if (filtro === 'completadas') return r.estado === 'COMPLETADA' || r.estado === 'CANCELADA'
     return true
@@ -43,6 +40,32 @@ export function ChoferRutasPage() {
   }
 
   const hoy = new Date()
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        {[1, 2, 3].map((i) => (
+          <div key={i} className="h-32 animate-pulse rounded-xl bg-slate-200 dark:bg-slate-700" />
+        ))}
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-xl border border-red-200 bg-red-50 p-6 text-center dark:border-red-900/50 dark:bg-slate-800">
+        <span className="material-symbols-outlined text-3xl text-red-400">error</span>
+        <p className="mt-2 text-sm text-red-600 dark:text-red-400">{error}</p>
+        <button
+          type="button"
+          onClick={fetchMisRutas}
+          className="mt-3 rounded-lg bg-red-500 px-4 py-2 text-sm font-medium text-white hover:bg-red-600"
+        >
+          Reintentar
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-5 sm:space-y-6">
@@ -67,8 +90,8 @@ export function ChoferRutasPage() {
       {/* Mini dashboard */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
-          <p className="text-xs text-slate-500 dark:text-slate-400">Rutas hoy</p>
-          <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">{misRutas.length}</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">Rutas</p>
+          <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-white">{rutas.length}</p>
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
           <p className="text-xs text-slate-500 dark:text-slate-400">Entregas</p>
@@ -120,8 +143,7 @@ export function ChoferRutasPage() {
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {rutasFiltradas.map((ruta) => {
-            const rutaStops = stops.filter((s) => ruta.stopIds.includes(s.id))
-            const guiasRuta = guias.filter((g) => g.rutaId === ruta.id)
+            const guiasRuta = ruta.guias
             const entregadas = guiasRuta.filter((g) => g.estado === 'ENTREGADO').length
             const incidencias = guiasRuta.filter((g) => g.estado === 'INCIDENCIA').length
             const progreso = guiasRuta.length
@@ -137,16 +159,25 @@ export function ChoferRutasPage() {
                 <div className="flex items-start justify-between">
                   <div>
                     <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                      Ruta #{ruta.id.replace('ruta-', '')}
+                      Ruta del {ruta.fecha}
                     </h3>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                      {ruta.fecha} · {rutaStops.length} paradas
+                      {ruta.stops.length} paradas · {guiasRuta.length} guías
                     </p>
                   </div>
                   <span className={`rounded-full px-2.5 py-1 text-xs font-bold uppercase ${estadoBadge(ruta.estado)}`}>
                     {estadoLabel(ruta.estado)}
                   </span>
                 </div>
+
+                {/* Primera parada como destino */}
+                {ruta.stops[0] && (
+                  <p className="mt-2 truncate text-xs text-slate-500 dark:text-slate-400">
+                    <span className="material-symbols-outlined align-middle text-sm">location_on</span>
+                    {' '}{ruta.stops[0].direccion}
+                    {ruta.stops.length > 1 && ` +${ruta.stops.length - 1} más`}
+                  </p>
+                )}
 
                 <div className="mt-4 space-y-1.5">
                   <div className="flex justify-between text-xs text-slate-500 dark:text-slate-400">

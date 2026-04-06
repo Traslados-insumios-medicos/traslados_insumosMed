@@ -1,7 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
-import { useLogisticsStore } from '../../store/logisticsStore'
+import { useChoferStore } from './model/choferStore'
 import { useToastStore } from '../../store/toastStore'
 import { RouteMap } from '../../components/map/RouteMap'
 import { useSimulatedRoute } from '../../utils/mapSimulation'
@@ -12,37 +12,53 @@ export function ChoferRutaDetallePage() {
   const { id } = useParams<{ id: string }>()
   const { currentUser } = useAuthStore()
   const {
-    rutas,
-    stops,
-    guias,
-    fotos,
-    novedades,
-    updateGuiaEstado,
-    updateGuiaDetalleEntrega,
-    updateRutaEstado,
-  } = useLogisticsStore()
+    rutaActual: ruta,
+    loadingDetalle,
+    error,
+    fetchRuta,
+    iniciarRuta,
+    finalizarRuta,
+    marcarEntregado,
+    guardarDetalle,
+  } = useChoferStore()
   const addToast = useToastStore((s) => s.addToast)
+
   const [selectedStopId, setSelectedStopId] = useState<string | null>(null)
   const [fitBoundsTrigger, setFitBoundsTrigger] = useState(0)
   const [incidenceGuia, setIncidenceGuia] = useState<{ id: string; numeroGuia: string } | null>(null)
+  const [savingGuia, setSavingGuia] = useState<string | null>(null)
 
-  const ruta = rutas.find((r) => r.id === id)
+  useEffect(() => {
+    if (id) fetchRuta(id)
+  }, [id, fetchRuta])
 
   const stopsRuta = useMemo(
-    () =>
-      ruta
-        ? stops.filter((s) => ruta.stopIds.includes(s.id)).sort((a, b) => a.orden - b.orden)
-        : [],
-    [ruta, stops],
+    () => ruta ? [...ruta.stops].sort((a, b) => a.orden - b.orden) : [],
+    [ruta],
+  )
+
+  // RouteMap espera el tipo Stop local — mapeamos solo los campos que usa
+  const stopsParaMapa = useMemo(
+    () => stopsRuta.map((s) => ({
+      id: s.id,
+      orden: s.orden,
+      direccion: s.direccion,
+      lat: s.lat,
+      lng: s.lng,
+      clienteId: s.clienteId,
+      notas: s.notas ?? undefined,
+      guiaIds: s.guias.map((g) => g.id),
+    })),
+    [stopsRuta],
   )
 
   const coordinates = useMemo(
-    () => stopsRuta.map((s) => ({ lat: s.lat, lng: s.lng })),
-    [stopsRuta],
+    () => stopsParaMapa.map((s) => ({ lat: s.lat, lng: s.lng })),
+    [stopsParaMapa],
   )
   const { currentPosition } = useSimulatedRoute({ coordinates, intervalMs: 4000 })
 
-  const guiasPorRuta = guias.filter((g) => g.rutaId === id)
+  const guiasPorRuta = ruta?.guias ?? []
   const entregadas = guiasPorRuta.filter((g) => g.estado === 'ENTREGADO').length
   const conIncidencia = guiasPorRuta.filter((g) => g.estado === 'INCIDENCIA').length
   const total = guiasPorRuta.length
@@ -51,48 +67,78 @@ export function ChoferRutaDetallePage() {
   const effectiveSelectedStopId = selectedStopId ?? stopsRuta[0]?.id ?? null
 
   const novedadesRuta = useMemo(
-    () =>
-      novedades.filter((n) =>
-        guiasPorRuta.some((g) => g.id === n.guiaId),
-      ),
-    [novedades, guiasPorRuta],
+    () => guiasPorRuta.flatMap((g) => g.novedades ?? []),
+    [guiasPorRuta],
   )
 
-  const fotosHojaRuta = useMemo(
-    () => (id ? fotos.filter((f) => f.rutaId === id && f.tipo === 'HOJA_RUTA') : []),
-    [id, fotos],
-  )
+  const fotosHojaRuta = ruta?.fotos.filter((f) => f.tipo === 'HOJA_RUTA') ?? []
 
   const puedeFinalizar =
     total > 0 &&
     guiasPorRuta.every((g) => g.estado === 'ENTREGADO' || g.estado === 'INCIDENCIA') &&
     fotosHojaRuta.length >= 1
 
-  const handleMarkEntregado = (guiaId: string) => {
-    updateGuiaEstado(guiaId, 'ENTREGADO')
-    addToast('Entrega confirmada', 'success')
+  const handleMarkEntregado = async (guiaId: string) => {
+    try {
+      await marcarEntregado(guiaId)
+      addToast('Entrega confirmada', 'success')
+    } catch {
+      addToast('Error al confirmar entrega', 'error')
+    }
   }
 
-  const handleFinalizarRuta = () => {
-    if (!id || !puedeFinalizar) return
-    updateRutaEstado(id, 'COMPLETADA')
-    addToast('Ruta finalizada', 'success')
-  }
-
-  const handleIniciarRuta = () => {
+  const handleIniciarRuta = async () => {
     if (!id) return
-    updateRutaEstado(id, 'EN_CURSO')
-    addToast('Ruta iniciada', 'success')
+    try {
+      await iniciarRuta(id)
+      addToast('Ruta iniciada', 'success')
+    } catch {
+      addToast('Error al iniciar ruta', 'error')
+    }
   }
 
-  if (!ruta) {
+  const handleFinalizarRuta = async () => {
+    if (!id || !puedeFinalizar) return
+    try {
+      await finalizarRuta(id)
+      addToast('Ruta finalizada', 'success')
+    } catch {
+      addToast('Error al finalizar ruta', 'error')
+    }
+  }
+
+  const handleBlurDetalle = async (
+    guiaId: string,
+    campo: string,
+    valor: string,
+  ) => {
+    setSavingGuia(guiaId)
+    try {
+      await guardarDetalle(guiaId, { [campo]: valor })
+    } catch {
+      addToast('Error al guardar', 'error')
+    } finally {
+      setSavingGuia(null)
+    }
+  }
+
+  if (loadingDetalle) {
     return (
-      <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 p-8">
-        <p className="text-sm text-slate-500 dark:text-slate-400">Ruta no encontrada.</p>
-        <Link
-          to="/chofer/rutas"
-          className="mt-2 inline-block text-sm font-medium text-primary hover:underline"
-        >
+      <div className="space-y-4">
+        <div className="h-24 animate-pulse rounded-xl bg-slate-200 dark:bg-slate-700" />
+        <div className="h-64 animate-pulse rounded-xl bg-slate-200 dark:bg-slate-700" />
+        <div className="h-48 animate-pulse rounded-xl bg-slate-200 dark:bg-slate-700" />
+      </div>
+    )
+  }
+
+  if (error || !ruta) {
+    return (
+      <div className="rounded-xl border border-slate-200 bg-white p-8 dark:border-slate-700 dark:bg-slate-800">
+        <p className="text-sm text-slate-500 dark:text-slate-400">
+          {error ?? 'Ruta no encontrada.'}
+        </p>
+        <Link to="/chofer/rutas" className="mt-2 inline-block text-sm font-medium text-primary hover:underline">
           Volver a Mis rutas
         </Link>
       </div>
@@ -105,8 +151,8 @@ export function ChoferRutaDetallePage() {
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-4 pb-24 md:pb-6">
-      {/* Header: solo en móvil o compacto en desktop */}
-      <div className="flex flex-shrink-0 items-center justify-between border-b border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900 md:border-0 md:bg-transparent md:dark:bg-transparent md:p-0">
+      {/* Header */}
+      <div className="flex flex-shrink-0 items-center justify-between border-b border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900 md:border-0 md:bg-transparent md:p-0">
         <div className="flex items-center gap-3">
           <div className="size-10 shrink-0 rounded-full border-2 border-primary/20 bg-slate-200" />
           <div>
@@ -124,52 +170,41 @@ export function ChoferRutaDetallePage() {
         </div>
       </div>
 
-      {/* Layout: móvil vertical, desktop 2 columnas */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_380px] lg:gap-6">
-        {/* Columna izquierda: mapa + lista de paradas */}
+        {/* Columna izquierda */}
         <div className="flex min-h-0 flex-col gap-4 lg:flex-1">
           {/* Resumen + progreso */}
-          <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 p-4 shadow-sm">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
             <div className="mb-4 flex items-start justify-between">
               <div>
                 <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                  Ruta #{ruta.id.replace('ruta-', '')}
+                  Ruta del {ruta.fecha}
                 </h3>
-                <p className="text-sm text-slate-500 dark:text-slate-400">Distribución de Insumos Médicos</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  {ruta.stops.length} paradas · {total} guías
+                </p>
               </div>
-              <span
-                className={`rounded-full px-2.5 py-1 text-xs font-bold uppercase ${
-                  ruta.estado === 'EN_CURSO'
-                    ? 'bg-emerald-100 text-emerald-700'
-                    : ruta.estado === 'COMPLETADA'
-                      ? 'bg-slate-100 text-slate-600 dark:text-slate-300'
-                      : 'bg-amber-100 text-amber-700'
-                }`}
-              >
-                {ruta.estado === 'PENDIENTE'
-                  ? 'Planificada'
-                  : ruta.estado === 'EN_CURSO'
-                    ? 'En Curso'
-                    : ruta.estado}
+              <span className={`rounded-full px-2.5 py-1 text-xs font-bold uppercase ${
+                ruta.estado === 'EN_CURSO' ? 'bg-emerald-100 text-emerald-700' :
+                ruta.estado === 'COMPLETADA' ? 'bg-slate-100 text-slate-600 dark:text-slate-300' :
+                'bg-amber-100 text-amber-700'
+              }`}>
+                {ruta.estado === 'PENDIENTE' ? 'Planificada' :
+                 ruta.estado === 'EN_CURSO' ? 'En Curso' : ruta.estado}
               </span>
             </div>
             <div className="space-y-3">
               <div className="flex justify-between text-sm">
                 <span className="text-slate-600 dark:text-slate-300">Progreso: {progreso}%</span>
-                <span className="font-bold text-primary">
-                  {entregadas + conIncidencia} / {total} guías
-                </span>
+                <span className="font-bold text-primary">{entregadas + conIncidencia} / {total} guías</span>
               </div>
               <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
-                <div
-                  className="h-2.5 rounded-full bg-primary"
-                  style={{ width: `${progreso}%` }}
-                />
+                <div className="h-2.5 rounded-full bg-primary" style={{ width: `${progreso}%` }} />
               </div>
             </div>
           </div>
 
-          {/* Mapa: altura fija en desktop */}
+          {/* Mapa */}
           <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800">
             <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2">
               <span className="text-sm font-semibold text-slate-700 dark:text-white">Recorrido</span>
@@ -183,7 +218,7 @@ export function ChoferRutaDetallePage() {
             </div>
             <div className="h-64 sm:h-72 lg:h-[360px]">
               <RouteMap
-                stops={stopsRuta}
+                stops={stopsParaMapa}
                 currentPosition={currentPosition}
                 highlightedStopId={selectedStopId}
                 fitBoundsTrigger={fitBoundsTrigger}
@@ -191,7 +226,7 @@ export function ChoferRutaDetallePage() {
             </div>
           </div>
 
-          {/* Lista de paradas con scroll en desktop */}
+          {/* Lista de paradas */}
           <div className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 lg:min-h-0 lg:flex-1">
             <h4 className="flex flex-shrink-0 items-center gap-2 border-b border-slate-200 px-4 py-3 font-bold text-slate-900 dark:text-white">
               <span className="material-symbols-outlined text-primary">format_list_bulleted</span>
@@ -199,12 +234,12 @@ export function ChoferRutaDetallePage() {
             </h4>
             <div className="flex-1 overflow-y-auto">
               {stopsRuta.map((stop) => {
-                const guiasStop = guias.filter((g) => g.stopId === stop.id)
+                const guiasStop = stop.guias
                 const isSelected = effectiveSelectedStopId === stop.id
                 return (
                   <div
                     key={stop.id}
-                    className={`border-b border-slate-100 dark:border-slate-700 last:border-b-0 ${
+                    className={`border-b border-slate-100 last:border-b-0 dark:border-slate-700 ${
                       isSelected ? 'border-l-4 border-l-primary bg-primary/5 dark:bg-primary/10' : ''
                     }`}
                   >
@@ -214,134 +249,106 @@ export function ChoferRutaDetallePage() {
                       className="flex w-full items-start justify-between p-4 text-left"
                     >
                       <div>
-                        <p className="text-xs font-bold uppercase text-primary">
-                          Parada #{stop.orden}
-                        </p>
+                        <p className="text-xs font-bold uppercase text-primary">Parada #{stop.orden}</p>
                         <h5 className="font-bold text-slate-900 dark:text-white">{stop.direccion}</h5>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">{stop.notas ?? '—'}</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">
+                          {stop.cliente?.nombre} · {stop.notas ?? ''}
+                        </p>
                       </div>
                       <span className="rounded border border-slate-200 bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600 dark:text-slate-300">
                         {guiasStop.length} guía(s)
                       </span>
                     </button>
+
                     {isSelected && (
-                    <div className="space-y-3 px-4 pb-4">
-                      {guiasStop.map((g) => (
-                        <div
-                          key={g.id}
-                          className={`rounded-lg border p-3 ${
-                            g.estado === 'INCIDENCIA'
-                              ? 'border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-slate-700'
-                              : 'border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800'
-                          }`}
-                        >
-                          <div className="mb-2 flex items-center justify-between gap-2">
-                            <span className="text-sm font-bold text-slate-700 dark:text-white">
-                              Guía: #{g.numeroGuia}
-                            </span>
-                            <div className="flex flex-wrap gap-1">
-                              <button
-                                type="button"
-                                onClick={() => handleMarkEntregado(g.id)}
-                                disabled={g.estado === 'ENTREGADO'}
-                                className={`rounded px-2 py-1 text-[10px] font-medium ${
-                                  g.estado === 'ENTREGADO'
-                                    ? 'bg-emerald-600 text-white'
-                                    : 'border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 hover:bg-slate-50 dark:bg-slate-800/50'
-                                }`}
-                              >
-                                Entregado
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setIncidenceGuia({ id: g.id, numeroGuia: g.numeroGuia })
-                                }
-                                className={`rounded px-2 py-1 text-[10px] font-medium ${
-                                  g.estado === 'INCIDENCIA'
-                                    ? 'bg-amber-600 text-white'
-                                    : 'border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 hover:bg-amber-50 dark:hover:bg-slate-700'
-                                }`}
-                              >
-                                Incidencia
-                              </button>
+                      <div className="space-y-3 px-4 pb-4">
+                        {guiasStop.map((g) => (
+                          <div
+                            key={g.id}
+                            className={`rounded-lg border p-3 ${
+                              g.estado === 'INCIDENCIA'
+                                ? 'border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-slate-700'
+                                : 'border-slate-100 bg-slate-50 dark:border-slate-700 dark:bg-slate-800'
+                            }`}
+                          >
+                            <div className="mb-2 flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-bold text-slate-700 dark:text-white">
+                                  #{g.numeroGuia}
+                                </span>
+                                {savingGuia === g.id && (
+                                  <span className="text-[10px] text-slate-400">Guardando...</span>
+                                )}
+                              </div>
+                              <div className="flex flex-wrap gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleMarkEntregado(g.id)}
+                                  disabled={g.estado === 'ENTREGADO'}
+                                  className={`rounded px-2 py-1 text-[10px] font-medium ${
+                                    g.estado === 'ENTREGADO'
+                                      ? 'bg-emerald-600 text-white'
+                                      : 'border border-slate-200 bg-white hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800'
+                                  }`}
+                                >
+                                  Entregado
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setIncidenceGuia({ id: g.id, numeroGuia: g.numeroGuia })}
+                                  className={`rounded px-2 py-1 text-[10px] font-medium ${
+                                    g.estado === 'INCIDENCIA'
+                                      ? 'bg-amber-600 text-white'
+                                      : 'border border-slate-200 bg-white hover:bg-amber-50 dark:border-slate-700 dark:bg-slate-800'
+                                  }`}
+                                >
+                                  Incidencia
+                                </button>
+                              </div>
                             </div>
-                          </div>
-                          <p className="text-xs text-slate-600 dark:text-slate-300">{g.descripcion}</p>
+                            <p className="text-xs text-slate-600 dark:text-slate-300">{g.descripcion}</p>
 
-                          {/* Campos de entrega */}
-                          <div className="mt-3 grid grid-cols-2 gap-2">
-                            <div>
-                              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                                Recibido por
-                              </label>
-                              <input
-                                type="text"
-                                placeholder="Nombre de quien recibe"
-                                defaultValue={g.receptorNombre ?? ''}
-                                onBlur={(e) => updateGuiaDetalleEntrega(g.id, { receptorNombre: e.target.value })}
-                                className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-700 dark:text-white"
-                              />
+                            {/* Campos de entrega */}
+                            <div className="mt-3 grid grid-cols-2 gap-2">
+                              {[
+                                { campo: 'receptorNombre', label: 'Recibido por', type: 'text', placeholder: 'Nombre de quien recibe', value: g.receptorNombre },
+                                { campo: 'temperatura', label: 'Temperatura (°C)', type: 'text', placeholder: 'Ej: 18°C', value: g.temperatura },
+                                { campo: 'horaLlegada', label: 'Hora llegada', type: 'time', placeholder: '', value: g.horaLlegada },
+                                { campo: 'horaSalida', label: 'Hora salida', type: 'time', placeholder: '', value: g.horaSalida },
+                              ].map(({ campo, label, type, placeholder, value }) => (
+                                <div key={campo}>
+                                  <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                                    {label}
+                                  </label>
+                                  <input
+                                    type={type}
+                                    placeholder={placeholder}
+                                    defaultValue={value ?? ''}
+                                    onBlur={(e) => handleBlurDetalle(g.id, campo, e.target.value)}
+                                    className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-700 dark:text-white"
+                                  />
+                                </div>
+                              ))}
+                              <div className="col-span-2">
+                                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                                  Observaciones
+                                </label>
+                                <textarea
+                                  rows={2}
+                                  placeholder="Novedades o comentarios (opcional)"
+                                  defaultValue={g.observaciones ?? ''}
+                                  onBlur={(e) => handleBlurDetalle(g.id, 'observaciones', e.target.value)}
+                                  className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-700 dark:text-white"
+                                />
+                              </div>
                             </div>
-                            <div>
-                              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                                Temperatura (°C)
-                              </label>
-                              <input
-                                type="text"
-                                placeholder="Ej: 18°C"
-                                defaultValue={g.temperatura ?? ''}
-                                onBlur={(e) => updateGuiaDetalleEntrega(g.id, { temperatura: e.target.value })}
-                                className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-700 dark:text-white"
-                              />
-                            </div>
-                            <div>
-                              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                                Hora llegada
-                              </label>
-                              <input
-                                type="time"
-                                defaultValue={g.horaLlegada ?? ''}
-                                onBlur={(e) => updateGuiaDetalleEntrega(g.id, { horaLlegada: e.target.value })}
-                                className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-700 dark:text-white"
-                              />
-                            </div>
-                            <div>
-                              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                                Hora salida
-                              </label>
-                              <input
-                                type="time"
-                                defaultValue={g.horaSalida ?? ''}
-                                onBlur={(e) => updateGuiaDetalleEntrega(g.id, { horaSalida: e.target.value })}
-                                className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-700 dark:text-white"
-                              />
-                            </div>
-                            <div className="col-span-2">
-                              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                                Observaciones
-                              </label>
-                              <textarea
-                                rows={2}
-                                placeholder="Novedades o comentarios (opcional)"
-                                defaultValue={g.observaciones ?? ''}
-                                onBlur={(e) => updateGuiaDetalleEntrega(g.id, { observaciones: e.target.value })}
-                                className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-700 dark:text-white"
-                              />
-                            </div>
-                          </div>
 
-                          <div className="mt-3">
-                            <PhotoUploader
-                              scope="guia"
-                              guiaId={g.id}
-                              label="Fotos de entrega"
-                              max={8}
-                            />
+                            <div className="mt-3">
+                              <PhotoUploader scope="guia" guiaId={g.id} label="Fotos de entrega" max={8} />
+                            </div>
                           </div>
-                        </div>
-                      ))}
-                    </div>
+                        ))}
+                      </div>
                     )}
                   </div>
                 )
@@ -350,10 +357,10 @@ export function ChoferRutaDetallePage() {
           </div>
         </div>
 
-        {/* Columna derecha: panel de acciones (desktop) */}
+        {/* Columna derecha */}
         <div className="flex flex-col gap-4 lg:w-[380px] lg:flex-shrink-0">
-          {/* Incidencias de esta ruta */}
-          <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 p-4 shadow-sm">
+          {/* Incidencias */}
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
             <h4 className="mb-3 flex items-center gap-2 font-bold text-slate-900 dark:text-white">
               <span className="material-symbols-outlined text-amber-600">warning</span>
               Incidencias de esta ruta
@@ -361,17 +368,12 @@ export function ChoferRutaDetallePage() {
             {novedadesRuta.length === 0 ? (
               <p className="text-sm text-slate-500 dark:text-slate-400">Ninguna incidencia registrada.</p>
             ) : (
-              <ul className="space-y-2 max-h-48 overflow-y-auto">
+              <ul className="max-h-48 space-y-2 overflow-y-auto">
                 {novedadesRuta.map((n) => (
-                  <li
-                    key={n.id}
-                    className="rounded-lg border border-amber-100 bg-amber-50 p-2 text-xs dark:border-amber-900/50 dark:bg-slate-700"
-                  >
+                  <li key={n.id} className="rounded-lg border border-amber-100 bg-amber-50 p-2 text-xs dark:border-amber-900/50 dark:bg-slate-700">
                     <span className="font-semibold text-amber-800 dark:text-amber-200">{n.tipo}</span>
                     <p className="mt-0.5 text-slate-600 dark:text-slate-300">{n.descripcion}</p>
-                    <p className="text-slate-400 dark:text-slate-400">
-                      {new Date(n.createdAt).toLocaleString('es-ES')}
-                    </p>
+                    <p className="text-slate-400">{new Date(n.createdAt).toLocaleString('es-ES')}</p>
                   </li>
                 ))}
               </ul>
@@ -379,23 +381,18 @@ export function ChoferRutaDetallePage() {
           </div>
 
           {/* Hoja de ruta */}
-          <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 p-4 shadow-sm">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-800">
             <label className="mb-3 block text-sm font-bold text-slate-700 dark:text-white">
               Hoja de ruta finalizada
             </label>
-            <PhotoUploader
-              scope="hoja_ruta"
-              rutaId={id}
-              label="Fotos del documento"
-              max={5}
-            />
+            <PhotoUploader scope="hoja_ruta" rutaId={id} label="Fotos del documento" max={5} />
             <p className="mt-2 text-[10px] text-slate-500 dark:text-slate-400">
               Sube la foto del documento firmado (mín. 1 para finalizar).
             </p>
           </div>
 
           {/* Iniciar / Finalizar */}
-          <div className="rounded-xl border border-slate-200 bg-slate-50 dark:bg-slate-800/50 p-4">
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:bg-slate-800/50">
             {ruta.estado === 'PENDIENTE' && (
               <button
                 type="button"
@@ -411,7 +408,7 @@ export function ChoferRutaDetallePage() {
                 type="button"
                 onClick={handleFinalizarRuta}
                 disabled={!puedeFinalizar}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-4 font-bold text-white shadow-lg hover:bg-primary/90 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-4 font-bold text-white shadow-lg hover:bg-primary/90 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <span className="material-symbols-outlined">check_circle</span>
                 Finalizar jornada
@@ -424,26 +421,20 @@ export function ChoferRutaDetallePage() {
             )}
             {!puedeFinalizar && ruta.estado === 'EN_CURSO' && (
               <p className="mt-2 text-center text-xs text-slate-500 dark:text-slate-400">
-                Completa todas las guías (entregado/incidencia) y sube al menos 1 foto de hoja de ruta.
+                Completa todas las guías y sube al menos 1 foto de hoja de ruta.
               </p>
             )}
           </div>
         </div>
       </div>
 
-      {/* Navegación inferior móvil */}
-      <nav className="fixed bottom-0 left-0 right-0 flex gap-2 border-t border-slate-200 bg-white px-4 pb-6 pt-2 dark:border-slate-700 dark:bg-slate-900 md:relative md:bottom-auto md:left-auto md:right-auto md:mt-6 md:flex md:rounded-xl md:border md:p-2 lg:mt-0">
-        <Link
-          to={`/chofer/rutas/${id}`}
-          className="flex flex-1 flex-col items-center justify-center gap-1 text-primary"
-        >
+      {/* Nav inferior móvil */}
+      <nav className="fixed bottom-0 left-0 right-0 flex gap-2 border-t border-slate-200 bg-white px-4 pb-6 pt-2 dark:border-slate-700 dark:bg-slate-900 md:hidden">
+        <Link to={`/chofer/rutas/${id}`} className="flex flex-1 flex-col items-center justify-center gap-1 text-primary">
           <span className="material-symbols-outlined">route</span>
           <p className="text-[10px] font-bold uppercase tracking-tight">Mi Ruta</p>
         </Link>
-        <Link
-          to="/chofer/rutas"
-          className="flex flex-1 flex-col items-center justify-center gap-1 text-slate-400"
-        >
+        <Link to="/chofer/rutas" className="flex flex-1 flex-col items-center justify-center gap-1 text-slate-400">
           <span className="material-symbols-outlined">history</span>
           <p className="text-[10px] font-bold uppercase tracking-tight">Historial</p>
         </Link>
