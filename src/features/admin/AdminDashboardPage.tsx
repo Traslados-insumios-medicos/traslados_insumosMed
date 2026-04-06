@@ -3,10 +3,10 @@ import { useLogisticsStore } from '../../store/logisticsStore'
 export function AdminDashboardPage() {
   const { guias, rutas, novedades, usuarios, stops } = useLogisticsStore()
 
-  const enviosActivos = guias.filter(
-    (g) =>
-      g.estado === 'PENDIENTE' || rutas.find((r) => r.id === g.rutaId)?.estado === 'EN_CURSO',
-  ).length
+  const enviosActivos = guias.filter((g) => {
+    const ruta = rutas.find((r) => r.id === g.rutaId)
+    return ruta?.estado === 'EN_CURSO' || ruta?.estado === 'PENDIENTE'
+  }).length
   const rutasEnCurso = rutas.filter((r) => r.estado === 'EN_CURSO').length
   const entregasCompletadas = guias.filter((g) => g.estado === 'ENTREGADO').length
   const novedadesCount = novedades.length
@@ -41,6 +41,12 @@ export function AdminDashboardPage() {
     if (tipo === 'DIRECCION_INCORRECTA' || tipo === 'CLIENTE_AUSENTE') return 'text-red-500'
     if (tipo === 'MERCADERIA_DANADA') return 'text-amber-500'
     return 'text-blue-500'
+  }
+  const novedadLabel: Record<string, string> = {
+    CLIENTE_AUSENTE: 'Cliente ausente',
+    DIRECCION_INCORRECTA: 'Dirección incorrecta',
+    MERCADERIA_DANADA: 'Mercadería dañada',
+    OTRO: 'Otro',
   }
 
   return (
@@ -134,8 +140,13 @@ export function AdminDashboardPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3 sm:px-6 sm:py-4">
-                      <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${ruta.estado === 'EN_CURSO' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
-                        {ruta.estado === 'EN_CURSO' ? 'En Curso' : ruta.estado}
+                      <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                        ruta.estado === 'EN_CURSO'   ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' :
+                        ruta.estado === 'COMPLETADA' ? 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-300' :
+                        ruta.estado === 'PENDIENTE'  ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' :
+                        'bg-red-100 text-red-600'
+                      }`}>
+                        {ruta.estado === 'EN_CURSO' ? 'En Curso' : ruta.estado === 'COMPLETADA' ? 'Completada' : ruta.estado === 'PENDIENTE' ? 'Pendiente' : 'Cancelada'}
                       </span>
                     </td>
                   </tr>
@@ -161,7 +172,7 @@ export function AdminDashboardPage() {
                   <div className="flex items-start gap-3">
                     <span className={`material-symbols-outlined mt-1 shrink-0 ${novedadIconColor(n.tipo)}`}>{novedadIcon(n.tipo)}</span>
                     <div className="min-w-0">
-                      <p className="text-sm font-bold text-slate-900 dark:text-white">{n.tipo}</p>
+                      <p className="text-sm font-bold text-slate-900 dark:text-white">{novedadLabel[n.tipo] ?? n.tipo}</p>
                       <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Guía #{n.guiaId.slice(-4)} - {new Date(n.createdAt).toLocaleString('es-ES')}</p>
                       <p className="mt-2 text-xs italic text-slate-600 dark:text-slate-300">"{n.descripcion}"</p>
                     </div>

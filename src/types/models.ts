@@ -1,5 +1,7 @@
 export type Rol = 'ADMIN' | 'CHOFER' | 'CLIENTE'
 
+export type TipoCliente = 'PRINCIPAL' | 'SECUNDARIO'
+
 export interface Cliente {
   id: string
   nombre: string
@@ -8,11 +10,14 @@ export interface Cliente {
   telefonoContacto?: string
   emailContacto?: string
   activo: boolean
+  tipo: TipoCliente
+  clientePrincipalId?: string // solo si es SECUNDARIO
 }
 
 export interface Usuario {
   id: string
   nombre: string
+  cedula?: string
   rol: Rol
   activo: boolean
   clienteId?: string
@@ -39,6 +44,12 @@ export interface GuiaEntrega {
   estado: EstadoGuia
   createdAt: string
   updatedAt?: string
+  // Campos de entrega registrados por el chofer
+  receptorNombre?: string
+  horaLlegada?: string
+  horaSalida?: string
+  temperatura?: string
+  observaciones?: string
 }
 
 export type EstadoRuta = 'PENDIENTE' | 'EN_CURSO' | 'COMPLETADA' | 'CANCELADA'

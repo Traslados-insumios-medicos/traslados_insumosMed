@@ -12,11 +12,13 @@ export function AdminChoferesPage() {
 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [nombre, setNombre] = useState('')
+  const [cedula, setCedula] = useState('')
   const [activoInicial, setActivoInicial] = useState(true)
 
   const resetForm = () => {
     setEditingId(null)
     setNombre('')
+    setCedula('')
     setActivoInicial(true)
   }
 
@@ -25,6 +27,7 @@ export function AdminChoferesPage() {
     if (!ch) return
     setEditingId(ch.id)
     setNombre(ch.nombre)
+    setCedula(ch.cedula ?? '')
     setActivoInicial(ch.activo)
   }
 
@@ -33,19 +36,9 @@ export function AdminChoferesPage() {
     if (!nombre) return
 
     if (editingId) {
-      updateChofer({
-        id: editingId,
-        nombre,
-        rol: 'CHOFER',
-        activo: activoInicial,
-      })
+      updateChofer({ id: editingId, nombre, cedula: cedula || undefined, rol: 'CHOFER', activo: activoInicial })
     } else {
-      addChofer({
-        id: generateId('chofer'),
-        nombre,
-        rol: 'CHOFER',
-        activo: true,
-      })
+      addChofer({ id: generateId('chofer'), nombre, cedula: cedula || undefined, rol: 'CHOFER', activo: true })
     }
 
     resetForm()
@@ -88,13 +81,22 @@ export function AdminChoferesPage() {
         </div>
 
         <div className="grid gap-3 md:grid-cols-2">
-          <div className="space-y-1 md:col-span-2">
+          <div className="space-y-1">
             <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Nombre</label>
             <input
-              className="w-full rounded-lg border border-slate-200 bg-slate-50 dark:border-slate-600 dark:bg-slate-700 dark:text-white px-3 py-2 text-sm text-slate-900 dark:text-white focus:ring-2 focus:ring-primary"
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 dark:border-slate-600 dark:bg-slate-700 dark:text-white px-3 py-2 text-sm focus:ring-2 focus:ring-primary"
               value={nombre}
               onChange={(e) => setNombre(e.target.value)}
               required
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-xs font-medium text-slate-500 dark:text-slate-400">Número de cédula</label>
+            <input
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 dark:border-slate-600 dark:bg-slate-700 dark:text-white px-3 py-2 text-sm focus:ring-2 focus:ring-primary"
+              value={cedula}
+              onChange={(e) => setCedula(e.target.value)}
+              placeholder="Ej: 1712345678"
             />
           </div>
         </div>
@@ -132,6 +134,7 @@ export function AdminChoferesPage() {
           <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:bg-slate-700 dark:text-slate-400">
             <tr>
               <th className="px-4 py-3">Nombre</th>
+              <th className="px-4 py-3">Cédula</th>
               <th className="px-4 py-3">Estado</th>
               <th className="px-4 py-3 text-right">Acciones</th>
             </tr>
@@ -142,6 +145,9 @@ export function AdminChoferesPage() {
                 <td className="px-4 py-3">
                   <div className="font-medium text-slate-900 dark:text-white">{ch.nombre}</div>
                   <div className="text-xs text-slate-500 dark:text-slate-400">ID: {ch.id}</div>
+                </td>
+                <td className="px-4 py-3 text-sm text-slate-600 dark:text-slate-300">
+                  {ch.cedula ?? <span className="text-slate-400">—</span>}
                 </td>
                 <td className="px-4 py-3">
                   <button

@@ -54,6 +54,13 @@ export function AdminNovedadesPage() {
     setNotaSeguimiento((prev) => ({ ...prev, [novedadId]: '' }))
   }
 
+  const tipoLabel: Record<string, string> = {
+    CLIENTE_AUSENTE: 'Cliente ausente',
+    DIRECCION_INCORRECTA: 'Dirección incorrecta',
+    MERCADERIA_DANADA: 'Mercadería dañada',
+    OTRO: 'Otro',
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -120,7 +127,7 @@ export function AdminNovedadesPage() {
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <div>
                       <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
-                        {n.tipo}
+                        {tipoLabel[n.tipo] ?? n.tipo}
                       </span>
                       <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">
                         {new Date(n.createdAt).toLocaleString('es-ES')}

@@ -32,6 +32,13 @@ interface LogisticsState extends AppPersistedState {
   updateRutaEstado: (rutaId: string, estado: EstadoRuta) => void
 
   updateGuiaEstado: (guiaId: string, estado: EstadoGuia) => void
+  updateGuiaDetalleEntrega: (guiaId: string, detalle: {
+    receptorNombre?: string
+    horaLlegada?: string
+    horaSalida?: string
+    temperatura?: string
+    observaciones?: string
+  }) => void
   addNovedadToGuia: (guiaId: string, tipo: TipoNovedad, descripcion: string) => void
   addFotosToGuia: (guiaId: string, fotos: Foto[]) => void
 
@@ -147,6 +154,16 @@ export const useLogisticsStore = create<LogisticsState>((set) => ({
       false,
     ),
 
+  updateGuiaDetalleEntrega: (guiaId, detalle) =>
+    set(
+      (state) => ({
+        guias: state.guias.map((g) =>
+          g.id === guiaId ? { ...g, ...detalle } : g,
+        ),
+      }),
+      false,
+    ),
+
   addNovedadToGuia: (guiaId, tipo, descripcion) =>
     set(
       (state) => {
@@ -233,6 +250,7 @@ export const useLogisticsStore = create<LogisticsState>((set) => ({
       assignRutaToChofer: state.assignRutaToChofer,
       updateRutaEstado: state.updateRutaEstado,
       updateGuiaEstado: state.updateGuiaEstado,
+      updateGuiaDetalleEntrega: state.updateGuiaDetalleEntrega,
       addNovedadToGuia: state.addNovedadToGuia,
       addFotosToGuia: state.addFotosToGuia,
       addFotosToRuta: state.addFotosToRuta,

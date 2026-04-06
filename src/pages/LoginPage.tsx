@@ -35,6 +35,8 @@ export function LoginPage() {
 
   const choferes = usuarios.filter((u) => u.rol === 'CHOFER')
   const usuariosCliente = usuarios.filter((u) => u.rol === 'CLIENTE')
+  // Solo clientes PRINCIPALES tienen acceso al panel
+  const clientesPrincipales = clientes.filter((c) => c.tipo === 'PRINCIPAL')
 
   const usuariosPorRol: Record<Rol, Usuario[]> = {
     ADMIN: [],
@@ -80,8 +82,8 @@ export function LoginPage() {
     setRol(nuevoRol)
     const lista = usuariosPorRol[nuevoRol]
     setUserId(lista[0]?.id ?? '')
-    if (nuevoRol === 'CLIENTE' && clientes[0]) {
-      setClienteId(clientes[0].id)
+    if (nuevoRol === 'CLIENTE' && clientesPrincipales[0]) {
+      setClienteId(clientesPrincipales[0].id)
     }
   }
 
@@ -163,7 +165,7 @@ export function LoginPage() {
                         onChange={(e) => setClienteId(e.target.value)}
                         className="w-full rounded-lg border border-slate-200 bg-slate-50 text-sm text-slate-700 focus:border-primary focus:ring-primary dark:border-slate-600 dark:bg-slate-700 dark:text-slate-200"
                       >
-                        {clientes.map((c) => (
+                        {clientesPrincipales.map((c) => (
                           <option key={c.id} value={c.id}>
                             {c.nombre}
                           </option>

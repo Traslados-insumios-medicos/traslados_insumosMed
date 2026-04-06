@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useLogisticsStore } from '../../store/logisticsStore'
 import type { GuiaEntrega } from '../../types/models'
+import { exportToExcel, exportToPDF } from '../../utils/exportUtils'
 
 type TabId = 'cliente' | 'fechas' | 'chofer'
 
@@ -20,7 +21,7 @@ const tabs: { id: TabId; label: string }[] = [
 ]
 
 export function AdminReportesPage() {
-  const { clientes, usuarios, rutas, guias } = useLogisticsStore()
+  const { clientes, usuarios, rutas, guias, novedades } = useLogisticsStore()
 
   const [tab, setTab] = useState<TabId>('cliente')
   const [clienteId, setClienteId] = useState<string>('')
@@ -28,6 +29,7 @@ export function AdminReportesPage() {
   const [fechaHasta, setFechaHasta] = useState('')
   const [choferId, setChoferId] = useState<string>('')
   const [guiaVerId, setGuiaVerId] = useState<string | null>(null)
+  const [choferExpandidoId, setChoferExpandidoId] = useState<string | null>(null)
 
   const choferes = useMemo(
     () => usuarios.filter((u) => u.rol === 'CHOFER'),
@@ -76,6 +78,75 @@ export function AdminReportesPage() {
 
   const guiaVer = useMemo(() => (guiaVerId ? guias.find((g) => g.id === guiaVerId) : null), [guias, guiaVerId])
   const clienteGuiaVer = useMemo(() => (guiaVer && clientes.find((c) => c.id === guiaVer.clienteId)) ?? null, [guiaVer, clientes])
+
+  // Export helpers
+  const handleExportClienteExcel = () => {
+    exportToExcel(
+      resumenPorCliente.map((r) => ({
+        Cliente: r.nombre,
+        'Total guías': r.total,
+        Entregados: r.entregados,
+        Pendientes: r.pendientes,
+        Incidencias: r.incidencias,
+      })),
+      'reporte-por-cliente',
+      'Por Cliente',
+    )
+  }
+
+  const handleExportClientePDF = () => {
+    exportToPDF(
+      'Reporte por Cliente',
+      ['Cliente', 'Total guías', 'Entregados', 'Pendientes', 'Incidencias'],
+      resumenPorCliente.map((r) => [r.nombre, r.total, r.entregados, r.pendientes, r.incidencias]),
+      'reporte-por-cliente',
+    )
+  }
+
+  const buildChoferRows = () => {
+    const rows: Record<string, string | number>[] = []
+    resumenPorChofer
+      .filter((r) => !choferId || r.id === choferId)
+      .forEach((ch) => {
+        const rutasCh = rutas.filter((r) => r.choferId === ch.id)
+        rutasCh.forEach((ruta) => {
+          const guiasRuta = guias.filter((g) => g.rutaId === ruta.id)
+          guiasRuta.forEach((g) => {
+            const cliente = clientes.find((c) => c.id === g.clienteId)
+            const novedadesG = novedades.filter((n) => n.guiaId === g.id)
+            rows.push({
+              Chofer: ch.nombre,
+              Ruta: ruta.id,
+              Fecha: ruta.fecha,
+              Cliente: cliente?.nombre ?? g.clienteId,
+              'Nº Guía': g.numeroGuia,
+              Estado: g.estado,
+              'Recibido por': g.receptorNombre ?? '—',
+              'Hora llegada': g.horaLlegada ?? '—',
+              'Hora salida': g.horaSalida ?? '—',
+              Temperatura: g.temperatura ?? '—',
+              Observaciones: g.observaciones ?? '—',
+              Novedades: novedadesG.map((n) => n.descripcion).join(' | ') || '—',
+            })
+          })
+        })
+      })
+    return rows
+  }
+
+  const handleExportChoferExcel = () => {
+    exportToExcel(buildChoferRows(), 'reporte-por-chofer', 'Por Chofer')
+  }
+
+  const handleExportChoferPDF = () => {
+    const rows = buildChoferRows()
+    exportToPDF(
+      'Reporte por Chofer',
+      ['Chofer', 'Ruta', 'Fecha', 'Cliente', 'Nº Guía', 'Estado', 'Recibido por', 'H. Llegada', 'H. Salida', 'Temp.', 'Novedades'],
+      rows.map((r) => [r['Chofer'], r['Ruta'], r['Fecha'], r['Cliente'], r['Nº Guía'], r['Estado'], r['Recibido por'], r['Hora llegada'], r['Hora salida'], r['Temperatura'], r['Novedades']]),
+      'reporte-por-chofer',
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -157,29 +228,39 @@ export function AdminReportesPage() {
       {/* Contenido por tab */}
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
         {tab === 'cliente' && (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[440px] text-left text-sm">
-              <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:bg-slate-700/50 dark:text-slate-400">
-                <tr>
-                  <th className="px-4 py-3">Cliente</th>
-                  <th className="px-4 py-3 text-right">Total guías</th>
-                  <th className="px-4 py-3 text-right">Entregados</th>
-                  <th className="px-4 py-3 text-right">Pendientes</th>
-                  <th className="px-4 py-3 text-right">Incidencias</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {resumenPorCliente.map((r) => (
-                  <tr key={r.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
-                    <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">{r.nombre}</td>
-                    <td className="px-4 py-3 text-right">{r.total}</td>
-                    <td className="px-4 py-3 text-right text-emerald-600">{r.entregados}</td>
-                    <td className="px-4 py-3 text-right">{r.pendientes}</td>
-                    <td className="px-4 py-3 text-right text-amber-600">{r.incidencias}</td>
+          <div>
+            <div className="flex justify-end gap-2 border-b border-slate-100 p-3 dark:border-slate-700">
+              <button type="button" onClick={handleExportClienteExcel} className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400">
+                <span className="material-symbols-outlined text-sm">table_view</span>Excel
+              </button>
+              <button type="button" onClick={handleExportClientePDF} className="flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100 dark:border-rose-800 dark:bg-rose-900/20 dark:text-rose-400">
+                <span className="material-symbols-outlined text-sm">picture_as_pdf</span>PDF
+              </button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[440px] text-left text-sm">
+                <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:bg-slate-700/50 dark:text-slate-400">
+                  <tr>
+                    <th className="px-4 py-3">Cliente</th>
+                    <th className="px-4 py-3 text-right">Total guías</th>
+                    <th className="px-4 py-3 text-right">Entregados</th>
+                    <th className="px-4 py-3 text-right">Pendientes</th>
+                    <th className="px-4 py-3 text-right">Incidencias</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {resumenPorCliente.map((r) => (
+                    <tr key={r.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                      <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">{r.nombre}</td>
+                      <td className="px-4 py-3 text-right">{r.total}</td>
+                      <td className="px-4 py-3 text-right text-emerald-600">{r.entregados}</td>
+                      <td className="px-4 py-3 text-right">{r.pendientes}</td>
+                      <td className="px-4 py-3 text-right text-amber-600">{r.incidencias}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
 
@@ -235,29 +316,99 @@ export function AdminReportesPage() {
         )}
 
         {tab === 'chofer' && (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[360px] text-left text-sm">
-              <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:bg-slate-700/50 dark:text-slate-400">
-                <tr>
-                  <th className="px-4 py-3">Chofer</th>
-                  <th className="px-4 py-3 text-right">Rutas</th>
-                  <th className="px-4 py-3 text-right">Guías total</th>
-                  <th className="px-4 py-3 text-right">Entregadas</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {resumenPorChofer
-                  .filter((r) => !choferId || r.id === choferId)
-                  .map((r) => (
-                    <tr key={r.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
-                      <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">{r.nombre}</td>
-                      <td className="px-4 py-3 text-right">{r.rutasCount}</td>
-                      <td className="px-4 py-3 text-right">{r.guiasTotal}</td>
-                      <td className="px-4 py-3 text-right text-emerald-600">{r.guiasEntregadas}</td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
+          <div>
+            <div className="flex justify-end gap-2 border-b border-slate-100 p-3 dark:border-slate-700">
+              <button type="button" onClick={handleExportChoferExcel} className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400">
+                <span className="material-symbols-outlined text-sm">table_view</span>Excel
+              </button>
+              <button type="button" onClick={handleExportChoferPDF} className="flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100 dark:border-rose-800 dark:bg-rose-900/20 dark:text-rose-400">
+                <span className="material-symbols-outlined text-sm">picture_as_pdf</span>PDF
+              </button>
+            </div>
+            <div className="divide-y divide-slate-100 dark:divide-slate-700">
+              {resumenPorChofer
+                .filter((r) => !choferId || r.id === choferId)
+                .map((ch) => {
+                  const expandido = choferExpandidoId === ch.id
+                  const rutasCh = rutas.filter((r) => r.choferId === ch.id)
+                  return (
+                    <div key={ch.id}>
+                      {/* Fila chofer */}
+                      <button
+                        type="button"
+                        onClick={() => setChoferExpandidoId(expandido ? null : ch.id)}
+                        className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-slate-50 dark:hover:bg-slate-700/30"
+                      >
+                        <div className="flex items-center gap-3">
+                          <span className={`material-symbols-outlined text-slate-400 transition-transform ${expandido ? 'rotate-90' : ''}`}>chevron_right</span>
+                          <div className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-primary">
+                            <span className="material-symbols-outlined text-sm">person</span>
+                          </div>
+                          <div>
+                            <p className="text-sm font-bold text-slate-900 dark:text-white">{ch.nombre}</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">{ch.rutasCount} rutas · {ch.guiasEntregadas}/{ch.guiasTotal} guías entregadas</p>
+                          </div>
+                        </div>
+                        <span className="text-xs font-semibold text-emerald-600">{ch.guiasTotal > 0 ? Math.round((ch.guiasEntregadas / ch.guiasTotal) * 100) : 0}%</span>
+                      </button>
+
+                      {/* Submenú expandible: rutas → clientes */}
+                      {expandido && (
+                        <div className="border-t border-slate-100 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50">
+                          {rutasCh.length === 0 ? (
+                            <p className="px-12 py-3 text-xs text-slate-400">Sin rutas registradas.</p>
+                          ) : (
+                            rutasCh.map((ruta) => {
+                              const guiasRuta = guias.filter((g) => g.rutaId === ruta.id)
+                              return (
+                                <div key={ruta.id} className="border-b border-slate-100 px-12 py-3 dark:border-slate-700 last:border-0">
+                                  <p className="mb-2 text-xs font-bold uppercase tracking-wider text-primary">
+                                    Ruta #{ruta.id.replace('ruta-', '')} · {ruta.fecha} · <span className="text-slate-500 dark:text-slate-400 normal-case font-normal">{ruta.estado}</span>
+                                  </p>
+                                  <div className="space-y-2">
+                                    {guiasRuta.map((g) => {
+                                      const cliente = clientes.find((c) => c.id === g.clienteId)
+                                      const novsG = novedades.filter((n) => n.guiaId === g.id)
+                                      return (
+                                        <div key={g.id} className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-600 dark:bg-slate-800">
+                                          <div className="flex flex-wrap items-start justify-between gap-2">
+                                            <div>
+                                              <p className="text-xs font-semibold text-slate-900 dark:text-white">{cliente?.nombre ?? g.clienteId} · <span className="text-primary">{g.numeroGuia}</span></p>
+                                              <p className="text-xs text-slate-500 dark:text-slate-400">{g.descripcion}</p>
+                                            </div>
+                                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                                              g.estado === 'ENTREGADO' ? 'bg-emerald-100 text-emerald-700' :
+                                              g.estado === 'INCIDENCIA' ? 'bg-amber-100 text-amber-700' :
+                                              'bg-slate-100 text-slate-600'
+                                            }`}>{g.estado}</span>
+                                          </div>
+                                          {(g.receptorNombre || g.horaLlegada || g.temperatura) && (
+                                            <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500 dark:text-slate-400">
+                                              {g.receptorNombre && <span>👤 {g.receptorNombre}</span>}
+                                              {g.horaLlegada && <span>🕐 Llegada: {g.horaLlegada}</span>}
+                                              {g.horaSalida && <span>🕐 Salida: {g.horaSalida}</span>}
+                                              {g.temperatura && <span>🌡 {g.temperatura}</span>}
+                                            </div>
+                                          )}
+                                          {novsG.length > 0 && (
+                                            <div className="mt-1.5 text-xs text-amber-600">
+                                              ⚠ {novsG.map((n) => n.descripcion).join(' · ')}
+                                            </div>
+                                          )}
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                </div>
+                              )
+                            })
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+            </div>
           </div>
         )}
       </div>

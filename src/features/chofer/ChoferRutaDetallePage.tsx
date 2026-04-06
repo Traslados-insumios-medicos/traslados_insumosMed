@@ -18,6 +18,7 @@ export function ChoferRutaDetallePage() {
     fotos,
     novedades,
     updateGuiaEstado,
+    updateGuiaDetalleEntrega,
     updateRutaEstado,
   } = useLogisticsStore()
   const addToast = useToastStore((s) => s.addToast)
@@ -267,6 +268,69 @@ export function ChoferRutaDetallePage() {
                             </div>
                           </div>
                           <p className="text-xs text-slate-600 dark:text-slate-300">{g.descripcion}</p>
+
+                          {/* Campos de entrega */}
+                          <div className="mt-3 grid grid-cols-2 gap-2">
+                            <div>
+                              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                                Recibido por
+                              </label>
+                              <input
+                                type="text"
+                                placeholder="Nombre de quien recibe"
+                                defaultValue={g.receptorNombre ?? ''}
+                                onBlur={(e) => updateGuiaDetalleEntrega(g.id, { receptorNombre: e.target.value })}
+                                className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-700 dark:text-white"
+                              />
+                            </div>
+                            <div>
+                              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                                Temperatura (°C)
+                              </label>
+                              <input
+                                type="text"
+                                placeholder="Ej: 18°C"
+                                defaultValue={g.temperatura ?? ''}
+                                onBlur={(e) => updateGuiaDetalleEntrega(g.id, { temperatura: e.target.value })}
+                                className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-700 dark:text-white"
+                              />
+                            </div>
+                            <div>
+                              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                                Hora llegada
+                              </label>
+                              <input
+                                type="time"
+                                defaultValue={g.horaLlegada ?? ''}
+                                onBlur={(e) => updateGuiaDetalleEntrega(g.id, { horaLlegada: e.target.value })}
+                                className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-700 dark:text-white"
+                              />
+                            </div>
+                            <div>
+                              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                                Hora salida
+                              </label>
+                              <input
+                                type="time"
+                                defaultValue={g.horaSalida ?? ''}
+                                onBlur={(e) => updateGuiaDetalleEntrega(g.id, { horaSalida: e.target.value })}
+                                className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-700 dark:text-white"
+                              />
+                            </div>
+                            <div className="col-span-2">
+                              <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                                Observaciones
+                              </label>
+                              <textarea
+                                rows={2}
+                                placeholder="Novedades o comentarios (opcional)"
+                                defaultValue={g.observaciones ?? ''}
+                                onBlur={(e) => updateGuiaDetalleEntrega(g.id, { observaciones: e.target.value })}
+                                className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-700 dark:text-white"
+                              />
+                            </div>
+                          </div>
+
                           <div className="mt-3">
                             <PhotoUploader
                               scope="guia"

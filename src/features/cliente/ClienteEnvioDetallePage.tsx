@@ -1,5 +1,6 @@
 import { Link, useParams } from 'react-router-dom'
 import { useLogisticsStore } from '../../store/logisticsStore'
+import { exportToExcel, exportToPDF } from '../../utils/exportUtils'
 
 export function ClienteEnvioDetallePage() {
   const { guiaId } = useParams<{ guiaId: string }>()
@@ -27,78 +28,162 @@ export function ClienteEnvioDetallePage() {
     { key: 'delivered', label: 'Entregado', done: guia.estado === 'ENTREGADO', active: false },
   ]
 
+  const handleExportExcel = () => {
+    exportToExcel([{
+      'Nº Guía': guia.numeroGuia,
+      'Descripción': guia.descripcion,
+      'Estado': guia.estado === 'ENTREGADO' ? 'Entregado' : guia.estado === 'INCIDENCIA' ? 'Incidencia' : 'En tránsito',
+      'Recibido por': guia.receptorNombre ?? '—',
+      'Hora llegada': guia.horaLlegada ?? '—',
+      'Hora salida': guia.horaSalida ?? '—',
+      'Temperatura': guia.temperatura ?? '—',
+      'Observaciones': guia.observaciones ?? '—',
+      'Novedades': novedadesGuia.map((n) => n.descripcion).join(' | ') || '—',
+      'Fecha creación': new Date(guia.createdAt).toLocaleString('es-ES'),
+    }], `reporte-guia-${guia.numeroGuia}`, 'Detalle Envío')
+  }
+
+  const handleExportPDF = () => {
+    exportToPDF(
+      `Reporte de Envío · ${guia.numeroGuia}`,
+      ['Campo', 'Valor'],
+      [
+        ['Nº Guía', guia.numeroGuia],
+        ['Descripción', guia.descripcion],
+        ['Estado', guia.estado === 'ENTREGADO' ? 'Entregado' : guia.estado === 'INCIDENCIA' ? 'Incidencia' : 'En tránsito'],
+        ['Recibido por', guia.receptorNombre ?? '—'],
+        ['Hora llegada', guia.horaLlegada ?? '—'],
+        ['Hora salida', guia.horaSalida ?? '—'],
+        ['Temperatura', guia.temperatura ?? '—'],
+        ['Observaciones', guia.observaciones ?? '—'],
+        ['Novedades', novedadesGuia.map((n) => n.descripcion).join(' | ') || '—'],
+        ['Fecha creación', new Date(guia.createdAt).toLocaleString('es-ES')],
+      ],
+      `reporte-guia-${guia.numeroGuia}`,
+    )
+  }
+
+  const handleDownloadFoto = (url: string, nombre: string) => {
+    const a = document.createElement('a')
+    a.href = url
+    a.download = nombre
+    a.target = '_blank'
+    a.click()
+  }
+
   return (
     <div className="space-y-8">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
             Detalle de envío · {guia.numeroGuia}
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400">{guia.descripcion}</p>
         </div>
-        <span
-          className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-            guia.estado === 'ENTREGADO'
-              ? 'bg-emerald-100 text-emerald-800'
-              : guia.estado === 'INCIDENCIA'
-                ? 'bg-rose-100 text-rose-800'
-                : 'bg-blue-100 text-blue-800'
-          }`}
-        >
-          {guia.estado}
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+            guia.estado === 'ENTREGADO' ? 'bg-emerald-100 text-emerald-800'
+            : guia.estado === 'INCIDENCIA' ? 'bg-rose-100 text-rose-800'
+            : 'bg-blue-100 text-blue-800'
+          }`}>
+            {guia.estado === 'ENTREGADO' ? 'Entregado' : guia.estado === 'INCIDENCIA' ? 'Incidencia' : 'En tránsito'}
+          </span>
+          <button
+            type="button"
+            onClick={handleExportExcel}
+            className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400"
+          >
+            <span className="material-symbols-outlined text-sm">table_view</span>
+            Excel
+          </button>
+          <button
+            type="button"
+            onClick={handleExportPDF}
+            className="flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100 dark:border-rose-800 dark:bg-rose-900/20 dark:text-rose-400"
+          >
+            <span className="material-symbols-outlined text-sm">picture_as_pdf</span>
+            PDF
+          </button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-        {/* Main: Timeline + Gallery */}
+        {/* Main */}
         <div className="space-y-6 lg:col-span-2">
-          {/* Delivery Progress Timeline */}
+          {/* Timeline */}
           <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 p-6 shadow-sm">
-            <h3 className="mb-6 text-lg font-bold text-slate-900 dark:text-white">
-              Progreso de entrega
-            </h3>
-            <div className="relative space-y-8 before:absolute before:left-5 before:h-full before:w-0.5 before:bg-slate-200 before:content-['']:bg-slate-800">
+            <h3 className="mb-6 text-lg font-bold text-slate-900 dark:text-white">Progreso de entrega</h3>
+            <div className="relative space-y-8 before:absolute before:left-5 before:h-full before:w-0.5 before:bg-slate-200">
               {statusSteps.map((step, i) => (
                 <div key={step.key} className="relative flex items-center gap-6">
-                  <div
-                    className={`z-10 flex size-10 items-center justify-center rounded-full ${
-                      step.active
-                        ? 'border-2 border-primary bg-primary/20 text-primary ring-4 ring-primary/10'
-                        : step.done
-                          ? 'bg-primary text-white'
-                          : 'bg-slate-100 text-slate-400'
-                    }`}
-                  >
+                  <div className={`z-10 flex size-10 items-center justify-center rounded-full ${
+                    step.active ? 'border-2 border-primary bg-primary/20 text-primary ring-4 ring-primary/10'
+                    : step.done ? 'bg-primary text-white'
+                    : 'bg-slate-100 text-slate-400'
+                  }`}>
                     <span className="material-symbols-outlined text-lg">
-                      {step.key === 'created'
-                        ? 'receipt_long'
-                        : step.key === 'transit'
-                          ? 'inventory_2'
-                          : step.key === 'delivery'
-                            ? 'delivery_dining'
-                            : 'check_circle'}
+                      {step.key === 'created' ? 'receipt_long'
+                        : step.key === 'transit' ? 'inventory_2'
+                        : step.key === 'delivery' ? 'delivery_dining'
+                        : 'check_circle'}
                     </span>
                   </div>
                   <div>
-                    <h4
-                      className={`text-sm font-bold ${
-                        step.active ? 'text-primary' : step.done ? 'text-slate-900' : 'text-slate-400'
-                      }`}
-                    >
+                    <h4 className={`text-sm font-bold ${step.active ? 'text-primary' : step.done ? 'text-slate-900 dark:text-white' : 'text-slate-400'}`}>
                       {step.label}
                     </h4>
                     <p className="text-xs text-slate-500 dark:text-slate-400">
-                      {guia.createdAt && i === 0
-                        ? new Date(guia.createdAt).toLocaleString('es-ES')
-                        : step.done && guia.updatedAt && i >= 2
-                          ? new Date(guia.updatedAt).toLocaleString('es-ES')
-                          : '—'}
+                      {guia.createdAt && i === 0 ? new Date(guia.createdAt).toLocaleString('es-ES')
+                        : step.done && guia.updatedAt && i >= 2 ? new Date(guia.updatedAt).toLocaleString('es-ES')
+                        : '—'}
                     </p>
                   </div>
                 </div>
               ))}
             </div>
           </div>
+
+          {/* Datos de entrega */}
+          {guia.estado === 'ENTREGADO' && (guia.receptorNombre || guia.horaLlegada || guia.temperatura) && (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 dark:border-emerald-900/40 dark:bg-slate-800 p-6 shadow-sm">
+              <h3 className="mb-4 flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-white">
+                <span className="material-symbols-outlined text-emerald-600">verified</span>
+                Datos de entrega
+              </h3>
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                {guia.receptorNombre && (
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Recibido por</p>
+                    <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{guia.receptorNombre}</p>
+                  </div>
+                )}
+                {guia.horaLlegada && (
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Hora llegada</p>
+                    <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{guia.horaLlegada}</p>
+                  </div>
+                )}
+                {guia.horaSalida && (
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Hora salida</p>
+                    <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{guia.horaSalida}</p>
+                  </div>
+                )}
+                {guia.temperatura && (
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Temperatura</p>
+                    <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{guia.temperatura}</p>
+                  </div>
+                )}
+                {guia.observaciones && (
+                  <div className="col-span-2 sm:col-span-4">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Observaciones</p>
+                    <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">{guia.observaciones}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Novedades */}
           <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 p-6 shadow-sm">
@@ -108,15 +193,10 @@ export function ClienteEnvioDetallePage() {
             ) : (
               <ul className="space-y-3">
                 {novedadesGuia.map((n) => (
-                  <li
-                    key={n.id}
-                    className="rounded-lg border border-slate-100 p-3 text-sm"
-                  >
+                  <li key={n.id} className="rounded-lg border border-slate-100 dark:border-slate-700 p-3 text-sm">
                     <p className="font-semibold text-slate-900 dark:text-white">{n.tipo}</p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      {new Date(n.createdAt).toLocaleString('es-ES')}
-                    </p>
-                    <p className="mt-1 text-slate-600">{n.descripcion}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{new Date(n.createdAt).toLocaleString('es-ES')}</p>
+                    <p className="mt-1 text-slate-600 dark:text-slate-300">{n.descripcion}</p>
                   </li>
                 ))}
               </ul>
@@ -124,42 +204,31 @@ export function ClienteEnvioDetallePage() {
           </div>
         </div>
 
-        {/* Sidebar: Photo Gallery */}
+        {/* Sidebar: fotos */}
         <div className="flex flex-col gap-6">
           <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 p-6 shadow-sm">
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                Fotos de entrega
-              </h3>
-              {fotosGuia.length > 0 && (
-                <button type="button" className="text-xs font-bold text-primary hover:underline">
-                  Ver todas
-                </button>
-              )}
-            </div>
+            <h3 className="mb-4 text-lg font-bold text-slate-900 dark:text-white">Fotos de entrega</h3>
             {fotosGuia.length === 0 ? (
               <p className="text-sm text-slate-500 dark:text-slate-400">No hay fotos registradas para esta guía.</p>
             ) : (
               <div className="grid grid-cols-2 gap-3">
-                {fotosGuia.map((f) => (
-                  <div
-                    key={f.id}
-                    className="group relative aspect-square overflow-hidden rounded-lg border border-slate-200 bg-slate-100"
-                  >
-                    <img
-                      src={f.urlPreview}
-                      alt=""
-                      className="h-full w-full object-cover transition-transform group-hover:scale-105"
-                    />
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
-                      <span className="material-symbols-outlined text-white">zoom_in</span>
-                    </div>
+                {fotosGuia.map((f, i) => (
+                  <div key={f.id} className="group relative aspect-square overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
+                    <img src={f.urlPreview} alt="" className="h-full w-full object-cover transition-transform group-hover:scale-105" />
+                    <button
+                      type="button"
+                      onClick={() => handleDownloadFoto(f.urlPreview, `foto-${guia.numeroGuia}-${i + 1}.jpg`)}
+                      className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100"
+                      title="Descargar foto"
+                    >
+                      <span className="material-symbols-outlined text-white">download</span>
+                    </button>
                   </div>
                 ))}
               </div>
             )}
             <p className="mt-4 text-[10px] italic text-slate-400">
-              Fotos subidas por el chofer en los puntos de entrega.
+              Pase el cursor sobre una foto y haga clic para descargarla.
             </p>
           </div>
         </div>

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
 import { useLogisticsStore } from '../../store/logisticsStore'
@@ -13,11 +13,31 @@ const navItemActive =
 
 export function MainLayout() {
   const { currentUser, logout } = useAuthStore()
-  const { resetDemoData } = useLogisticsStore()
+  const { resetDemoData, novedades, guias } = useLogisticsStore()
   const { isDark, toggleTheme } = useThemeStore()
   const navigate = useNavigate()
   const role = currentUser?.rol
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [notifOpen, setNotifOpen] = useState(false)
+  const notifRef = useRef<HTMLDivElement>(null)
+
+  // Cerrar panel al hacer click fuera
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setNotifOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const tipoLabel: Record<string, string> = {
+    DIRECCION_INCORRECTA: 'Dirección incorrecta',
+    CLIENTE_AUSENTE: 'Cliente ausente',
+    MERCADERIA_DANADA: 'Mercadería dañada',
+    OTRO: 'Otro',
+  }
 
   const handleLogout = () => {
     logout()
@@ -170,10 +190,69 @@ export function MainLayout() {
               <p className="text-xs text-slate-500 dark:text-slate-400">{new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}</p>
             </div>
             <div className="hidden h-8 w-px bg-slate-200 dark:bg-slate-700 sm:block" />
-            <button type="button" className="relative rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800">
-              <span className="material-symbols-outlined">notifications</span>
-              <span className="absolute right-1 top-1 size-2 rounded-full bg-red-500" />
-            </button>
+            <div ref={notifRef} className="relative">
+              <button
+                type="button"
+                onClick={() => setNotifOpen((v) => !v)}
+                className="relative rounded-lg p-2 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                aria-label="Notificaciones"
+              >
+                <span className="material-symbols-outlined">notifications</span>
+                {novedades.length > 0 && (
+                  <span className="absolute right-1 top-1 flex size-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white">
+                    {novedades.length}
+                  </span>
+                )}
+              </button>
+
+              {notifOpen && (
+                <div className="absolute right-0 top-full z-50 mt-2 w-80 rounded-xl border border-slate-200 bg-white shadow-xl dark:border-slate-700 dark:bg-slate-900">
+                  <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-700">
+                    <p className="text-sm font-bold text-slate-900 dark:text-white">Novedades</p>
+                    <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-600 dark:bg-red-900/40 dark:text-red-400">
+                      {novedades.length} activas
+                    </span>
+                  </div>
+                  <div className="max-h-80 overflow-y-auto">
+                    {novedades.length === 0 ? (
+                      <div className="px-4 py-6 text-center text-sm text-slate-500 dark:text-slate-400">
+                        Sin novedades registradas
+                      </div>
+                    ) : (
+                      novedades.slice().reverse().map((n) => {
+                        const guia = guias.find((g) => g.id === n.guiaId)
+                        return (
+                          <button
+                            key={n.id}
+                            type="button"
+                            onClick={() => { setNotifOpen(false); navigate('/admin/novedades') }}
+                            className="w-full border-b border-slate-100 px-4 py-3 text-left last:border-0 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50"
+                          >
+                            <div className="flex items-start gap-3">
+                              <span className="material-symbols-outlined mt-0.5 shrink-0 text-base text-red-500">warning</span>
+                              <div className="min-w-0">
+                                <p className="text-xs font-semibold text-slate-900 dark:text-white">
+                                  {tipoLabel[n.tipo] ?? n.tipo}
+                                </p>
+                                {guia && (
+                                  <p className="text-xs text-primary">Guía {guia.numeroGuia}</p>
+                                )}
+                                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 line-clamp-2">
+                                  {n.descripcion}
+                                </p>
+                                <p className="mt-1 text-[10px] text-slate-400 dark:text-slate-500">
+                                  {new Date(n.createdAt).toLocaleString('es-ES')}
+                                </p>
+                              </div>
+                            </div>
+                          </button>
+                        )
+                      })
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
             <span className="hidden rounded bg-primary px-2 py-1 text-[10px] font-bold text-white sm:inline-block">{currentUser?.rol}</span>
             <button type="button" onClick={handleLogout} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-200" title="Cerrar sesión">
               <span className="material-symbols-outlined">logout</span>
