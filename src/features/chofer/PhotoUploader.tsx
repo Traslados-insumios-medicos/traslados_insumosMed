@@ -1,9 +1,10 @@
-import { useRef, useState } from 'react'
-import { useChoferStore, type FotoAPI } from './model/choferStore'
+import { useEffect, useRef, useState } from 'react'
+import { api } from '../../services/api'
 import { useToastStore } from '../../store/toastStore'
-import { MAX_FOTOS_POR_GUIA, MAX_FOTOS_HOJA_RUTA } from '../../utils/constants'
 
 type Scope = 'guia' | 'hoja_ruta'
+
+interface FotoApi { id: string; urlPreview: string; createdAt: string }
 
 interface PhotoUploaderProps {
   scope: Scope
@@ -11,60 +12,48 @@ interface PhotoUploaderProps {
   rutaId?: string
   label?: string
   max?: number
+  /** Callback opcional al subir/eliminar foto (ej: para recargar la ruta) */
+  onUploaded?: () => void
 }
 
-export function PhotoUploader({
-  scope,
-  guiaId,
-  rutaId,
-  label,
-  max = scope === 'guia' ? MAX_FOTOS_POR_GUIA : MAX_FOTOS_HOJA_RUTA,
-}: PhotoUploaderProps) {
+export function PhotoUploader({ scope, guiaId, rutaId, label, max = scope === 'guia' ? 8 : 5, onUploaded }: PhotoUploaderProps) {
   const inputRef = useRef<HTMLInputElement>(null)
-  const { rutaActual, subirFotoGuia, subirFotoRuta, eliminarFoto } = useChoferStore()
   const addToast = useToastStore((s) => s.addToast)
+
+  const [fotos, setFotos] = useState<FotoApi[]>([])
   const [uploading, setUploading] = useState(false)
 
-  // Obtener fotos del store según scope
-  const list: FotoAPI[] = (() => {
-    if (!rutaActual) return []
-    if (scope === 'guia' && guiaId) {
-      const todasGuias = [
-        ...(rutaActual.guias ?? []),
-        ...(rutaActual.stops ?? []).flatMap((s) => s.guias ?? []),
-      ]
-      const guia = todasGuias.find((g) => g.id === guiaId)
-      return (guia?.fotos ?? []).filter((f) => f.tipo === 'GUIA')
-    }
-    if (scope === 'hoja_ruta' && rutaId) {
-      return (rutaActual.fotos ?? []).filter((f) => f.tipo === 'HOJA_RUTA')
-    }
-    return []
-  })()
+  // Cargar fotos existentes
+  useEffect(() => {
+    const url = scope === 'guia' && guiaId
+      ? `/fotos/guia/${guiaId}`
+      : scope === 'hoja_ruta' && rutaId
+        ? `/fotos/ruta/${rutaId}`
+        : null
+    if (!url) return
+    api.get<FotoApi[]>(url).then((r) => setFotos(r.data)).catch(() => {})
+  }, [scope, guiaId, rutaId])
 
-  const remaining = Math.max(max - list.length, 0)
+  const remaining = Math.max(max - fotos.length, 0)
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? [])
-    if (!files.length) return
-    if (remaining <= 0) {
-      addToast('Límite de fotos alcanzado', 'info')
-      e.target.value = ''
-      return
-    }
-
+    const files = Array.from(e.target.files ?? []).slice(0, remaining)
+    if (files.length === 0) return
     setUploading(true)
-    const toUpload = files.slice(0, remaining)
-
     try {
-      for (const file of toUpload) {
-        if (scope === 'guia' && guiaId) {
-          await subirFotoGuia(guiaId, file)
-        } else if (scope === 'hoja_ruta' && rutaId) {
-          await subirFotoRuta(rutaId, file)
-        }
+      for (const file of files) {
+        const formData = new FormData()
+        formData.append('foto', file)
+        const url = scope === 'guia' && guiaId
+          ? `/fotos/guia/${guiaId}`
+          : `/fotos/ruta/${rutaId}`
+        const res = await api.post<FotoApi>(url, formData, {
+          headers: { 'Content-Type': 'multipart/form-data' },
+        })
+        setFotos((prev) => [...prev, res.data])
       }
-      addToast(`${toUpload.length} foto(s) subida(s)`, 'success')
+      addToast('Foto(s) subida(s)', 'success')
+      onUploaded?.()
     } catch {
       addToast('Error al subir foto', 'error')
     } finally {
@@ -75,8 +64,10 @@ export function PhotoUploader({
 
   const handleRemove = async (fotoId: string) => {
     try {
-      await eliminarFoto(fotoId)
+      await api.delete(`/fotos/${fotoId}`)
+      setFotos((prev) => prev.filter((f) => f.id !== fotoId))
       addToast('Foto eliminada', 'info')
+      onUploaded?.()
     } catch {
       addToast('Error al eliminar foto', 'error')
     }
@@ -86,52 +77,32 @@ export function PhotoUploader({
     <div className="space-y-2">
       {label && (
         <p className="text-xs font-semibold uppercase tracking-tight text-slate-500 dark:text-slate-400">
-          {label} ({list.length}/{max})
+          {label} ({fotos.length}/{max})
         </p>
       )}
       <div className="flex flex-wrap gap-2">
-        {list.map((f) => (
+        {fotos.map((f) => (
           <div key={f.id} className="relative">
-            <img
-              src={f.urlPreview}
-              alt="Foto de entrega"
-              className="h-16 w-16 rounded-lg border border-slate-200 object-cover dark:border-slate-600 sm:h-20 sm:w-20"
-            />
-            <button
-              type="button"
-              onClick={() => handleRemove(f.id)}
+            <img src={f.urlPreview} alt="Preview" className="h-16 w-16 rounded-lg border border-slate-200 object-cover dark:border-slate-600 sm:h-20 sm:w-20" />
+            <button type="button" onClick={() => handleRemove(f.id)}
               className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white shadow"
-              aria-label="Eliminar foto"
-            >
+              aria-label="Eliminar foto">
               <span className="material-symbols-outlined text-sm">close</span>
             </button>
           </div>
         ))}
-
-        {uploading && (
-          <div className="flex h-16 w-16 items-center justify-center rounded-lg border-2 border-dashed border-primary bg-primary/5 sm:h-20 sm:w-20">
-            <span className="text-[10px] font-medium text-primary">Subiendo...</span>
-          </div>
-        )}
-
-        {remaining > 0 && !uploading && (
+        {remaining > 0 && (
           <>
-            <input
-              ref={inputRef}
-              type="file"
-              accept="image/*"
+            <input ref={inputRef} type="file" accept="image/*"
               capture={scope === 'guia' ? 'environment' : undefined}
-              multiple
-              className="hidden"
-              onChange={handleFileChange}
-            />
-            <button
-              type="button"
-              onClick={() => inputRef.current?.click()}
-              className="flex h-16 w-16 flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 text-slate-500 transition-colors hover:border-primary hover:bg-primary/5 hover:text-primary dark:border-slate-600 dark:bg-slate-700 dark:text-slate-400 sm:h-20 sm:w-20"
-            >
-              <span className="material-symbols-outlined text-2xl">add_photo_alternate</span>
-              <span className="text-[10px] font-medium">+{remaining}</span>
+              multiple className="hidden" onChange={handleFileChange} />
+            <button type="button" onClick={() => inputRef.current?.click()} disabled={uploading}
+              className="flex h-16 w-16 flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 text-slate-500 transition-colors hover:border-primary hover:bg-primary/5 hover:text-primary disabled:opacity-50 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-400 sm:h-20 sm:w-20">
+              {uploading
+                ? <span className="material-symbols-outlined animate-spin text-xl">progress_activity</span>
+                : <span className="material-symbols-outlined text-2xl">add_photo_alternate</span>
+              }
+              <span className="text-[10px] font-medium">{uploading ? '...' : `+${remaining}`}</span>
             </button>
           </>
         )}
