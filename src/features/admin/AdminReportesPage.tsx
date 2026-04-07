@@ -128,16 +128,16 @@ export function AdminReportesPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-bold text-slate-900 dark:text-white">Reportes</h2>
-        <p className="text-sm text-slate-500 dark:text-slate-400">Filtros y reportes por cliente, fechas y chofer.</p>
+        <h2 className="text-xl font-bold text-slate-900">Reportes</h2>
+        <p className="text-sm text-slate-500">Filtros y reportes por cliente, fechas y chofer.</p>
       </div>
 
       {/* Filtros globales */}
-      <div className="flex flex-wrap items-end gap-4 rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800">
+      <div className="flex flex-wrap items-end gap-4 rounded-xl border border-slate-200 bg-white p-4">
         <div className="space-y-1">
           <label className="text-xs font-medium text-slate-500">Cliente</label>
           <select value={clienteId} onChange={(e) => setClienteId(e.target.value)}
-            className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-white">
+            className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
             <option value="">Todos</option>
             {clientes.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
           </select>
@@ -145,17 +145,17 @@ export function AdminReportesPage() {
         <div className="space-y-1">
           <label className="text-xs font-medium text-slate-500">Desde</label>
           <input type="date" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)}
-            className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-white" />
+            className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm" />
         </div>
         <div className="space-y-1">
           <label className="text-xs font-medium text-slate-500">Hasta</label>
           <input type="date" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)}
-            className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-white" />
+            className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm" />
         </div>
         <div className="space-y-1">
           <label className="text-xs font-medium text-slate-500">Chofer</label>
           <select value={choferId} onChange={(e) => setChoferId(e.target.value)}
-            className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-700 dark:text-white">
+            className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
             <option value="">Todos</option>
             {choferes.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
           </select>
@@ -163,12 +163,12 @@ export function AdminReportesPage() {
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-slate-200 dark:border-slate-700">
+      <div className="border-b border-slate-200">
         <div className="flex gap-2">
           {tabs.map((t) => (
             <button key={t.id} type="button" onClick={() => setTab(t.id)}
               className={`border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
-                tab === t.id ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700 dark:text-slate-400'
+                tab === t.id ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700'
               }`}>
               {t.label}
             </button>
@@ -176,7 +176,7 @@ export function AdminReportesPage() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
+      <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
         {loading ? (
           <div className="flex items-center justify-center py-16">
             <span className="material-symbols-outlined animate-spin text-3xl text-primary">progress_activity</span>
@@ -185,17 +185,17 @@ export function AdminReportesPage() {
           <>
             {tab === 'cliente' && (
               <div>
-                <div className="flex justify-end gap-2 border-b border-slate-100 p-3 dark:border-slate-700">
-                  <button type="button" onClick={handleExportClienteExcel} className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400">
+                <div className="flex justify-end gap-2 border-b border-slate-100 p-3">
+                  <button type="button" onClick={handleExportClienteExcel} className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100">
                     <span className="material-symbols-outlined text-sm">table_view</span>Excel
                   </button>
-                  <button type="button" onClick={handleExportClientePDF} className="flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100 dark:border-rose-800 dark:bg-rose-900/20 dark:text-rose-400">
+                  <button type="button" onClick={handleExportClientePDF} className="flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100">
                     <span className="material-symbols-outlined text-sm">picture_as_pdf</span>PDF
                   </button>
                 </div>
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[440px] text-left text-sm">
-                    <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:bg-slate-700/50 dark:text-slate-400">
+                    <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wider text-slate-500">
                       <tr>
                         <th className="px-4 py-3">Cliente</th>
                         <th className="px-4 py-3 text-right">Total guías</th>
@@ -204,10 +204,10 @@ export function AdminReportesPage() {
                         <th className="px-4 py-3 text-right">Incidencias</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                    <tbody className="divide-y divide-slate-100">
                       {dataCliente.map((r) => (
-                        <tr key={r.clienteId} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
-                          <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">{r.nombre}</td>
+                        <tr key={r.clienteId} className="hover:bg-slate-50">
+                          <td className="px-4 py-3 font-medium text-slate-900">{r.nombre}</td>
                           <td className="px-4 py-3 text-right">{r.total}</td>
                           <td className="px-4 py-3 text-right text-emerald-600">{r.entregados}</td>
                           <td className="px-4 py-3 text-right">{r.pendientes}</td>
@@ -222,12 +222,12 @@ export function AdminReportesPage() {
 
             {tab === 'fechas' && (
               <div className="p-4">
-                <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">
-                  Guías en el rango: <strong className="text-slate-900 dark:text-white">{dataFechas.length}</strong>
+                <p className="mb-4 text-sm text-slate-500">
+                  Guías en el rango: <strong className="text-slate-900">{dataFechas.length}</strong>
                 </p>
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[480px] text-left text-sm">
-                    <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500 dark:bg-slate-700/50 dark:text-slate-400">
+                    <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
                       <tr>
                         <th className="px-4 py-3">Guía</th>
                         <th className="px-4 py-3">Cliente</th>
@@ -236,12 +236,12 @@ export function AdminReportesPage() {
                         <th className="px-4 py-3">Fecha</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                    <tbody className="divide-y divide-slate-100">
                       {dataFechas.slice(0, 50).map((g) => (
-                        <tr key={g.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                        <tr key={g.id} className="hover:bg-slate-50">
                           <td className="px-4 py-3 font-medium text-primary">{g.numeroGuia}</td>
-                          <td className="px-4 py-3 text-slate-600 dark:text-slate-300">{g.cliente.nombre}</td>
-                          <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{g.ruta.chofer.nombre}</td>
+                          <td className="px-4 py-3 text-slate-600">{g.cliente.nombre}</td>
+                          <td className="px-4 py-3 text-slate-500">{g.ruta.chofer.nombre}</td>
                           <td className="px-4 py-3">
                             <span className={`rounded-full px-2 py-0.5 text-xs ${
                               g.estado === 'ENTREGADO' ? 'bg-emerald-100 text-emerald-700' :
@@ -249,7 +249,7 @@ export function AdminReportesPage() {
                               'bg-slate-100 text-slate-600'
                             }`}>{g.estado}</span>
                           </td>
-                          <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{new Date(g.createdAt).toLocaleDateString('es-ES')}</td>
+                          <td className="px-4 py-3 text-slate-500">{new Date(g.createdAt).toLocaleDateString('es-ES')}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -261,15 +261,15 @@ export function AdminReportesPage() {
 
             {tab === 'chofer' && (
               <div>
-                <div className="flex justify-end gap-2 border-b border-slate-100 p-3 dark:border-slate-700">
-                  <button type="button" onClick={handleExportChoferExcel} className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400">
+                <div className="flex justify-end gap-2 border-b border-slate-100 p-3">
+                  <button type="button" onClick={handleExportChoferExcel} className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100">
                     <span className="material-symbols-outlined text-sm">table_view</span>Excel
                   </button>
-                  <button type="button" onClick={handleExportChoferPDF} className="flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100 dark:border-rose-800 dark:bg-rose-900/20 dark:text-rose-400">
+                  <button type="button" onClick={handleExportChoferPDF} className="flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100">
                     <span className="material-symbols-outlined text-sm">picture_as_pdf</span>PDF
                   </button>
                 </div>
-                <div className="divide-y divide-slate-100 dark:divide-slate-700">
+                <div className="divide-y divide-slate-100">
                   {dataChofer.filter((c) => !choferId || c.choferId === choferId).map((ch) => {
                     const expandido = choferExpandidoId === ch.choferId
                     const totalGuias = ch.rutas.reduce((a, r) => a + r.guias.length, 0)
@@ -277,15 +277,15 @@ export function AdminReportesPage() {
                     return (
                       <div key={ch.choferId}>
                         <button type="button" onClick={() => setChoferExpandidoId(expandido ? null : ch.choferId)}
-                          className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-slate-50 dark:hover:bg-slate-700/30">
+                          className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-slate-50">
                           <div className="flex items-center gap-3">
                             <span className={`material-symbols-outlined text-slate-400 transition-transform ${expandido ? 'rotate-90' : ''}`}>chevron_right</span>
                             <div className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-primary">
                               <span className="material-symbols-outlined text-sm">person</span>
                             </div>
                             <div>
-                              <p className="text-sm font-bold text-slate-900 dark:text-white">{ch.nombre}</p>
-                              <p className="text-xs text-slate-500 dark:text-slate-400">{ch.rutas.length} rutas · {entregadas}/{totalGuias} guías entregadas</p>
+                              <p className="text-sm font-bold text-slate-900">{ch.nombre}</p>
+                              <p className="text-xs text-slate-500">{ch.rutas.length} rutas · {entregadas}/{totalGuias} guías entregadas</p>
                             </div>
                           </div>
                           <span className="text-xs font-semibold text-emerald-600">
@@ -294,18 +294,18 @@ export function AdminReportesPage() {
                         </button>
 
                         {expandido && (
-                          <div className="border-t border-slate-100 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/50">
+                          <div className="border-t border-slate-100 bg-slate-50">
                             {ch.rutas.map((ruta) => (
-                              <div key={ruta.rutaId} className="border-b border-slate-100 px-12 py-3 dark:border-slate-700 last:border-0">
+                              <div key={ruta.rutaId} className="border-b border-slate-100 px-12 py-3 last:border-0">
                                 <p className="mb-2 text-xs font-bold uppercase tracking-wider text-primary">
                                   Ruta #{ruta.rutaId.slice(-6)} · {ruta.fecha} · <span className="normal-case font-normal text-slate-500">{ruta.estado}</span>
                                 </p>
                                 <div className="space-y-2">
                                   {ruta.guias.map((g) => (
-                                    <div key={g.guiaId} className="rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-600 dark:bg-slate-800">
+                                    <div key={g.guiaId} className="rounded-lg border border-slate-200 bg-white p-3">
                                       <div className="flex flex-wrap items-start justify-between gap-2">
                                         <div>
-                                          <p className="text-xs font-semibold text-slate-900 dark:text-white">{g.cliente} · <span className="text-primary">{g.numeroGuia}</span></p>
+                                          <p className="text-xs font-semibold text-slate-900">{g.cliente} · <span className="text-primary">{g.numeroGuia}</span></p>
                                           <p className="text-xs text-slate-500">{g.descripcion}</p>
                                         </div>
                                         <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
