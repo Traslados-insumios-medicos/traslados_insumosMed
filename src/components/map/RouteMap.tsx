@@ -46,6 +46,9 @@ export function RouteMap({ stops, currentPosition, highlightedStopId, fitBoundsT
     mapRef.current = map
 
     map.on('load', () => {
+      map.addControl(new mapboxgl.NavigationControl({ showCompass: true }), 'top-right')
+      map.addControl(new mapboxgl.FullscreenControl(), 'top-right')
+
       // Draw route line
       if (stops.length > 1) {
         map.addSource('route', {
