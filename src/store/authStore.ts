@@ -8,6 +8,7 @@ interface AuthState {
   mustChangePassword: boolean
   loading: boolean
   sessionLoading: boolean
+  isDemo: boolean
   // Prototipo: login simulado por rol
   loginAsRole: (rol: Rol, user: Usuario) => void
   // Producción: login real con email + password
@@ -23,9 +24,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   mustChangePassword: false,
   loading: false,
   sessionLoading: false,
+  isDemo: false,
 
   // Mantiene el login simulado del prototipo
-  loginAsRole: (rol, user) => set({ currentRole: rol, currentUser: user, mustChangePassword: false }),
+  loginAsRole: (rol, user) => set({ currentRole: rol, currentUser: user, mustChangePassword: false, isDemo: true }),
 
   loginWithCredentials: async (email, password) => {
     set({ loading: true })
@@ -37,6 +39,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         currentUser: usuario,
         currentRole: data.usuario.rol,
         mustChangePassword: !!data.mustChangePassword,
+        isDemo: false,
         loading: false,
       })
       return { mustChangePassword: !!data.mustChangePassword }

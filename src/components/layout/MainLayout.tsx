@@ -13,7 +13,7 @@ const navItemActive =
 
 export function MainLayout() {
   const { currentUser, logout } = useAuthStore()
-  const { resetDemoData, novedades, guias } = useLogisticsStore()
+  const { novedades, guias } = useLogisticsStore()
   const { isDark, toggleTheme } = useThemeStore()
   const navigate = useNavigate()
   const role = currentUser?.rol
@@ -145,14 +145,6 @@ export function MainLayout() {
           >
             <span className="material-symbols-outlined text-sm">{isDark ? 'light_mode' : 'dark_mode'}</span>
             {isDark ? 'Modo claro' : 'Modo oscuro'}
-          </button>
-          <button
-            type="button"
-            onClick={() => resetDemoData()}
-            className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-slate-200 px-3 py-2.5 text-xs font-medium text-slate-500 transition-colors hover:border-primary hover:text-primary dark:border-slate-600 dark:text-slate-400 dark:hover:border-primary dark:hover:text-primary"
-          >
-            <span className="material-symbols-outlined text-sm">settings_backup_restore</span>
-            Reset Demo Data
           </button>
         </div>
       </aside>
