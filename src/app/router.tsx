@@ -41,6 +41,7 @@ export const router = createBrowserRouter([
       { path: '/admin/rutas', element: <AdminRutasPage /> },
       { path: '/admin/novedades', element: <AdminNovedadesPage /> },
       { path: '/chofer/rutas', element: <ChoferRutasPage /> },
+      { path: '/chofer/historial', element: <ChoferRutasPage /> },
       { path: '/chofer/rutas/:id', element: <ChoferRutaDetallePage /> },
       { path: '/cliente/envios', element: <ClienteEnviosPage /> },
       { path: '/cliente/envios/:guiaId', element: <ClienteEnvioDetallePage /> },
