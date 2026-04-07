@@ -67,7 +67,7 @@ export function ChoferRutasPage() {
             {hoy.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
           </p>
           <h2 className="text-xl font-bold text-slate-900 sm:text-2xl">
-            Hola, {currentUser?.nombre?.split(' ')[0]} 👋
+            Hola, {currentUser?.nombre?.split(' ')[0]}
           </h2>
         </div>
         {rutasEnCurso > 0 && (
