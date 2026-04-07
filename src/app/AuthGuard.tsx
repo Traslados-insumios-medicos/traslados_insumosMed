@@ -6,19 +6,18 @@ interface Props {
   children: ReactNode
 }
 
-export function RoleGuard({ children }: Props) {
-  const { currentUser, mustChangePassword } = useAuthStore()
+/**
+ * Requires the user to be authenticated but does NOT enforce mustChangePassword.
+ * Used for routes like /cambiar-password that need auth but are accessible
+ * even when mustChangePassword is true.
+ */
+export function AuthGuard({ children }: Props) {
+  const { currentUser } = useAuthStore()
   const location = useLocation()
 
   if (!currentUser) {
     return <Navigate to="/login" replace state={{ from: location }} />
   }
 
-  // Requirement 1.4: if mustChangePassword is true, force redirect to /cambiar-password
-  if (mustChangePassword) {
-    return <Navigate to="/cambiar-password" replace />
-  }
-
   return <>{children}</>
 }
-
