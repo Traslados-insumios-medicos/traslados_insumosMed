@@ -18,12 +18,13 @@ interface AuthState {
   logout: () => void
 }
 
-export const useAuthStore = create<AuthState>((set, get) => ({
+export const useAuthStore = create<AuthState>((set) => ({
   currentUser: null,
   currentRole: null,
   mustChangePassword: false,
   loading: false,
-  sessionLoading: false,
+  // Empieza en true si hay token para evitar flash de redirect al login
+  sessionLoading: typeof window !== 'undefined' && !!localStorage.getItem('token'),
   isDemo: false,
 
   // Mantiene el login simulado del prototipo

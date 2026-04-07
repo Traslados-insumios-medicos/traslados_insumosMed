@@ -12,8 +12,8 @@ export function ClienteEnvioDetallePage() {
 
   if (!guia) {
     return (
-      <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 p-8">
-        <p className="text-sm text-slate-500 dark:text-slate-400">Guía no encontrada.</p>
+      <div className="rounded-xl border border-slate-200 bg-white p-8">
+        <p className="text-sm text-slate-500">Guía no encontrada.</p>
         <Link to="/cliente/envios" className="mt-2 inline-block text-sm font-medium text-primary hover:underline">
           Volver a Envíos
         </Link>
@@ -75,10 +75,10 @@ export function ClienteEnvioDetallePage() {
     <div className="space-y-8">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+          <h1 className="text-2xl font-bold text-slate-900">
             Detalle de envío · {guia.numeroGuia}
           </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">{guia.descripcion}</p>
+          <p className="text-sm text-slate-500">{guia.descripcion}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${
@@ -91,7 +91,7 @@ export function ClienteEnvioDetallePage() {
           <button
             type="button"
             onClick={handleExportExcel}
-            className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-400"
+            className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100"
           >
             <span className="material-symbols-outlined text-sm">table_view</span>
             Excel
@@ -99,7 +99,7 @@ export function ClienteEnvioDetallePage() {
           <button
             type="button"
             onClick={handleExportPDF}
-            className="flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100 dark:border-rose-800 dark:bg-rose-900/20 dark:text-rose-400"
+            className="flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100"
           >
             <span className="material-symbols-outlined text-sm">picture_as_pdf</span>
             PDF
@@ -111,8 +111,8 @@ export function ClienteEnvioDetallePage() {
         {/* Main */}
         <div className="space-y-6 lg:col-span-2">
           {/* Timeline */}
-          <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 p-6 shadow-sm">
-            <h3 className="mb-6 text-lg font-bold text-slate-900 dark:text-white">Progreso de entrega</h3>
+          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h3 className="mb-6 text-lg font-bold text-slate-900">Progreso de entrega</h3>
             <div className="relative space-y-8 before:absolute before:left-5 before:h-full before:w-0.5 before:bg-slate-200">
               {statusSteps.map((step, i) => (
                 <div key={step.key} className="relative flex items-center gap-6">
@@ -129,10 +129,10 @@ export function ClienteEnvioDetallePage() {
                     </span>
                   </div>
                   <div>
-                    <h4 className={`text-sm font-bold ${step.active ? 'text-primary' : step.done ? 'text-slate-900 dark:text-white' : 'text-slate-400'}`}>
+                    <h4 className={`text-sm font-bold ${step.active ? 'text-primary' : step.done ? 'text-slate-900' : 'text-slate-400'}`}>
                       {step.label}
                     </h4>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                    <p className="text-xs text-slate-500">
                       {guia.createdAt && i === 0 ? new Date(guia.createdAt).toLocaleString('es-ES')
                         : step.done && guia.updatedAt && i >= 2 ? new Date(guia.updatedAt).toLocaleString('es-ES')
                         : '—'}
@@ -145,8 +145,8 @@ export function ClienteEnvioDetallePage() {
 
           {/* Datos de entrega */}
           {guia.estado === 'ENTREGADO' && (guia.receptorNombre || guia.horaLlegada || guia.temperatura) && (
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 dark:border-emerald-900/40 dark:bg-slate-800 p-6 shadow-sm">
-              <h3 className="mb-4 flex items-center gap-2 text-lg font-bold text-slate-900 dark:text-white">
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-6 shadow-sm">
+              <h3 className="mb-4 flex items-center gap-2 text-lg font-bold text-slate-900">
                 <span className="material-symbols-outlined text-emerald-600">verified</span>
                 Datos de entrega
               </h3>
@@ -154,31 +154,31 @@ export function ClienteEnvioDetallePage() {
                 {guia.receptorNombre && (
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Recibido por</p>
-                    <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{guia.receptorNombre}</p>
+                    <p className="mt-1 text-sm font-medium text-slate-900">{guia.receptorNombre}</p>
                   </div>
                 )}
                 {guia.horaLlegada && (
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Hora llegada</p>
-                    <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{guia.horaLlegada}</p>
+                    <p className="mt-1 text-sm font-medium text-slate-900">{guia.horaLlegada}</p>
                   </div>
                 )}
                 {guia.horaSalida && (
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Hora salida</p>
-                    <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{guia.horaSalida}</p>
+                    <p className="mt-1 text-sm font-medium text-slate-900">{guia.horaSalida}</p>
                   </div>
                 )}
                 {guia.temperatura && (
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Temperatura</p>
-                    <p className="mt-1 text-sm font-medium text-slate-900 dark:text-white">{guia.temperatura}</p>
+                    <p className="mt-1 text-sm font-medium text-slate-900">{guia.temperatura}</p>
                   </div>
                 )}
                 {guia.observaciones && (
                   <div className="col-span-2 sm:col-span-4">
                     <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Observaciones</p>
-                    <p className="mt-1 text-sm text-slate-700 dark:text-slate-300">{guia.observaciones}</p>
+                    <p className="mt-1 text-sm text-slate-700">{guia.observaciones}</p>
                   </div>
                 )}
               </div>
@@ -186,17 +186,17 @@ export function ClienteEnvioDetallePage() {
           )}
 
           {/* Novedades */}
-          <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 p-6 shadow-sm">
-            <h3 className="mb-4 text-lg font-bold text-slate-900 dark:text-white">Novedades</h3>
+          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h3 className="mb-4 text-lg font-bold text-slate-900">Novedades</h3>
             {novedadesGuia.length === 0 ? (
-              <p className="text-sm text-slate-500 dark:text-slate-400">Sin novedades registradas para esta guía.</p>
+              <p className="text-sm text-slate-500">Sin novedades registradas para esta guía.</p>
             ) : (
               <ul className="space-y-3">
                 {novedadesGuia.map((n) => (
-                  <li key={n.id} className="rounded-lg border border-slate-100 dark:border-slate-700 p-3 text-sm">
-                    <p className="font-semibold text-slate-900 dark:text-white">{n.tipo}</p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">{new Date(n.createdAt).toLocaleString('es-ES')}</p>
-                    <p className="mt-1 text-slate-600 dark:text-slate-300">{n.descripcion}</p>
+                  <li key={n.id} className="rounded-lg border border-slate-100 p-3 text-sm">
+                    <p className="font-semibold text-slate-900">{n.tipo}</p>
+                    <p className="text-xs text-slate-500">{new Date(n.createdAt).toLocaleString('es-ES')}</p>
+                    <p className="mt-1 text-slate-600">{n.descripcion}</p>
                   </li>
                 ))}
               </ul>
@@ -206,10 +206,10 @@ export function ClienteEnvioDetallePage() {
 
         {/* Sidebar: fotos */}
         <div className="flex flex-col gap-6">
-          <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 p-6 shadow-sm">
-            <h3 className="mb-4 text-lg font-bold text-slate-900 dark:text-white">Fotos de entrega</h3>
+          <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+            <h3 className="mb-4 text-lg font-bold text-slate-900">Fotos de entrega</h3>
             {fotosGuia.length === 0 ? (
-              <p className="text-sm text-slate-500 dark:text-slate-400">No hay fotos registradas para esta guía.</p>
+              <p className="text-sm text-slate-500">No hay fotos registradas para esta guía.</p>
             ) : (
               <div className="grid grid-cols-2 gap-3">
                 {fotosGuia.map((f, i) => (
