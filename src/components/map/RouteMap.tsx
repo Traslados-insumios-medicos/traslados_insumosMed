@@ -132,7 +132,8 @@ export function RouteMap({ stops, currentPosition, highlightedStopId, fitBoundsT
           justify-content:center;font-size:18px;
           border:2px solid white;box-shadow:0 2px 6px rgba(0,0,0,0.3);
         `
-        el.textContent = '🚚'
+        el.innerHTML =
+          '<span class="material-symbols-outlined" style="font-size:20px;line-height:1">local_shipping</span>'
         truckMarkerRef.current = new mapboxgl.Marker({ element: el })
           .setLngLat(lngLat)
           .setPopup(new mapboxgl.Popup({ offset: 16 }).setText('Posición actual del camión'))

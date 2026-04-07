@@ -1,19 +1,85 @@
+import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { useLogisticsStore } from '../../store/logisticsStore'
+import { api } from '../../services/api'
+import { useToastStore } from '../../store/toastStore'
 import { exportToExcel, exportToPDF } from '../../utils/exportUtils'
+
+const tipoNovedadLabel: Record<string, string> = {
+  DIRECCION_INCORRECTA: 'Dirección incorrecta',
+  CLIENTE_AUSENTE: 'Cliente ausente',
+  MERCADERIA_DANADA: 'Mercadería dañada',
+  OTRO: 'Otro',
+}
+
+interface FotoApi {
+  id: string
+  urlPreview: string
+  tipo: string
+}
+
+interface NovedadApi {
+  id: string
+  tipo: string
+  descripcion: string
+  createdAt: string
+}
+
+interface GuiaDetalleApi {
+  id: string
+  numeroGuia: string
+  descripcion: string
+  estado: string
+  createdAt: string
+  updatedAt: string
+  receptorNombre?: string | null
+  horaLlegada?: string | null
+  horaSalida?: string | null
+  temperatura?: string | null
+  observaciones?: string | null
+  fotos: FotoApi[]
+  novedades: NovedadApi[]
+}
 
 export function ClienteEnvioDetallePage() {
   const { guiaId } = useParams<{ guiaId: string }>()
-  const { guias, fotos, novedades } = useLogisticsStore()
+  const addToast = useToastStore((s) => s.addToast)
+  const [guia, setGuia] = useState<GuiaDetalleApi | null>(null)
+  const [loading, setLoading] = useState(true)
 
-  const guia = guias.find((g) => g.id === guiaId)
-  const fotosGuia = fotos.filter((f) => f.guiaId === guiaId)
-  const novedadesGuia = novedades.filter((n) => n.guiaId === guiaId)
+  useEffect(() => {
+    if (!guiaId) return
+    let cancel = false
+    ;(async () => {
+      setLoading(true)
+      try {
+        const res = await api.get<GuiaDetalleApi>(`/guias/${guiaId}`)
+        if (!cancel) setGuia(res.data)
+      } catch {
+        if (!cancel) {
+          setGuia(null)
+          addToast('No se pudo cargar el envío', 'error')
+        }
+      } finally {
+        if (!cancel) setLoading(false)
+      }
+    })()
+    return () => {
+      cancel = true
+    }
+  }, [guiaId, addToast])
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <span className="material-symbols-outlined animate-spin text-3xl text-primary">progress_activity</span>
+      </div>
+    )
+  }
 
   if (!guia) {
     return (
       <div className="rounded-xl border border-slate-200 bg-white p-8">
-        <p className="text-sm text-slate-500">Guía no encontrada.</p>
+        <p className="text-sm text-slate-500">Guía no encontrada o sin permiso.</p>
         <Link to="/cliente/envios" className="mt-2 inline-block text-sm font-medium text-primary hover:underline">
           Volver a Envíos
         </Link>
@@ -21,26 +87,45 @@ export function ClienteEnvioDetallePage() {
     )
   }
 
+  const fotosGuia = guia.fotos.filter((f) => f.tipo === 'GUIA')
+  const novedadesGuia = guia.novedades
+
   const statusSteps = [
     { key: 'created', label: 'Pedido recibido', done: true, active: false },
     { key: 'transit', label: 'En tránsito', done: guia.estado !== 'PENDIENTE', active: guia.estado === 'PENDIENTE' },
-    { key: 'delivery', label: 'En entrega', done: guia.estado === 'ENTREGADO', active: guia.estado === 'INCIDENCIA' },
+    {
+      key: 'delivery',
+      label: 'En entrega',
+      done: guia.estado === 'ENTREGADO',
+      active: guia.estado === 'INCIDENCIA',
+    },
     { key: 'delivered', label: 'Entregado', done: guia.estado === 'ENTREGADO', active: false },
   ]
 
   const handleExportExcel = () => {
-    exportToExcel([{
-      'Nº Guía': guia.numeroGuia,
-      'Descripción': guia.descripcion,
-      'Estado': guia.estado === 'ENTREGADO' ? 'Entregado' : guia.estado === 'INCIDENCIA' ? 'Incidencia' : 'En tránsito',
-      'Recibido por': guia.receptorNombre ?? '—',
-      'Hora llegada': guia.horaLlegada ?? '—',
-      'Hora salida': guia.horaSalida ?? '—',
-      'Temperatura': guia.temperatura ?? '—',
-      'Observaciones': guia.observaciones ?? '—',
-      'Novedades': novedadesGuia.map((n) => n.descripcion).join(' | ') || '—',
-      'Fecha creación': new Date(guia.createdAt).toLocaleString('es-ES'),
-    }], `reporte-guia-${guia.numeroGuia}`, 'Detalle Envío')
+    exportToExcel(
+      [
+        {
+          'Nº Guía': guia.numeroGuia,
+          Descripción: guia.descripcion,
+          Estado:
+            guia.estado === 'ENTREGADO'
+              ? 'Entregado'
+              : guia.estado === 'INCIDENCIA'
+                ? 'Incidencia'
+                : 'En tránsito',
+          'Recibido por': guia.receptorNombre ?? '—',
+          'Hora llegada': guia.horaLlegada ?? '—',
+          'Hora salida': guia.horaSalida ?? '—',
+          Temperatura: guia.temperatura ?? '—',
+          Observaciones: guia.observaciones ?? '—',
+          Novedades: novedadesGuia.map((n) => n.descripcion).join(' | ') || '—',
+          'Fecha creación': new Date(guia.createdAt).toLocaleString('es-ES'),
+        },
+      ],
+      `reporte-guia-${guia.numeroGuia}`,
+      'Detalle Envío',
+    )
   }
 
   const handleExportPDF = () => {
@@ -50,7 +135,14 @@ export function ClienteEnvioDetallePage() {
       [
         ['Nº Guía', guia.numeroGuia],
         ['Descripción', guia.descripcion],
-        ['Estado', guia.estado === 'ENTREGADO' ? 'Entregado' : guia.estado === 'INCIDENCIA' ? 'Incidencia' : 'En tránsito'],
+        [
+          'Estado',
+          guia.estado === 'ENTREGADO'
+            ? 'Entregado'
+            : guia.estado === 'INCIDENCIA'
+              ? 'Incidencia'
+              : 'En tránsito',
+        ],
         ['Recibido por', guia.receptorNombre ?? '—'],
         ['Hora llegada', guia.horaLlegada ?? '—'],
         ['Hora salida', guia.horaSalida ?? '—'],
@@ -75,18 +167,24 @@ export function ClienteEnvioDetallePage() {
     <div className="space-y-8">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">
-            Detalle de envío · {guia.numeroGuia}
-          </h1>
+          <h1 className="text-2xl font-bold text-slate-900">Detalle de envío · {guia.numeroGuia}</h1>
           <p className="text-sm text-slate-500">{guia.descripcion}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-            guia.estado === 'ENTREGADO' ? 'bg-emerald-100 text-emerald-800'
-            : guia.estado === 'INCIDENCIA' ? 'bg-rose-100 text-rose-800'
-            : 'bg-blue-100 text-blue-800'
-          }`}>
-            {guia.estado === 'ENTREGADO' ? 'Entregado' : guia.estado === 'INCIDENCIA' ? 'Incidencia' : 'En tránsito'}
+          <span
+            className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+              guia.estado === 'ENTREGADO'
+                ? 'bg-emerald-100 text-emerald-800'
+                : guia.estado === 'INCIDENCIA'
+                  ? 'bg-rose-100 text-rose-800'
+                  : 'bg-blue-100 text-blue-800'
+            }`}
+          >
+            {guia.estado === 'ENTREGADO'
+              ? 'Entregado'
+              : guia.estado === 'INCIDENCIA'
+                ? 'Incidencia'
+                : 'En tránsito'}
           </span>
           <button
             type="button"
@@ -108,34 +206,43 @@ export function ClienteEnvioDetallePage() {
       </div>
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
-        {/* Main */}
         <div className="space-y-6 lg:col-span-2">
-          {/* Timeline */}
           <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
             <h3 className="mb-6 text-lg font-bold text-slate-900">Progreso de entrega</h3>
             <div className="relative space-y-8 before:absolute before:left-5 before:h-full before:w-0.5 before:bg-slate-200">
               {statusSteps.map((step, i) => (
                 <div key={step.key} className="relative flex items-center gap-6">
-                  <div className={`z-10 flex size-10 items-center justify-center rounded-full ${
-                    step.active ? 'border-2 border-primary bg-primary/20 text-primary ring-4 ring-primary/10'
-                    : step.done ? 'bg-primary text-white'
-                    : 'bg-slate-100 text-slate-400'
-                  }`}>
+                  <div
+                    className={`z-10 flex size-10 items-center justify-center rounded-full ${
+                      step.active
+                        ? 'border-2 border-primary bg-primary/20 text-primary ring-4 ring-primary/10'
+                        : step.done
+                          ? 'bg-primary text-white'
+                          : 'bg-slate-100 text-slate-400'
+                    }`}
+                  >
                     <span className="material-symbols-outlined text-lg">
-                      {step.key === 'created' ? 'receipt_long'
-                        : step.key === 'transit' ? 'inventory_2'
-                        : step.key === 'delivery' ? 'delivery_dining'
-                        : 'check_circle'}
+                      {step.key === 'created'
+                        ? 'receipt_long'
+                        : step.key === 'transit'
+                          ? 'inventory_2'
+                          : step.key === 'delivery'
+                            ? 'delivery_dining'
+                            : 'check_circle'}
                     </span>
                   </div>
                   <div>
-                    <h4 className={`text-sm font-bold ${step.active ? 'text-primary' : step.done ? 'text-slate-900' : 'text-slate-400'}`}>
+                    <h4
+                      className={`text-sm font-bold ${step.active ? 'text-primary' : step.done ? 'text-slate-900' : 'text-slate-400'}`}
+                    >
                       {step.label}
                     </h4>
                     <p className="text-xs text-slate-500">
-                      {guia.createdAt && i === 0 ? new Date(guia.createdAt).toLocaleString('es-ES')
-                        : step.done && guia.updatedAt && i >= 2 ? new Date(guia.updatedAt).toLocaleString('es-ES')
-                        : '—'}
+                      {guia.createdAt && i === 0
+                        ? new Date(guia.createdAt).toLocaleString('es-ES')
+                        : step.done && guia.updatedAt && i >= 2
+                          ? new Date(guia.updatedAt).toLocaleString('es-ES')
+                          : '—'}
                     </p>
                   </div>
                 </div>
@@ -143,7 +250,6 @@ export function ClienteEnvioDetallePage() {
             </div>
           </div>
 
-          {/* Datos de entrega */}
           {guia.estado === 'ENTREGADO' && (guia.receptorNombre || guia.horaLlegada || guia.temperatura) && (
             <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-6 shadow-sm">
               <h3 className="mb-4 flex items-center gap-2 text-lg font-bold text-slate-900">
@@ -185,7 +291,6 @@ export function ClienteEnvioDetallePage() {
             </div>
           )}
 
-          {/* Novedades */}
           <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
             <h3 className="mb-4 text-lg font-bold text-slate-900">Novedades</h3>
             {novedadesGuia.length === 0 ? (
@@ -194,7 +299,7 @@ export function ClienteEnvioDetallePage() {
               <ul className="space-y-3">
                 {novedadesGuia.map((n) => (
                   <li key={n.id} className="rounded-lg border border-slate-100 p-3 text-sm">
-                    <p className="font-semibold text-slate-900">{n.tipo}</p>
+                    <p className="font-semibold text-slate-900">{tipoNovedadLabel[n.tipo] ?? n.tipo}</p>
                     <p className="text-xs text-slate-500">{new Date(n.createdAt).toLocaleString('es-ES')}</p>
                     <p className="mt-1 text-slate-600">{n.descripcion}</p>
                   </li>
@@ -204,7 +309,6 @@ export function ClienteEnvioDetallePage() {
           </div>
         </div>
 
-        {/* Sidebar: fotos */}
         <div className="flex flex-col gap-6">
           <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
             <h3 className="mb-4 text-lg font-bold text-slate-900">Fotos de entrega</h3>
@@ -213,8 +317,15 @@ export function ClienteEnvioDetallePage() {
             ) : (
               <div className="grid grid-cols-2 gap-3">
                 {fotosGuia.map((f, i) => (
-                  <div key={f.id} className="group relative aspect-square overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
-                    <img src={f.urlPreview} alt="" className="h-full w-full object-cover transition-transform group-hover:scale-105" />
+                  <div
+                    key={f.id}
+                    className="group relative aspect-square overflow-hidden rounded-lg border border-slate-200 bg-slate-100"
+                  >
+                    <img
+                      src={f.urlPreview}
+                      alt=""
+                      className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                    />
                     <button
                       type="button"
                       onClick={() => handleDownloadFoto(f.urlPreview, `foto-${guia.numeroGuia}-${i + 1}.jpg`)}

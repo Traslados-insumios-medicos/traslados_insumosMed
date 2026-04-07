@@ -340,7 +340,7 @@ export function ChoferRutaDetallePage() {
           <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <label className="mb-3 block text-sm font-bold text-slate-700">Hoja de ruta finalizada</label>
             <PhotoUploader scope="hoja_ruta" rutaId={id} label="Fotos del documento" max={5} onUploaded={fetchRuta} />
-            <p className="mt-2 text-[10px] text-slate-500">Sube la foto del documento firmado (mín. 1 para finalizar).</p>
+            <p className="mt-2 text-[10px] text-slate-500 dark:text-slate-400">Sube la foto del documento firmado (opcional).</p>
           </div>
 
           {/* Acciones */}
@@ -360,8 +360,8 @@ export function ChoferRutaDetallePage() {
                   Finalizar jornada
                 </button>
                 {!puedeFinalizar && (
-                  <p className="mt-2 text-center text-xs text-slate-500">
-                    Completa todas las guías y sube al menos 1 foto de hoja de ruta.
+                  <p className="mt-2 text-center text-xs text-slate-500 dark:text-slate-400">
+                    Completa todas las guías para finalizar.
                   </p>
                 )}
               </>

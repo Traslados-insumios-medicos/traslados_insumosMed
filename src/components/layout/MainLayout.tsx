@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { useGsapOutletTransition } from '../../hooks/useGsapOutletTransition'
 import { useAuthStore } from '../../store/authStore'
 import { ToastContainer } from '../ui/ToastContainer'
 import { useAdminNotifications } from '../../hooks/useAdminNotifications'
@@ -40,9 +41,12 @@ function NavItem({ to, icon, label, onClick }: NavItemProps) {
 
 export function MainLayout() {
   const { currentUser, logout } = useAuthStore()
-  const { notifs, unread, markRead } = useAdminNotifications()
-  const navigate = useNavigate()
+  const location = useLocation()
+  const outletRef = useRef<HTMLDivElement>(null)
+  useGsapOutletTransition(outletRef, location.pathname)
   const role = currentUser?.rol
+  const { notifs, unread, markRead } = useAdminNotifications({ enabled: role === 'ADMIN' })
+  const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [notifOpen, setNotifOpen] = useState(false)
   const notifRef = useRef<HTMLDivElement>(null)
@@ -212,7 +216,11 @@ export function MainLayout() {
 
         {/* Content */}
         <main className="flex-1 overflow-y-auto p-5 md:p-6 lg:p-8">
-          <div className="mx-auto w-full max-w-7xl">
+          <div
+            ref={outletRef}
+            key={location.pathname}
+            className="mx-auto w-full max-w-7xl"
+          >
             <Outlet />
           </div>
         </main>
