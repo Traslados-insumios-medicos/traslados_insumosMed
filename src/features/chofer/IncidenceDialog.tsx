@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { motion } from 'framer-motion'
 import { api } from '../../services/api'
 import { useToastStore } from '../../store/toastStore'
 
@@ -52,8 +53,25 @@ export function IncidenceDialog({ guiaId, numeroGuia, onClose }: IncidenceDialog
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="incidence-dialog-title">
-      <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white shadow-xl">
+    <motion.div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      role="presentation"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2 }}
+    >
+      <motion.div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="incidence-dialog-title"
+        className="w-full max-w-md rounded-xl border border-slate-200 bg-white shadow-xl"
+        initial={{ opacity: 0, y: 22, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 14, scale: 0.98 }}
+        transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] as const }}
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between border-b border-slate-200 p-4">
           <h3 id="incidence-dialog-title" className="text-lg font-bold text-slate-900">
             Registrar incidencia — {numeroGuia}
@@ -90,7 +108,7 @@ export function IncidenceDialog({ guiaId, numeroGuia, onClose }: IncidenceDialog
             </button>
           </div>
         </form>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   )
 }

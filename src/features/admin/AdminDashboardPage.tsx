@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { motion } from 'framer-motion'
 import { api } from '../../services/api'
 
 interface RutaDashboard {
@@ -32,6 +33,22 @@ const estadoBadge = (estado: string) => {
   return 'bg-red-100 text-red-600'
 }
 
+const kpiContainer = {
+  show: { transition: { staggerChildren: 0.07 } },
+}
+const kpiItem = {
+  hidden: { opacity: 0, y: 18 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] as const } },
+}
+
+const novedadList = {
+  show: { transition: { staggerChildren: 0.08 } },
+}
+const novedadItem = {
+  hidden: { opacity: 0, y: 12 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.3, ease: [0.16, 1, 0.3, 1] as const } },
+}
+
 export function AdminDashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -60,9 +77,14 @@ export function AdminDashboardPage() {
   return (
     <div className="space-y-6">
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <motion.div
+        className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
+        variants={kpiContainer}
+        initial="hidden"
+        animate="show"
+      >
         {/* Envíos activos */}
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <motion.div variants={kpiItem} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <div className="flex size-10 items-center justify-center rounded-lg bg-blue-50">
               <span className="material-symbols-outlined text-xl text-primary">package_2</span>
@@ -71,10 +93,10 @@ export function AdminDashboardPage() {
           </div>
           <p className="mt-4 text-3xl font-bold text-slate-900">{enviosActivos}</p>
           <p className="mt-1 text-sm text-slate-500">Envíos activos</p>
-        </div>
+        </motion.div>
 
         {/* Rutas en curso */}
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <motion.div variants={kpiItem} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <div className="flex size-10 items-center justify-center rounded-lg bg-violet-50">
               <span className="material-symbols-outlined text-xl text-violet-600">route</span>
@@ -83,10 +105,10 @@ export function AdminDashboardPage() {
           </div>
           <p className="mt-4 text-3xl font-bold text-slate-900">{rutasEnCurso}</p>
           <p className="mt-1 text-sm text-slate-500">Rutas en curso</p>
-        </div>
+        </motion.div>
 
         {/* Entregas completadas */}
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <motion.div variants={kpiItem} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <div className="flex size-10 items-center justify-center rounded-lg bg-emerald-50">
               <span className="material-symbols-outlined text-xl text-emerald-600">check_circle</span>
@@ -95,10 +117,13 @@ export function AdminDashboardPage() {
           </div>
           <p className="mt-4 text-3xl font-bold text-slate-900">{entregasCompletadas}</p>
           <p className="mt-1 text-sm text-slate-500">Entregas completadas</p>
-        </div>
+        </motion.div>
 
         {/* Novedades */}
-        <div className={`rounded-xl border p-5 shadow-sm ${novedadesCount > 0 ? 'border-red-200 bg-red-50' : 'border-slate-200 bg-white'}`}>
+        <motion.div
+          variants={kpiItem}
+          className={`rounded-xl border p-5 shadow-sm ${novedadesCount > 0 ? 'border-red-200 bg-red-50' : 'border-slate-200 bg-white'}`}
+        >
           <div className="flex items-center justify-between">
             <div className={`flex size-10 items-center justify-center rounded-lg ${novedadesCount > 0 ? 'bg-red-100' : 'bg-slate-100'}`}>
               <span className={`material-symbols-outlined text-xl ${novedadesCount > 0 ? 'text-red-500' : 'text-slate-400'}`}>warning</span>
@@ -109,8 +134,8 @@ export function AdminDashboardPage() {
           </div>
           <p className={`mt-4 text-3xl font-bold ${novedadesCount > 0 ? 'text-red-600' : 'text-slate-900'}`}>{novedadesCount}</p>
           <p className="mt-1 text-sm text-slate-500">Novedades / Incidencias</p>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
 
       {/* Rutas recientes + Novedades */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
@@ -174,15 +199,29 @@ export function AdminDashboardPage() {
             <h3 className="text-base font-semibold text-slate-800">Novedades recientes</h3>
             {novedadesCount > 0 && <span className="size-2 animate-pulse rounded-full bg-red-500" />}
           </div>
-          <div className="space-y-3">
+          <motion.div
+            className="space-y-3"
+            variants={novedadList}
+            initial="hidden"
+            animate="show"
+            key={ultimasNovedades.map((n) => n.id).join(',')}
+          >
             {ultimasNovedades.length === 0 ? (
-              <div className="flex flex-col items-center justify-center rounded-xl border border-slate-200 bg-white py-10 text-center shadow-sm">
+              <motion.div
+                variants={novedadItem}
+                className="flex flex-col items-center justify-center rounded-xl border border-slate-200 bg-white py-10 text-center shadow-sm"
+              >
                 <span className="material-symbols-outlined text-3xl text-slate-300">check_circle</span>
                 <p className="mt-2 text-sm text-slate-400">Sin novedades</p>
-              </div>
+              </motion.div>
             ) : (
               ultimasNovedades.map((n) => (
-                <div key={n.id} className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <motion.div
+                  key={n.id}
+                  layout
+                  variants={novedadItem}
+                  className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+                >
                   <div className="flex items-start gap-3">
                     <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-red-50">
                       <span className="material-symbols-outlined text-sm text-red-500">warning</span>
@@ -194,10 +233,10 @@ export function AdminDashboardPage() {
                       <p className="mt-1.5 text-[10px] text-slate-400">{new Date(n.createdAt).toLocaleString('es-ES')}</p>
                     </div>
                   </div>
-                </div>
+                </motion.div>
               ))
             )}
-          </div>
+          </motion.div>
         </div>
       </div>
     </div>

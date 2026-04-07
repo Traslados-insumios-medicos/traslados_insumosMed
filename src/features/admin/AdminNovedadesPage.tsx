@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { motion } from 'framer-motion'
 import { api } from '../../services/api'
 import { useToastStore } from '../../store/toastStore'
 
@@ -15,6 +16,12 @@ interface ClienteOption { id: string; nombre: string }
 const tipoLabel: Record<string, string> = {
   CLIENTE_AUSENTE: 'Cliente ausente', DIRECCION_INCORRECTA: 'Dirección incorrecta',
   MERCADERIA_DANADA: 'Mercadería dañada', OTRO: 'Otro',
+}
+
+const listVariants = { show: { transition: { staggerChildren: 0.055 } } }
+const itemVariants = {
+  hidden: { opacity: 0, y: 14 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.32, ease: [0.16, 1, 0.3, 1] as const } },
 }
 
 export function AdminNovedadesPage() {
@@ -114,14 +121,27 @@ export function AdminNovedadesPage() {
             <span className="material-symbols-outlined animate-spin text-3xl text-primary">progress_activity</span>
           </div>
         ) : (
-          <div className="divide-y divide-slate-100 p-4 space-y-3">
+          <motion.div
+            className="divide-y divide-slate-100 p-4 space-y-3"
+            variants={listVariants}
+            initial="hidden"
+            animate="show"
+            key={[clienteId, fechaDesde, fechaHasta, novedadesFiltradas.map((x) => x.id).join(',')].join('|')}
+          >
             {novedadesFiltradas.length === 0 ? (
-              <p className="text-sm text-slate-500">No hay novedades con los filtros aplicados.</p>
+              <motion.p variants={itemVariants} className="text-sm text-slate-500">
+                No hay novedades con los filtros aplicados.
+              </motion.p>
             ) : (
               novedadesFiltradas.map((n) => {
                 const nota = notaInput[n.id] ?? ''
                 return (
-                  <div key={n.id} className="rounded-lg border border-slate-200 p-4">
+                  <motion.div
+                    key={n.id}
+                    layout
+                    variants={itemVariants}
+                    className="rounded-lg border border-slate-200 p-4"
+                  >
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div>
                         <span className="rounded bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
@@ -168,11 +188,11 @@ export function AdminNovedadesPage() {
                         </button>
                       </div>
                     </div>
-                  </div>
+                  </motion.div>
                 )
               })
             )}
-          </div>
+          </motion.div>
         )}
       </div>
     </div>

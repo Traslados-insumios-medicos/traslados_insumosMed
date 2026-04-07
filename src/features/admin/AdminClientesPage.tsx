@@ -1,4 +1,5 @@
 import { type FormEvent, useCallback, useEffect, useState } from 'react'
+import { ModalMotion } from '../../components/ui/ModalMotion'
 import { api } from '../../services/api'
 import { useToastStore } from '../../store/toastStore'
 
@@ -189,9 +190,11 @@ export function AdminClientesPage() {
       </div>
 
       {/* Form Modal */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl">
+      <ModalMotion
+        show={showModal}
+        backdropClassName="bg-black/50"
+        panelClassName="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl"
+      >
             <div className="flex items-center justify-between border-b border-slate-200 p-5">
               <h3 className="text-lg font-bold text-slate-900">
                 {editingId ? 'Editar cliente' : 'Nuevo cliente'}
@@ -304,14 +307,16 @@ export function AdminClientesPage() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+      </ModalMotion>
 
       {/* Password Modal */}
-      {passwordModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl">
+      <ModalMotion
+        show={!!passwordModal}
+        backdropClassName="bg-black/50"
+        panelClassName="w-full max-w-md rounded-2xl bg-white shadow-2xl"
+      >
+        {passwordModal && (
+          <>
             <div className="flex items-center justify-between border-b border-slate-200 p-5">
               <h3 className="text-lg font-bold text-slate-900">Usuario creado</h3>
               <button type="button" onClick={() => { setPasswordModal(null); setCopied(false) }} className="text-slate-400 hover:text-slate-600">
@@ -343,9 +348,9 @@ export function AdminClientesPage() {
                 </button>
               </div>
             </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </ModalMotion>
 
       {/* Table */}
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">

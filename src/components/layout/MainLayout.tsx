@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../store/authStore'
 import { ToastContainer } from '../ui/ToastContainer'
@@ -17,14 +18,22 @@ function NavItem({ to, icon, label, onClick }: NavItemProps) {
   return (
     <NavLink to={to} onClick={onClick}
       className={({ isActive }) =>
-        `group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-150 ${
+        `group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors duration-150 ${
           isActive
             ? 'bg-primary text-white shadow-sm'
             : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
         }`
       }>
-      <span className="material-symbols-outlined text-[19px]">{icon}</span>
-      <span>{label}</span>
+      {({ isActive }) => (
+        <motion.span
+          className="flex items-center gap-3"
+          whileHover={isActive ? undefined : { x: 4 }}
+          transition={{ type: 'tween', duration: 0.18, ease: [0.16, 1, 0.3, 1] as const }}
+        >
+          <span className="material-symbols-outlined text-[19px]">{icon}</span>
+          <span>{label}</span>
+        </motion.span>
+      )}
     </NavLink>
   )
 }
@@ -140,8 +149,15 @@ export function MainLayout() {
                   )}
                 </button>
 
-                {notifOpen && (
-                  <div className="absolute right-0 top-full z-50 mt-2 w-80 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-card-hover">
+                <AnimatePresence>
+                  {notifOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10, scale: 0.97 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -8, scale: 0.97 }}
+                    transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] as const }}
+                    className="absolute right-0 top-full z-50 mt-2 w-80 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-card-hover"
+                  >
                     <div className="flex items-center justify-between bg-slate-50 px-4 py-3 border-b border-slate-100">
                       <p className="font-display text-sm font-semibold text-slate-800">Novedades</p>
                       <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-600">
@@ -178,8 +194,9 @@ export function MainLayout() {
                         Ver todas →
                       </button>
                     </div>
-                  </div>
-                )}
+                  </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             )}
 

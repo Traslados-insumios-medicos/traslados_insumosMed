@@ -1,4 +1,5 @@
 import { type FormEvent, useCallback, useEffect, useState } from 'react'
+import { ModalMotion } from '../../components/ui/ModalMotion'
 import { api } from '../../services/api'
 import { useToastStore } from '../../store/toastStore'
 
@@ -88,9 +89,11 @@ export function AdminChoferesPage() {
       </div>
 
       {/* Modal */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
-          <div className="w-full max-w-md rounded-2xl bg-white shadow-modal">
+      <ModalMotion
+        show={showModal}
+        backdropClassName="bg-slate-900/40"
+        panelClassName="w-full max-w-md rounded-2xl bg-white shadow-modal"
+      >
             <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
               <h3 className="font-display text-base font-semibold text-slate-900">{editingId ? 'Editar chofer' : 'Nuevo chofer'}</h3>
               <button type="button" onClick={resetForm} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100">
@@ -124,14 +127,16 @@ export function AdminChoferesPage() {
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
+      </ModalMotion>
 
       {/* Password modal */}
-      {passwordModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-white shadow-modal">
+      <ModalMotion
+        show={!!passwordModal}
+        backdropClassName="bg-slate-900/40"
+        panelClassName="w-full max-w-sm rounded-2xl bg-white shadow-modal"
+      >
+        {passwordModal && (
+          <>
             <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
               <h3 className="font-display text-base font-semibold text-slate-900">Chofer creado</h3>
               <button type="button" onClick={() => { setPasswordModal(null); setCopied(false) }} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100">
@@ -157,9 +162,9 @@ export function AdminChoferesPage() {
                   className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-dark">Entendido</button>
               </div>
             </div>
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </ModalMotion>
 
       {/* Tabla */}
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-card">

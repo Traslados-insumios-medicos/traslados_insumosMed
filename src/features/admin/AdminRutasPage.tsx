@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { ModalMotion } from '../../components/ui/ModalMotion'
 import { api } from '../../services/api'
 import { useToastStore } from '../../store/toastStore'
 
@@ -172,9 +173,11 @@ export function AdminRutasPage() {
       </div>
 
       {/* Modal nueva ruta */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-          <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl">
+      <ModalMotion
+        show={showModal}
+        backdropClassName="bg-black/50"
+        panelClassName="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl"
+      >
             <div className="flex items-center justify-between border-b border-slate-200 p-5">
               <h3 className="text-lg font-bold text-slate-900">Nueva Ruta</h3>
               <button type="button" onClick={resetForm} className="text-slate-400 hover:text-slate-600">
@@ -275,9 +278,7 @@ export function AdminRutasPage() {
                 Crear Ruta
               </button>
             </div>
-          </div>
-        </div>
-      )}
+      </ModalMotion>
 
       {/* Lista */}
       {loading ? (

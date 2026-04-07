@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { AnimatePresence } from 'framer-motion'
 import { Link, useParams } from 'react-router-dom'
 import { api } from '../../services/api'
 import { useAuthStore } from '../../store/authStore'
@@ -384,13 +385,16 @@ export function ChoferRutaDetallePage() {
         </Link>
       </nav>
 
-      {incidenceGuia && (
-        <IncidenceDialog
-          guiaId={incidenceGuia.id}
-          numeroGuia={incidenceGuia.numeroGuia}
-          onClose={handleIncidenciaCreada}
-        />
-      )}
+      <AnimatePresence>
+        {incidenceGuia && (
+          <IncidenceDialog
+            key={incidenceGuia.id}
+            guiaId={incidenceGuia.id}
+            numeroGuia={incidenceGuia.numeroGuia}
+            onClose={handleIncidenciaCreada}
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }

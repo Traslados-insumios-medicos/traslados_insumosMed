@@ -2,7 +2,6 @@
  * MOLECULE — StatCard
  * Combina átomos (Card + Badge) para mostrar una métrica KPI.
  */
-import type { ReactNode } from 'react'
 
 interface StatCardProps {
   icon: string
