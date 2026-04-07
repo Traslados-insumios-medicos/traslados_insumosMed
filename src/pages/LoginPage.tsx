@@ -1,9 +1,49 @@
-import { type FormEvent, useState } from 'react'
+import { type FormEvent, useLayoutEffect, useRef, useState } from 'react'
+import gsap from 'gsap'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
 import logo from '../assets/logo.png'
 
 export function LoginPage() {
+  const leftPanelRef = useRef<HTMLDivElement>(null)
+  const rightPanelRef = useRef<HTMLDivElement>(null)
+
+  useLayoutEffect(() => {
+    const mm = gsap.matchMedia()
+    mm.add(
+      {
+        reduceMotion: '(prefers-reduced-motion: reduce)',
+      },
+      (context) => {
+        const rm = Boolean(context.conditions?.reduceMotion)
+        const tl = gsap.timeline({ defaults: { ease: 'power3.out' } })
+        if (leftPanelRef.current) {
+          const leftEls = leftPanelRef.current.querySelectorAll<HTMLElement>('.login-reveal')
+          tl.from(
+            leftEls,
+            {
+              autoAlpha: rm ? 1 : 0,
+              y: rm ? 0 : 32,
+              duration: rm ? 0 : 0.55,
+              stagger: rm ? 0 : 0.1,
+            },
+            0,
+          )
+        }
+        if (rightPanelRef.current) {
+          tl.from(
+            rightPanelRef.current,
+            { autoAlpha: rm ? 1 : 0, y: rm ? 0 : 28, duration: rm ? 0 : 0.58 },
+            rm ? 0 : 0.14,
+          )
+        }
+        return () => {
+          tl.kill()
+        }
+      },
+    )
+    return () => mm.revert()
+  }, [])
   const navigate = useNavigate()
   const { loginWithCredentials } = useAuthStore()
   const [email, setEmail] = useState('')
@@ -33,7 +73,10 @@ export function LoginPage() {
   return (
     <div className="flex min-h-screen font-body">
       {/* Left panel */}
-      <div className="relative hidden lg:flex lg:w-[45%] flex-col justify-between overflow-hidden bg-primary px-12 py-10">
+      <div
+        ref={leftPanelRef}
+        className="relative hidden lg:flex lg:w-[45%] flex-col justify-between overflow-hidden bg-primary px-12 py-10"
+      >
         {/* Background pattern */}
         <div className="absolute inset-0 opacity-[0.04]"
           style={{ backgroundImage: 'radial-gradient(circle at 1px 1px, white 1px, transparent 0)', backgroundSize: '32px 32px' }} />
@@ -41,11 +84,11 @@ export function LoginPage() {
         <div className="absolute -bottom-32 -right-32 size-96 rounded-full bg-white/5" />
         <div className="absolute -top-20 -left-20 size-72 rounded-full bg-white/5" />
 
-        <div className="relative">
+        <div className="login-reveal relative">
           <img src={logo} alt="LOGISTRANS" className="h-10 w-auto brightness-0 invert" />
         </div>
 
-        <div className="relative space-y-6">
+        <div className="login-reveal relative space-y-6">
           <div>
             <h1 className="font-display text-4xl font-bold leading-tight text-white">
               LOGISTRANS<br />S.A.
@@ -72,11 +115,14 @@ export function LoginPage() {
           </div>
         </div>
 
-        <p className="relative text-xs text-blue-300">© 2025 LOGISTRANS S.A. Todos los derechos reservados.</p>
+        <p className="login-reveal relative text-xs text-blue-300">© 2025 LOGISTRANS S.A. Todos los derechos reservados.</p>
       </div>
 
       {/* Right panel */}
-      <div className="flex flex-1 flex-col items-center justify-center bg-bg px-6 py-12">
+      <div
+        ref={rightPanelRef}
+        className="flex flex-1 flex-col items-center justify-center bg-bg px-6 py-12"
+      >
         {/* Mobile logo */}
         <div className="mb-8 flex flex-col items-center lg:hidden">
           <img src={logo} alt="LOGISTRANS" className="h-12 w-auto mb-2" />

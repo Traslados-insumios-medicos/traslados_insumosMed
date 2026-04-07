@@ -11,20 +11,27 @@ export interface Notificacion {
   guia: { numeroGuia: string }
 }
 
-export function useAdminNotifications() {
+interface Options {
+  /** Solo ADMIN puede usar GET /novedades y la sala de socket de admins */
+  enabled?: boolean
+}
+
+export function useAdminNotifications(options: Options = {}) {
+  const { enabled = false } = options
   const [notifs, setNotifs] = useState<Notificacion[]>([])
   const [unread, setUnread] = useState(0)
   const socketRef = useRef<Socket | null>(null)
 
-  // Carga inicial desde la API
   useEffect(() => {
-    api.get<Notificacion[]>('/novedades')
+    if (!enabled) return
+    api
+      .get<Notificacion[]>('/novedades')
       .then((r) => setNotifs(r.data.slice(0, 20)))
       .catch(() => {})
-  }, [])
+  }, [enabled])
 
-  // WebSocket — solo para ADMIN
   useEffect(() => {
+    if (!enabled) return
     const token = localStorage.getItem('token')
     if (!token) return
 
@@ -51,7 +58,7 @@ export function useAdminNotifications() {
       socket.disconnect()
       socketRef.current = null
     }
-  }, [])
+  }, [enabled])
 
   const markRead = () => setUnread(0)
 

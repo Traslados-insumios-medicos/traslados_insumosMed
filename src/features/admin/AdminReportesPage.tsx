@@ -316,14 +316,14 @@ export function AdminReportesPage() {
                                       </div>
                                       {(g.receptorNombre || g.horaLlegada || g.temperatura) && (
                                         <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500">
-                                          {g.receptorNombre && <span>👤 {g.receptorNombre}</span>}
-                                          {g.horaLlegada && <span>🕐 Llegada: {g.horaLlegada}</span>}
-                                          {g.horaSalida && <span>🕐 Salida: {g.horaSalida}</span>}
-                                          {g.temperatura && <span>🌡 {g.temperatura}</span>}
+                                          {g.receptorNombre && <span>Receptor: {g.receptorNombre}</span>}
+                                          {g.horaLlegada && <span>Llegada: {g.horaLlegada}</span>}
+                                          {g.horaSalida && <span>Salida: {g.horaSalida}</span>}
+                                          {g.temperatura && <span>Temperatura: {g.temperatura}</span>}
                                         </div>
                                       )}
                                       {g.novedades.length > 0 && (
-                                        <div className="mt-1.5 text-xs text-amber-600">⚠ {g.novedades.join(' · ')}</div>
+                                        <div className="mt-1.5 text-xs text-amber-600">Novedades: {g.novedades.join(' · ')}</div>
                                       )}
                                     </div>
                                   ))}
