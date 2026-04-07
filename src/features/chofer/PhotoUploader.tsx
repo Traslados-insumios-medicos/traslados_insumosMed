@@ -76,14 +76,14 @@ export function PhotoUploader({ scope, guiaId, rutaId, label, max = scope === 'g
   return (
     <div className="space-y-2">
       {label && (
-        <p className="text-xs font-semibold uppercase tracking-tight text-slate-500 dark:text-slate-400">
+        <p className="text-xs font-semibold uppercase tracking-tight text-slate-500">
           {label} ({fotos.length}/{max})
         </p>
       )}
       <div className="flex flex-wrap gap-2">
         {fotos.map((f) => (
           <div key={f.id} className="relative">
-            <img src={f.urlPreview} alt="Preview" className="h-16 w-16 rounded-lg border border-slate-200 object-cover dark:border-slate-600 sm:h-20 sm:w-20" />
+            <img src={f.urlPreview} alt="Preview" className="h-16 w-16 rounded-lg border border-slate-200 object-cover sm:h-20 sm:w-20" />
             <button type="button" onClick={() => handleRemove(f.id)}
               className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white shadow"
               aria-label="Eliminar foto">
@@ -97,7 +97,7 @@ export function PhotoUploader({ scope, guiaId, rutaId, label, max = scope === 'g
               capture={scope === 'guia' ? 'environment' : undefined}
               multiple className="hidden" onChange={handleFileChange} />
             <button type="button" onClick={() => inputRef.current?.click()} disabled={uploading}
-              className="flex h-16 w-16 flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 text-slate-500 transition-colors hover:border-primary hover:bg-primary/5 hover:text-primary disabled:opacity-50 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-400 sm:h-20 sm:w-20">
+              className="flex h-16 w-16 flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 text-slate-500 transition-colors hover:border-primary hover:bg-primary/5 hover:text-primary disabled:opacity-50 sm:h-20 sm:w-20">
               {uploading
                 ? <span className="material-symbols-outlined animate-spin text-xl">progress_activity</span>
                 : <span className="material-symbols-outlined text-2xl">add_photo_alternate</span>

@@ -34,14 +34,14 @@ export function CambiarPasswordPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background-light p-4 font-display dark:bg-background-dark">
-      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-lg dark:border-slate-700 dark:bg-slate-900">
+    <div className="flex min-h-screen items-center justify-center bg-background-light p-4 font-display">
+      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-8 shadow-lg">
         <div className="mb-6 text-center">
           <div className="mx-auto mb-4 flex size-14 items-center justify-center rounded-full bg-primary/10">
             <span className="material-symbols-outlined text-3xl text-primary">lock_reset</span>
           </div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Cambiar contraseña</h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          <h1 className="text-2xl font-bold text-slate-900">Cambiar contraseña</h1>
+          <p className="mt-1 text-sm text-slate-500">
             Hola <span className="font-semibold">{currentUser?.nombre}</span>, por seguridad debes
             cambiar tu contraseña temporal antes de continuar.
           </p>
@@ -49,7 +49,7 @@ export function CambiarPasswordPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">
               Contraseña temporal
             </label>
             <input
@@ -58,12 +58,12 @@ export function CambiarPasswordPage() {
               onChange={(e) => setPasswordActual(e.target.value)}
               required
               placeholder="Tu contraseña temporal"
-              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 focus:border-primary focus:ring-primary dark:border-slate-600 dark:bg-slate-800 dark:text-white"
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 focus:border-primary focus:ring-primary"
             />
           </div>
 
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">
               Nueva contraseña
             </label>
             <input
@@ -73,12 +73,12 @@ export function CambiarPasswordPage() {
               required
               minLength={6}
               placeholder="Mínimo 6 caracteres"
-              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 focus:border-primary focus:ring-primary dark:border-slate-600 dark:bg-slate-800 dark:text-white"
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 focus:border-primary focus:ring-primary"
             />
           </div>
 
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+            <label className="mb-1.5 block text-sm font-medium text-slate-700">
               Confirmar nueva contraseña
             </label>
             <input
@@ -87,12 +87,12 @@ export function CambiarPasswordPage() {
               onChange={(e) => setConfirmacion(e.target.value)}
               required
               placeholder="Repite la nueva contraseña"
-              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 focus:border-primary focus:ring-primary dark:border-slate-600 dark:bg-slate-800 dark:text-white"
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-900 focus:border-primary focus:ring-primary"
             />
           </div>
 
           {error && (
-            <div className="flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-800 dark:bg-rose-900/20 dark:text-rose-400">
+            <div className="flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">
               <span className="material-symbols-outlined text-sm">error</span>
               {error}
             </div>

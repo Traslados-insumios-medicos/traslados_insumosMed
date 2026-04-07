@@ -1,10 +1,14 @@
 @import 'tailwindcss';
 
 @theme {
-  --font-sans: 'Inter', system-ui, sans-serif;
-  --color-primary: #0284c5;
-  --color-background-light: #f5f7f8;
-  --color-background-dark: #0f1c23;
+  --font-display: 'Sora', system-ui, sans-serif;
+  --font-body: 'DM Sans', system-ui, sans-serif;
+  --color-primary: #1e3a5f;
+  --color-primary-hover: #162d4a;
+  --color-accent: #e8a020;
+  --color-surface: #ffffff;
+  --color-bg: #f4f6f9;
+  --color-border: #e2e8f0;
 }
 
 *,
@@ -13,24 +17,21 @@
   box-sizing: border-box;
 }
 
-html,
-body,
-#root {
+html, body, #root {
   height: 100%;
 }
 
 body {
   margin: 0;
-  font-family: 'Inter', system-ui, sans-serif;
-  @apply bg-background-light text-slate-900 antialiased;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  background-color: #f4f6f9;
+  color: #1a2332;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
-.dark body {
-  @apply bg-background-dark text-slate-100;
-}
-
-.role-card:hover .role-icon-bg {
-  background-color: #0284c5;
-  color: white;
-}
-
+/* Scrollbar refinada */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }

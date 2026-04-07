@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { AnimatePresence } from 'framer-motion'
 import { Link, useParams } from 'react-router-dom'
 import { api } from '../../services/api'
 import { useAuthStore } from '../../store/authStore'
@@ -77,7 +78,8 @@ export function ChoferRutaDetallePage() {
 
   const puedeFinalizar =
     total > 0 &&
-    guiasPorRuta.every((g) => g.estado === 'ENTREGADO' || g.estado === 'INCIDENCIA')
+    guiasPorRuta.every((g) => g.estado === 'ENTREGADO' || g.estado === 'INCIDENCIA') &&
+    fotosHojaRuta.length >= 1
 
   const handleMarkEntregado = async (guiaId: string) => {
     try {
@@ -141,8 +143,8 @@ export function ChoferRutaDetallePage() {
 
   if (!ruta) {
     return (
-      <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 p-8">
-        <p className="text-sm text-slate-500 dark:text-slate-400">Ruta no encontrada.</p>
+      <div className="rounded-xl border border-slate-200 bg-white p-8">
+        <p className="text-sm text-slate-500">Ruta no encontrada.</p>
         <Link to="/chofer/rutas" className="mt-2 inline-block text-sm font-medium text-primary hover:underline">
           Volver a Mis rutas
         </Link>
@@ -158,17 +160,17 @@ export function ChoferRutaDetallePage() {
   return (
     <div className="mx-auto w-full max-w-7xl space-y-4 pb-24 md:pb-6">
       {/* Header */}
-      <div className="flex flex-shrink-0 items-center justify-between border-b border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900 md:border-0 md:bg-transparent md:p-0">
+      <div className="flex flex-shrink-0 items-center justify-between border-b border-slate-200 bg-white p-4 md:border-0 md:bg-transparent md:p-0">
         <div className="flex items-center gap-3">
           <div className="size-10 shrink-0 rounded-full border-2 border-primary/20 bg-slate-200" />
           <div>
-            <p className="text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">Chofer Logística</p>
-            <h2 className="text-lg font-bold leading-tight text-slate-900 dark:text-white">Hola, {currentUser?.nombre}</h2>
+            <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Chofer Logística</p>
+            <h2 className="text-lg font-bold leading-tight text-slate-900">Hola, {currentUser?.nombre}</h2>
           </div>
         </div>
         <div className="flex flex-col items-center rounded-lg bg-primary/10 p-2 text-primary">
-          <span className="text-xs font-bold dark:text-white">{mes}</span>
-          <span className="text-lg font-bold leading-none dark:text-white">{dia}</span>
+          <span className="text-xs font-bold">{mes}</span>
+          <span className="text-lg font-bold leading-none">{dia}</span>
         </div>
       </div>
 
@@ -176,11 +178,11 @@ export function ChoferRutaDetallePage() {
         {/* Columna izquierda */}
         <div className="flex min-h-0 flex-col gap-4 lg:flex-1">
           {/* Resumen */}
-          <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 p-4 shadow-sm">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="mb-4 flex items-start justify-between">
               <div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-white">Ruta #{ruta.id.slice(-6)}</h3>
-                <p className="text-sm text-slate-500 dark:text-slate-400">Distribución de Insumos Médicos</p>
+                <h3 className="text-base font-bold text-slate-900">Ruta #{ruta.id.slice(-6)}</h3>
+                <p className="text-sm text-slate-500">Distribución de Insumos Médicos</p>
               </div>
               <span className={`rounded-full px-2.5 py-1 text-xs font-bold uppercase ${
                 ruta.estado === 'EN_CURSO' ? 'bg-emerald-100 text-emerald-700' :
@@ -191,7 +193,7 @@ export function ChoferRutaDetallePage() {
             </div>
             <div className="space-y-3">
               <div className="flex justify-between text-sm">
-                <span className="text-slate-600 dark:text-slate-300">Progreso: {progreso}%</span>
+                <span className="text-slate-600">Progreso: {progreso}%</span>
                 <span className="font-bold text-primary">{entregadas + conIncidencia} / {total} guías</span>
               </div>
               <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
@@ -201,9 +203,9 @@ export function ChoferRutaDetallePage() {
           </div>
 
           {/* Mapa */}
-          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800">
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
             <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2">
-              <span className="text-sm font-semibold text-slate-700 dark:text-white">Recorrido</span>
+              <span className="text-sm font-semibold text-slate-700">Recorrido</span>
               <button type="button" onClick={() => setFitBoundsTrigger((t) => t + 1)}
                 className="rounded-lg bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/20">
                 Ver ruta completa
@@ -219,8 +221,8 @@ export function ChoferRutaDetallePage() {
           </div>
 
           {/* Paradas */}
-          <div className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 lg:min-h-0 lg:flex-1">
-            <h4 className="flex flex-shrink-0 items-center gap-2 border-b border-slate-200 px-4 py-3 font-bold text-slate-900 dark:text-white">
+          <div className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white lg:min-h-0 lg:flex-1">
+            <h4 className="flex flex-shrink-0 items-center gap-2 border-b border-slate-200 px-4 py-3 font-bold text-slate-900">
               <span className="material-symbols-outlined text-primary">format_list_bulleted</span>
               Paradas y guías
             </h4>
@@ -229,16 +231,16 @@ export function ChoferRutaDetallePage() {
                 const guiasStop = stop.guias
                 const isSelected = effectiveSelectedStopId === stop.id
                 return (
-                  <div key={stop.id} className={`border-b border-slate-100 dark:border-slate-700 last:border-b-0 ${isSelected ? 'border-l-4 border-l-primary bg-primary/5 dark:bg-primary/10' : ''}`}>
+                  <div key={stop.id} className={`border-b border-slate-100 last:border-b-0 ${isSelected ? 'border-l-4 border-l-primary bg-primary/5' : ''}`}>
                     <button type="button" onClick={() => setSelectedStopId(effectiveSelectedStopId === stop.id ? null : stop.id)}
                       className="flex w-full items-start justify-between p-4 text-left">
                       <div>
                         <p className="text-xs font-bold uppercase text-primary">Parada #{stop.orden}</p>
-                        <h5 className="font-bold text-slate-900 dark:text-white">{stop.direccion}</h5>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">{stop.cliente.nombre}</p>
+                        <h5 className="font-bold text-slate-900">{stop.direccion}</h5>
+                        <p className="text-xs text-slate-500">{stop.cliente.nombre}</p>
                         {stop.notas && <p className="text-xs text-slate-400">{stop.notas}</p>}
                       </div>
-                      <span className="rounded border border-slate-200 bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600 dark:text-slate-300">
+                      <span className="rounded border border-slate-200 bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
                         {guiasStop.length} guía(s)
                       </span>
                     </button>
@@ -247,29 +249,29 @@ export function ChoferRutaDetallePage() {
                       <div className="space-y-3 px-4 pb-4">
                         {guiasStop.map((g) => (
                           <div key={g.id} className={`rounded-lg border p-3 ${
-                            g.estado === 'INCIDENCIA' ? 'border-amber-200 bg-amber-50 dark:border-amber-900/50 dark:bg-slate-700' :
-                            'border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800'
+                            g.estado === 'INCIDENCIA' ? 'border-amber-200 bg-amber-50' :
+                            'border-slate-100 bg-slate-50'
                           }`}>
                             <div className="mb-2 flex items-center justify-between gap-2">
-                              <span className="text-sm font-bold text-slate-700 dark:text-white">Guía: #{g.numeroGuia}</span>
+                              <span className="text-sm font-bold text-slate-700">Guía: #{g.numeroGuia}</span>
                               <div className="flex flex-wrap gap-1">
                                 <button type="button" onClick={() => handleMarkEntregado(g.id)} disabled={g.estado === 'ENTREGADO'}
                                   className={`rounded px-2 py-1 text-[10px] font-medium ${
                                     g.estado === 'ENTREGADO' ? 'bg-emerald-600 text-white' :
-                                    'border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 hover:bg-slate-50'
+                                    'border border-slate-200 bg-white hover:bg-slate-50'
                                   }`}>
                                   Entregado
                                 </button>
                                 <button type="button" onClick={() => setIncidenceGuia({ id: g.id, numeroGuia: g.numeroGuia })}
                                   className={`rounded px-2 py-1 text-[10px] font-medium ${
                                     g.estado === 'INCIDENCIA' ? 'bg-amber-600 text-white' :
-                                    'border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 hover:bg-amber-50'
+                                    'border border-slate-200 bg-white hover:bg-amber-50'
                                   }`}>
                                   Incidencia
                                 </button>
                               </div>
                             </div>
-                            <p className="text-xs text-slate-600 dark:text-slate-300">{g.descripcion}</p>
+                            <p className="text-xs text-slate-600">{g.descripcion}</p>
 
                             {/* Campos de entrega — onBlur llama PATCH /api/guias/:id/detalle */}
                             <div className="mt-3 grid grid-cols-2 gap-2">
@@ -277,31 +279,31 @@ export function ChoferRutaDetallePage() {
                                 <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Recibido por</label>
                                 <input type="text" placeholder="Nombre de quien recibe" defaultValue={g.receptorNombre ?? ''}
                                   onBlur={(e) => handleDetalleBlur(g.id, 'receptorNombre', e.target.value)}
-                                  className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-700 dark:text-white" />
+                                  className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs" />
                               </div>
                               <div>
                                 <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Temperatura (°C)</label>
                                 <input type="text" placeholder="Ej: 18°C" defaultValue={g.temperatura ?? ''}
                                   onBlur={(e) => handleDetalleBlur(g.id, 'temperatura', e.target.value)}
-                                  className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-700 dark:text-white" />
+                                  className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs" />
                               </div>
                               <div>
                                 <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Hora llegada</label>
                                 <input type="time" defaultValue={g.horaLlegada ?? ''}
                                   onBlur={(e) => handleDetalleBlur(g.id, 'horaLlegada', e.target.value)}
-                                  className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-700 dark:text-white" />
+                                  className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs" />
                               </div>
                               <div>
                                 <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Hora salida</label>
                                 <input type="time" defaultValue={g.horaSalida ?? ''}
                                   onBlur={(e) => handleDetalleBlur(g.id, 'horaSalida', e.target.value)}
-                                  className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-700 dark:text-white" />
+                                  className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs" />
                               </div>
                               <div className="col-span-2">
                                 <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Observaciones</label>
                                 <textarea rows={2} placeholder="Novedades o comentarios (opcional)" defaultValue={g.observaciones ?? ''}
                                   onBlur={(e) => handleDetalleBlur(g.id, 'observaciones', e.target.value)}
-                                  className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs dark:border-slate-600 dark:bg-slate-700 dark:text-white" />
+                                  className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs" />
                               </div>
                             </div>
 
@@ -322,27 +324,27 @@ export function ChoferRutaDetallePage() {
         {/* Columna derecha */}
         <div className="flex flex-col gap-4 lg:w-[380px] lg:flex-shrink-0">
           {/* Incidencias */}
-          <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 p-4 shadow-sm">
-            <h4 className="mb-3 flex items-center gap-2 font-bold text-slate-900 dark:text-white">
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <h4 className="mb-3 flex items-center gap-2 font-bold text-slate-900">
               <span className="material-symbols-outlined text-amber-600">warning</span>
               Incidencias de esta ruta
             </h4>
             {(ruta.stops.flatMap((s) => s.guias).filter((g) => g.estado === 'INCIDENCIA')).length === 0 ? (
-              <p className="text-sm text-slate-500 dark:text-slate-400">Ninguna incidencia registrada.</p>
+              <p className="text-sm text-slate-500">Ninguna incidencia registrada.</p>
             ) : (
               <p className="text-sm text-amber-600">{ruta.stops.flatMap((s) => s.guias).filter((g) => g.estado === 'INCIDENCIA').length} guía(s) con incidencia</p>
             )}
           </div>
 
           {/* Hoja de ruta */}
-          <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 p-4 shadow-sm">
-            <label className="mb-3 block text-sm font-bold text-slate-700 dark:text-white">Hoja de ruta finalizada</label>
+          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+            <label className="mb-3 block text-sm font-bold text-slate-700">Hoja de ruta finalizada</label>
             <PhotoUploader scope="hoja_ruta" rutaId={id} label="Fotos del documento" max={5} onUploaded={fetchRuta} />
-            <p className="mt-2 text-[10px] text-slate-500 dark:text-slate-400">Sube la foto del documento firmado (opcional).</p>
+            <p className="mt-2 text-[10px] text-slate-500">Sube la foto del documento firmado (mín. 1 para finalizar).</p>
           </div>
 
           {/* Acciones */}
-          <div className="rounded-xl border border-slate-200 bg-slate-50 dark:bg-slate-800/50 p-4">
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
             {ruta.estado === 'PENDIENTE' && (
               <button type="button" onClick={handleIniciarRuta}
                 className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-4 font-bold text-white shadow-lg hover:bg-primary/90 active:scale-[0.98]">
@@ -358,21 +360,21 @@ export function ChoferRutaDetallePage() {
                   Finalizar jornada
                 </button>
                 {!puedeFinalizar && (
-                  <p className="mt-2 text-center text-xs text-slate-500 dark:text-slate-400">
-                    Completa todas las guías para finalizar.
+                  <p className="mt-2 text-center text-xs text-slate-500">
+                    Completa todas las guías y sube al menos 1 foto de hoja de ruta.
                   </p>
                 )}
               </>
             )}
             {ruta.estado === 'COMPLETADA' && (
-              <p className="text-center text-sm font-medium text-slate-600 dark:text-slate-300">Ruta completada.</p>
+              <p className="text-center text-sm font-medium text-slate-600">Ruta completada.</p>
             )}
           </div>
         </div>
       </div>
 
       {/* Nav móvil */}
-      <nav className="fixed bottom-0 left-0 right-0 flex gap-2 border-t border-slate-200 bg-white px-4 pb-6 pt-2 dark:border-slate-700 dark:bg-slate-900 md:hidden">
+      <nav className="fixed bottom-0 left-0 right-0 flex gap-2 border-t border-slate-200 bg-white px-4 pb-6 pt-2 md:hidden">
         <Link to={`/chofer/rutas/${id}`} className="flex flex-1 flex-col items-center justify-center gap-1 text-primary">
           <span className="material-symbols-outlined">route</span>
           <p className="text-[10px] font-bold uppercase tracking-tight">Mi Ruta</p>
@@ -383,13 +385,16 @@ export function ChoferRutaDetallePage() {
         </Link>
       </nav>
 
-      {incidenceGuia && (
-        <IncidenceDialog
-          guiaId={incidenceGuia.id}
-          numeroGuia={incidenceGuia.numeroGuia}
-          onClose={handleIncidenciaCreada}
-        />
-      )}
+      <AnimatePresence>
+        {incidenceGuia && (
+          <IncidenceDialog
+            key={incidenceGuia.id}
+            guiaId={incidenceGuia.id}
+            numeroGuia={incidenceGuia.numeroGuia}
+            onClose={handleIncidenciaCreada}
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }
