@@ -11,12 +11,13 @@ api.interceptors.request.use((config) => {
   return config
 })
 
-// Si el backend devuelve 401 (fuera del endpoint de login), limpia sesión y redirige
+// Si el backend devuelve 401, limpia sesión y redirige — solo si había token activo
 api.interceptors.response.use(
   (res) => res,
   (error) => {
     const isLoginEndpoint = error.config?.url?.includes('/auth/login')
-    if (error.response?.status === 401 && !isLoginEndpoint) {
+    const hadToken = !!localStorage.getItem('token')
+    if (error.response?.status === 401 && !isLoginEndpoint && hadToken) {
       localStorage.clear()
       window.location.href = '/login'
     }
