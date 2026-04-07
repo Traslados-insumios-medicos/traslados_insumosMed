@@ -1,13 +1,14 @@
 import { create } from 'zustand'
 
-const STORAGE_KEY = 'mvp_theme_dark'
+const STORAGE_KEY = 'theme_dark'
 
 function getInitial(): boolean {
-  if (typeof window === 'undefined') return true
+  if (typeof window === 'undefined') return false
+  // Migración: limpiar clave vieja que tenía dark=true por defecto
+  window.localStorage.removeItem('mvp_theme_dark')
   const stored = window.localStorage.getItem(STORAGE_KEY)
-  if (stored === 'false') return false
   if (stored === 'true') return true
-  return true
+  return false
 }
 
 function applyDark(dark: boolean) {
