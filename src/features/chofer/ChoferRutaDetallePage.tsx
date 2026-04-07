@@ -77,8 +77,7 @@ export function ChoferRutaDetallePage() {
 
   const puedeFinalizar =
     total > 0 &&
-    guiasPorRuta.every((g) => g.estado === 'ENTREGADO' || g.estado === 'INCIDENCIA') &&
-    fotosHojaRuta.length >= 1
+    guiasPorRuta.every((g) => g.estado === 'ENTREGADO' || g.estado === 'INCIDENCIA')
 
   const handleMarkEntregado = async (guiaId: string) => {
     try {
@@ -339,7 +338,7 @@ export function ChoferRutaDetallePage() {
           <div className="rounded-xl border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 p-4 shadow-sm">
             <label className="mb-3 block text-sm font-bold text-slate-700 dark:text-white">Hoja de ruta finalizada</label>
             <PhotoUploader scope="hoja_ruta" rutaId={id} label="Fotos del documento" max={5} onUploaded={fetchRuta} />
-            <p className="mt-2 text-[10px] text-slate-500 dark:text-slate-400">Sube la foto del documento firmado (mín. 1 para finalizar).</p>
+            <p className="mt-2 text-[10px] text-slate-500 dark:text-slate-400">Sube la foto del documento firmado (opcional).</p>
           </div>
 
           {/* Acciones */}
@@ -360,7 +359,7 @@ export function ChoferRutaDetallePage() {
                 </button>
                 {!puedeFinalizar && (
                   <p className="mt-2 text-center text-xs text-slate-500 dark:text-slate-400">
-                    Completa todas las guías y sube al menos 1 foto de hoja de ruta.
+                    Completa todas las guías para finalizar.
                   </p>
                 )}
               </>
