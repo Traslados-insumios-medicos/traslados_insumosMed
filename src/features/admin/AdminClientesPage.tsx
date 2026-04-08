@@ -43,7 +43,7 @@ export function AdminClientesPage() {
   const [nombre, setNombre] = useState('')
   const [ruc, setRuc] = useState('')
   const [direccion, setDireccion] = useState('')
-  const [coordsDireccion, setCoordsDireccion] = useState<{ lat: number; lng: number } | null>(null)
+  const [, setCoordsDireccion] = useState<{ lat: number; lng: number } | null>(null)
   const [telefono, setTelefono] = useState('')
   const [emailContacto, setEmailContacto] = useState('')
   const [tipo, setTipo] = useState<TipoCliente>('SECUNDARIO')
