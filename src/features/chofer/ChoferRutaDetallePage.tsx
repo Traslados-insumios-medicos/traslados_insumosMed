@@ -520,13 +520,13 @@ export function ChoferRutaDetallePage() {
             </div>
           </div>
 
-          {/* Paradas: una card por parada */}
+          {/* Paradas: cada parada = card blanca sobre bandeja gris (se ven como bloques separados) */}
           <div className="flex min-h-0 flex-1 flex-col gap-3 lg:overflow-hidden">
             <h4 className="flex flex-shrink-0 items-center gap-2 px-0.5 font-bold text-slate-900">
               <span className="material-symbols-outlined text-primary">format_list_bulleted</span>
               Paradas y guías
             </h4>
-            <div className="flex flex-1 flex-col gap-3 overflow-y-auto pb-1 pr-0.5">
+            <div className="flex max-h-[min(70vh,820px)] flex-1 flex-col gap-4 overflow-y-auto rounded-2xl border border-slate-200/80 bg-slate-100/80 p-3 sm:max-h-none sm:p-4">
               {stopsRuta.map((stop) => {
                 const guiasStop = stop.guias
                 const paradaCompletaEntrega =
@@ -537,15 +537,15 @@ export function ChoferRutaDetallePage() {
                   guiasStop.every((g) => guiaIdsDetalleGuardado.has(g.id))
                 const isSelected = effectiveSelectedStopId === stop.id
                 return (
-                  <div
+                  <article
                     key={stop.id}
-                    className={`overflow-hidden rounded-xl border bg-white shadow-sm ring-1 transition-colors ${
+                    className={`overflow-hidden rounded-xl border bg-white shadow-md transition-colors ${
                       paradaDetalleCompleto
-                        ? 'border-emerald-300 bg-emerald-50/50 ring-emerald-200/70'
+                        ? 'border-emerald-300 bg-emerald-50/60 shadow-emerald-900/10'
                         : isSelected
-                          ? 'border-primary/40 ring-primary/15'
-                          : 'border-slate-200 ring-slate-900/5'
-                    } ${isSelected && !paradaDetalleCompleto ? 'ring-primary/25' : ''}`}
+                          ? 'border-primary/45 shadow-[0_4px_20px_-4px_rgba(37,99,235,0.25)] ring-2 ring-primary/20'
+                          : 'border-slate-200/90 shadow-slate-900/[0.06]'
+                    }`}
                   >
                     <button type="button" onClick={() => setSelectedStopId(effectiveSelectedStopId === stop.id ? null : stop.id)}
                       className="flex w-full items-start justify-between gap-3 p-4 text-left hover:bg-slate-50/80">
@@ -659,7 +659,7 @@ export function ChoferRutaDetallePage() {
                         ))}
                       </div>
                     )}
-                  </div>
+                  </article>
                 )
               })}
             </div>
