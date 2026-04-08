@@ -87,7 +87,7 @@ interface ChoferState {
     horaSalida?: string
     temperatura?: string
     observaciones?: string
-  }) => Promise<void>
+  }) => Promise<GuiaAPI>
   registrarIncidencia: (guiaId: string, tipo: string, descripcion: string) => Promise<void>
   subirFotoGuia: (guiaId: string, file: File) => Promise<FotoAPI>
   subirFotoRuta: (rutaId: string, file: File) => Promise<FotoAPI>

@@ -74,8 +74,6 @@ export function ChoferRutaDetallePage() {
   const total = guiasPorRuta.length
   const progreso = total ? Math.round(((entregadas + conIncidencia) / total) * 100) : 0
 
-  const fotosHojaRuta = useMemo(() => ruta?.fotos.filter((f) => f.tipo === 'HOJA_RUTA') ?? [], [ruta])
-
   const puedeFinalizar =
     total > 0 &&
     guiasPorRuta.every((g) => g.estado === 'ENTREGADO' || g.estado === 'INCIDENCIA')
