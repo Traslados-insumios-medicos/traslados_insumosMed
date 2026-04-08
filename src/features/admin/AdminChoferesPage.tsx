@@ -1,4 +1,4 @@
-import { type FormEvent, useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { ModalMotion } from '../../components/ui/ModalMotion'
 import { api } from '../../services/api'
 import { useToastStore } from '../../store/toastStore'
@@ -6,6 +6,15 @@ import { useToastStore } from '../../store/toastStore'
 interface Chofer { id: string; nombre: string; email: string; cedula?: string | null; activo: boolean }
 interface PaginatedResponse { data: Chofer[]; total: number; page: number; limit: number }
 interface PasswordModalData { choferNombre: string; password: string }
+
+function ToggleActivo({ activo, onToggle }: { activo: boolean; onToggle: () => void }) {
+  return (
+    <button type="button" role="switch" aria-checked={activo} onClick={onToggle}
+      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${activo ? 'bg-emerald-500' : 'bg-slate-200'}`}>
+      <span className={`pointer-events-none inline-block size-3.5 rounded-full bg-white shadow-sm transition-transform duration-200 ${activo ? 'translate-x-4' : 'translate-x-0'}`} />
+    </button>
+  )
+}
 
 const LIMIT = 20
 
@@ -42,11 +51,14 @@ export function AdminChoferesPage() {
   const handleEdit = (ch: Chofer) => { setEditingId(ch.id); setNombre(ch.nombre); setCedula(ch.cedula ?? ''); setEmail(ch.email); setShowModal(true) }
 
   const handleToggleActivo = async (id: string) => {
+    setChoferes((prev) => prev.map((ch) => ch.id === id ? { ...ch, activo: !ch.activo } : ch))
     try {
       const res = await api.patch<Chofer>(`/usuarios/${id}/toggle-activo`)
       setChoferes((prev) => prev.map((ch) => ch.id === id ? { ...ch, activo: res.data.activo } : ch))
-      addToast('Estado actualizado', 'success')
-    } catch { addToast('Error al cambiar estado', 'error') }
+    } catch {
+      setChoferes((prev) => prev.map((ch) => ch.id === id ? { ...ch, activo: !ch.activo } : ch))
+      addToast('Error al cambiar estado', 'error')
+    }
   }
 
   const handleSubmit = async (e: FormEvent) => {
@@ -200,10 +212,7 @@ export function AdminChoferesPage() {
                   <td className="px-4 py-3 text-slate-500">{ch.cedula ?? <span className="text-slate-300">—</span>}</td>
                   <td className="px-4 py-3 text-slate-500">{ch.email}</td>
                   <td className="px-4 py-3">
-                    <button type="button" onClick={() => handleToggleActivo(ch.id)}
-                      className={`rounded-full px-2.5 py-1 text-xs font-semibold transition-colors ${ch.activo ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
-                      {ch.activo ? 'Activo' : 'Inactivo'}
-                    </button>
+                    <ToggleActivo activo={ch.activo} onToggle={() => handleToggleActivo(ch.id)} />
                   </td>
                   <td className="px-4 py-3">
                     <button type="button" onClick={() => handleEdit(ch)} className="text-xs font-semibold text-primary hover:underline">Editar</button>

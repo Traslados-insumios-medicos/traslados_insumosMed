@@ -10,6 +10,12 @@ interface GuiaApi {
   estado: string
   clienteId: string
   stopId: string
+  receptorNombre?: string | null
+  horaLlegada?: string | null
+  horaSalida?: string | null
+  temperatura?: string | null
+  observaciones?: string | null
+  fotos: FotoApi[]
 }
 
 interface StopApi {
@@ -25,6 +31,7 @@ interface FotoApi {
   id: string
   urlPreview: string
   createdAt: string
+  tipo: string
 }
 
 interface RutaApi {
@@ -70,6 +77,8 @@ export function AdminRutasPage() {
   const [rutaExpandidaId, setRutaExpandidaId] = useState<string | null>(null)
   const [showModal, setShowModal] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+
+  const [selectedStop, setSelectedStop] = useState<StopApi | null>(null)
 
   // form
   const [choferId, setChoferId] = useState('')
@@ -328,25 +337,26 @@ export function AdminRutasPage() {
                         </h4>
                         <ul className="space-y-3">
                           {ruta.stops.map((stop) => (
-                            <li key={stop.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                              <p className="text-xs font-semibold uppercase tracking-wider text-primary">Parada #{stop.orden}</p>
-                              <p className="mt-1 text-sm font-medium text-slate-900">{stop.direccion}</p>
-                              <p className="text-xs text-slate-500">{stop.cliente.nombre}</p>
-                              {stop.notas && <p className="mt-0.5 text-xs text-slate-500">{stop.notas}</p>}
-                              {stop.guias.length > 0 && (
-                                <ul className="mt-2 space-y-1 border-t border-slate-200 pt-2">
+                            <li key={stop.id}>
+                              <button
+                                type="button"
+                                onClick={() => setSelectedStop(stop)}
+                                className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-left transition-all hover:border-primary hover:bg-primary/5"
+                              >
+                                <p className="text-xs font-semibold uppercase tracking-wider text-primary">Parada #{stop.orden}</p>
+                                <p className="mt-1 text-sm font-medium text-slate-900">{stop.direccion}</p>
+                                <p className="text-xs text-slate-500">{stop.cliente.nombre}</p>
+                                {stop.notas && <p className="mt-0.5 text-xs text-slate-500">{stop.notas}</p>}
+                                <div className="mt-2 flex flex-wrap gap-1.5">
                                   {stop.guias.map((g) => (
-                                    <li key={g.id} className="flex items-center justify-between text-xs text-slate-600">
-                                      <span>{g.numeroGuia} — {g.descripcion}</span>
-                                      <span className={`rounded px-1.5 py-0.5 text-[10px] ${
-                                        g.estado === 'ENTREGADO' ? 'bg-emerald-100 text-emerald-700' :
-                                        g.estado === 'INCIDENCIA' ? 'bg-amber-100 text-amber-700' :
-                                        'bg-slate-100 text-slate-600'
-                                      }`}>{g.estado}</span>
-                                    </li>
+                                    <span key={g.id} className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                                      g.estado === 'ENTREGADO' ? 'bg-emerald-100 text-emerald-700' :
+                                      g.estado === 'INCIDENCIA' ? 'bg-amber-100 text-amber-700' :
+                                      'bg-slate-100 text-slate-600'
+                                    }`}>{g.numeroGuia}</span>
                                   ))}
-                                </ul>
-                              )}
+                                </div>
+                              </button>
                             </li>
                           ))}
                         </ul>
@@ -400,6 +410,114 @@ export function AdminRutasPage() {
           </div>
         </div>
       )}
+
+      {/* Modal detalle de parada */}
+      <ModalMotion
+        show={!!selectedStop}
+        backdropClassName="bg-black/60"
+        panelClassName="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl"
+      >
+        {selectedStop && (
+          <>
+            <div className="flex items-start justify-between border-b border-slate-200 p-5">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-primary">Parada #{selectedStop.orden}</p>
+                <h3 className="mt-0.5 text-lg font-bold text-slate-900">{selectedStop.direccion}</h3>
+                <p className="text-sm text-slate-500">{selectedStop.cliente.nombre}</p>
+                {selectedStop.notas && (
+                  <p className="mt-1 text-xs text-slate-400">{selectedStop.notas}</p>
+                )}
+              </div>
+              <button type="button" onClick={() => setSelectedStop(null)} className="text-slate-400 hover:text-slate-600">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <div className="space-y-5 p-5">
+              {selectedStop.guias.map((g) => {
+                const fotos = g.fotos ?? []
+                return (
+                  <div key={g.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    {/* Header guía */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-bold text-slate-900">Guía #{g.numeroGuia}</p>
+                        <p className="text-xs text-slate-500">{g.descripcion}</p>
+                      </div>
+                      <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold uppercase ${
+                        g.estado === 'ENTREGADO' ? 'bg-emerald-100 text-emerald-700' :
+                        g.estado === 'INCIDENCIA' ? 'bg-amber-100 text-amber-700' :
+                        'bg-slate-100 text-slate-600'
+                      }`}>{g.estado}</span>
+                    </div>
+
+                    {/* Detalles de entrega */}
+                    {(g.receptorNombre || g.horaLlegada || g.horaSalida || g.temperatura || g.observaciones) && (
+                      <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-slate-200 pt-3 sm:grid-cols-3">
+                        {g.receptorNombre && (
+                          <div>
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Recibido por</p>
+                            <p className="text-xs text-slate-700">{g.receptorNombre}</p>
+                          </div>
+                        )}
+                        {g.temperatura && (
+                          <div>
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Temperatura</p>
+                            <p className="text-xs text-slate-700">{g.temperatura}</p>
+                          </div>
+                        )}
+                        {g.horaLlegada && (
+                          <div>
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Llegada</p>
+                            <p className="text-xs text-slate-700">{g.horaLlegada}</p>
+                          </div>
+                        )}
+                        {g.horaSalida && (
+                          <div>
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Salida</p>
+                            <p className="text-xs text-slate-700">{g.horaSalida}</p>
+                          </div>
+                        )}
+                        {g.observaciones && (
+                          <div className="col-span-2 sm:col-span-3">
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Observaciones</p>
+                            <p className="text-xs text-slate-700">{g.observaciones}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Fotos de entrega */}
+                    {fotos.length > 0 && (
+                      <div className="mt-3 border-t border-slate-200 pt-3">
+                        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                          Fotos de entrega ({fotos.length})
+                        </p>
+                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                          {fotos.map((f) => (
+                            <a key={f.id} href={f.urlPreview} target="_blank" rel="noopener noreferrer"
+                              className="group overflow-hidden rounded-lg border border-slate-200 transition-all hover:border-primary hover:shadow-md">
+                              <img src={f.urlPreview} alt="Foto entrega"
+                                className="h-32 w-full object-cover transition-transform duration-200 group-hover:scale-105" />
+                              <p className="border-t border-slate-100 bg-white px-2 py-1 text-[10px] text-slate-400">
+                                {new Date(f.createdAt).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                              </p>
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {fotos.length === 0 && g.estado === 'ENTREGADO' && (
+                      <p className="mt-3 border-t border-slate-200 pt-3 text-xs text-slate-400">Sin fotos de entrega.</p>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </>
+        )}
+      </ModalMotion>
     </div>
   )
 }
