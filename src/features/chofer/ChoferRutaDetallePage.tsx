@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence } from 'framer-motion'
+import { io } from 'socket.io-client'
 import { Link, useParams } from 'react-router-dom'
 import { api } from '../../services/api'
 import { useAuthStore } from '../../store/authStore'
@@ -12,6 +13,15 @@ interface GuiaApi {
   receptorNombre?: string | null; horaLlegada?: string | null
   horaSalida?: string | null; temperatura?: string | null; observaciones?: string | null
   stopId: string
+  updatedAt?: string
+}
+
+interface GuiaDetalleForm {
+  receptorNombre: string
+  temperatura: string
+  horaLlegada: string
+  horaSalida: string
+  observaciones: string
 }
 
 interface StopApi {
@@ -29,6 +39,16 @@ interface RutaApi {
   stops: StopApi[]; guias: GuiaApi[]; fotos: FotoApi[]
 }
 
+function guiaTieneDetallePersistido(g: GuiaApi) {
+  return !!(
+    g.receptorNombre?.trim() ||
+    g.temperatura?.trim() ||
+    g.horaLlegada?.trim() ||
+    g.horaSalida?.trim() ||
+    g.observaciones?.trim()
+  )
+}
+
 export function ChoferRutaDetallePage() {
   const { id } = useParams<{ id: string }>()
   const { currentUser } = useAuthStore()
@@ -39,6 +59,14 @@ export function ChoferRutaDetallePage() {
   const [selectedStopId, setSelectedStopId] = useState<string | null>(null)
   const [fitBoundsTrigger, setFitBoundsTrigger] = useState(0)
   const [incidenceGuia, setIncidenceGuia] = useState<{ id: string; numeroGuia: string } | null>(null)
+  const [ubicacionActiva, setUbicacionActiva] = useState(false)
+  const [miUbicacion, setMiUbicacion] = useState<{ lat: number; lng: number } | null>(null)
+  const geoWatchRef = useRef<number | null>(null)
+  const miUbicacionRef = useRef<{ lat: number; lng: number } | null>(null)
+  const [detalleFormPorGuia, setDetalleFormPorGuia] = useState<Record<string, GuiaDetalleForm>>({})
+  const [guardandoGuiaId, setGuardandoGuiaId] = useState<string | null>(null)
+  const [guiaIdsDetalleGuardado, setGuiaIdsDetalleGuardado] = useState<Set<string>>(() => new Set())
+  const rutaIdParaDetalleRef = useRef<string | null>(null)
 
   const fetchRuta = useCallback(async () => {
     if (!id) return
@@ -60,12 +88,129 @@ export function ChoferRutaDetallePage() {
   )
 
   // Map StopApi to the Stop shape that RouteMap expects
-  const stopsParaMapa = useMemo(() => stopsRuta.map((s) => ({
-    id: s.id, orden: s.orden, direccion: s.direccion,
-    lat: s.lat, lng: s.lng, notas: s.notas ?? undefined,
-    clienteId: s.cliente.id,
-    guiaIds: s.guias.map((g) => g.id),
-  })), [stopsRuta])
+  const stopsParaMapa = useMemo(() => stopsRuta.map((s) => {
+    const completada =
+      s.guias.length > 0 && s.guias.every((g) => g.estado === 'ENTREGADO' || g.estado === 'INCIDENCIA')
+    return {
+      id: s.id, orden: s.orden, direccion: s.direccion,
+      lat: s.lat, lng: s.lng, notas: s.notas ?? undefined,
+      clienteId: s.cliente.id,
+      guiaIds: s.guias.map((g) => g.id),
+      completada,
+    }
+  }), [stopsRuta])
+
+  const rutaDetalleSyncKey = useMemo(
+    () => (ruta ? ruta.guias.map((g) => `${g.id}:${g.updatedAt ?? ''}`).join('|') : ''),
+    [ruta],
+  )
+
+  useEffect(() => {
+    if (!ruta) return
+    setDetalleFormPorGuia((prev) => {
+      const next = { ...prev }
+      ruta.guias.forEach((g) => {
+        next[g.id] = {
+          receptorNombre: g.receptorNombre ?? '',
+          temperatura: g.temperatura ?? '',
+          horaLlegada: g.horaLlegada ?? '',
+          horaSalida: g.horaSalida ?? '',
+          observaciones: g.observaciones ?? '',
+        }
+      })
+      return next
+    })
+  }, [rutaDetalleSyncKey, ruta])
+
+  useEffect(() => {
+    if (!ruta) return
+    const mergePersistidos = (base: Set<string>) => {
+      const next = new Set(base)
+      ruta.guias.forEach((g) => {
+        if (guiaTieneDetallePersistido(g)) next.add(g.id)
+      })
+      return next
+    }
+    if (rutaIdParaDetalleRef.current !== ruta.id) {
+      rutaIdParaDetalleRef.current = ruta.id
+      setGuiaIdsDetalleGuardado(mergePersistidos(new Set()))
+    } else {
+      setGuiaIdsDetalleGuardado((prev) => mergePersistidos(prev))
+    }
+  }, [ruta, rutaDetalleSyncKey])
+
+  useEffect(() => {
+    miUbicacionRef.current = miUbicacion
+  }, [miUbicacion])
+
+  const detenerUbicacion = useCallback(() => {
+    if (geoWatchRef.current != null) {
+      navigator.geolocation.clearWatch(geoWatchRef.current)
+      geoWatchRef.current = null
+    }
+    setUbicacionActiva(false)
+    setMiUbicacion(null)
+    miUbicacionRef.current = null
+  }, [])
+
+  const activarUbicacion = useCallback(() => {
+    if (!navigator.geolocation) {
+      addToast('Tu navegador no permite geolocalización', 'error')
+      return
+    }
+    geoWatchRef.current = navigator.geolocation.watchPosition(
+      (pos) => {
+        setMiUbicacion({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+        })
+      },
+      () => {
+        addToast('No se pudo leer tu ubicación. Revisa permisos del navegador.', 'error')
+      },
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 },
+    )
+    setUbicacionActiva(true)
+    addToast('Ubicación activa: el mapa sigue tu ruta hacia las paradas pendientes', 'success')
+  }, [addToast])
+
+  useEffect(() => () => {
+    if (geoWatchRef.current != null) navigator.geolocation.clearWatch(geoWatchRef.current)
+  }, [])
+
+  useEffect(() => {
+    setUbicacionActiva(false)
+    setMiUbicacion(null)
+    miUbicacionRef.current = null
+    if (geoWatchRef.current != null) {
+      navigator.geolocation.clearWatch(geoWatchRef.current)
+      geoWatchRef.current = null
+    }
+  }, [id])
+
+  // Enviar posición al servidor (cliente en tiempo real) mientras la ruta está en curso
+  useEffect(() => {
+    if (!ubicacionActiva || ruta?.estado !== 'EN_CURSO' || !id) return
+    const token = localStorage.getItem('token')
+    if (!token) return
+    const socket = io(import.meta.env.VITE_WS_URL ?? 'http://localhost:3000', {
+      auth: { token },
+      transports: ['websocket'],
+    })
+    socket.emit('join:ruta', id)
+    const enviar = () => {
+      const p = miUbicacionRef.current
+      if (p && socket.connected) {
+        socket.emit('posicion_chofer', { rutaId: id, lat: p.lat, lng: p.lng })
+      }
+    }
+    socket.on('connect', enviar)
+    const interval = window.setInterval(enviar, 4000)
+    return () => {
+      window.clearInterval(interval)
+      socket.disconnect()
+    }
+  }, [ubicacionActiva, ruta?.estado, id])
 
   // All guias flat from stops
   const guiasPorRuta = useMemo(() => ruta?.guias ?? [], [ruta])
@@ -96,11 +241,73 @@ export function ChoferRutaDetallePage() {
     }
   }
 
-  const handleDetalleBlur = async (guiaId: string, field: string, value: string) => {
+  const patchDetalleGuiaEnEstado = (guiaId: string, patch: Partial<GuiaApi>) => {
+    setRuta((prev) =>
+      prev
+        ? {
+            ...prev,
+            guias: prev.guias.map((g) => (g.id === guiaId ? { ...g, ...patch } : g)),
+            stops: prev.stops.map((s) => ({
+              ...s,
+              guias: s.guias.map((g) => (g.id === guiaId ? { ...g, ...patch } : g)),
+            })),
+          }
+        : prev,
+    )
+  }
+
+  const setCampoDetalle = (guiaId: string, campo: keyof GuiaDetalleForm, valor: string) => {
+    setDetalleFormPorGuia((prev) => ({
+      ...prev,
+      [guiaId]: { ...(prev[guiaId] ?? { receptorNombre: '', temperatura: '', horaLlegada: '', horaSalida: '', observaciones: '' }), [campo]: valor },
+    }))
+  }
+
+  const handleGuardarDetalleGuia = async (guiaId: string) => {
+    const f = detalleFormPorGuia[guiaId]
+    if (!f) return
+    setGuardandoGuiaId(guiaId)
     try {
-      await api.patch(`/guias/${guiaId}/detalle`, { [field]: value || undefined })
+      const res = await api.patch<{
+        id: string
+        receptorNombre: string | null
+        horaLlegada: string | null
+        horaSalida: string | null
+        temperatura: string | null
+        observaciones: string | null
+        updatedAt: string
+      }>(`/guias/${guiaId}/detalle`, {
+        receptorNombre: f.receptorNombre.trim() || undefined,
+        temperatura: f.temperatura.trim() || undefined,
+        horaLlegada: f.horaLlegada.trim() || undefined,
+        horaSalida: f.horaSalida.trim() || undefined,
+        observaciones: f.observaciones.trim() || undefined,
+      })
+      const row = res.data
+      patchDetalleGuiaEnEstado(guiaId, {
+        receptorNombre: row.receptorNombre,
+        horaLlegada: row.horaLlegada,
+        horaSalida: row.horaSalida,
+        temperatura: row.temperatura,
+        observaciones: row.observaciones,
+        updatedAt: row.updatedAt,
+      })
+      setDetalleFormPorGuia((prev) => ({
+        ...prev,
+        [guiaId]: {
+          receptorNombre: row.receptorNombre ?? '',
+          temperatura: row.temperatura ?? '',
+          horaLlegada: row.horaLlegada ?? '',
+          horaSalida: row.horaSalida ?? '',
+          observaciones: row.observaciones ?? '',
+        },
+      }))
+      setGuiaIdsDetalleGuardado((prev) => new Set(prev).add(guiaId))
+      addToast('Datos guardados. El administrador los ve en Rutas → expandir ruta.', 'success')
     } catch {
-      addToast('Error al guardar campo', 'error')
+      addToast('No se pudieron guardar los datos de entrega', 'error')
+    } finally {
+      setGuardandoGuiaId(null)
     }
   }
 
@@ -273,49 +480,105 @@ export function ChoferRutaDetallePage() {
 
           {/* Mapa */}
           <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-            <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2">
-              <span className="text-sm font-semibold text-slate-700">Recorrido</span>
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 px-3 py-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm font-semibold text-slate-700">Recorrido</span>
+                {ruta.estado === 'EN_CURSO' && (
+                  <button
+                    type="button"
+                    onClick={() => (ubicacionActiva ? detenerUbicacion() : activarUbicacion())}
+                    className={`rounded-lg px-3 py-1.5 text-xs font-bold ${
+                      ubicacionActiva
+                        ? 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200'
+                        : 'bg-slate-100 text-slate-700 ring-1 ring-slate-200 hover:bg-slate-200'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined align-middle text-sm">my_location</span>{' '}
+                    {ubicacionActiva ? 'Ubicación activa' : 'Activar mi ubicación'}
+                  </button>
+                )}
+              </div>
               <button type="button" onClick={() => setFitBoundsTrigger((t) => t + 1)}
                 className="rounded-lg bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/20">
                 Ver ruta completa
               </button>
             </div>
+            {ubicacionActiva && ruta.estado === 'EN_CURSO' && (
+              <p className="border-b border-slate-100 bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
+                La línea azul sigue calles desde tu posición hacia las paradas pendientes. Las completadas se muestran en verde (
+                ✓) y ya no forman parte del trazado activo.
+              </p>
+            )}
             <div className="h-64 sm:h-72 lg:h-[360px]">
               <RouteMap
                 stops={stopsParaMapa}
+                currentPosition={ubicacionActiva ? miUbicacion : null}
                 highlightedStopId={selectedStopId}
                 fitBoundsTrigger={fitBoundsTrigger}
+                trazarRutaDesdeMiPosicion={ubicacionActiva && miUbicacion != null}
               />
             </div>
           </div>
 
-          {/* Paradas */}
-          <div className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white lg:min-h-0 lg:flex-1">
-            <h4 className="flex flex-shrink-0 items-center gap-2 border-b border-slate-200 px-4 py-3 font-bold text-slate-900">
+          {/* Paradas: una card por parada */}
+          <div className="flex min-h-0 flex-1 flex-col gap-3 lg:overflow-hidden">
+            <h4 className="flex flex-shrink-0 items-center gap-2 px-0.5 font-bold text-slate-900">
               <span className="material-symbols-outlined text-primary">format_list_bulleted</span>
               Paradas y guías
             </h4>
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex flex-1 flex-col gap-3 overflow-y-auto pb-1 pr-0.5">
               {stopsRuta.map((stop) => {
                 const guiasStop = stop.guias
+                const paradaCompletaEntrega =
+                  guiasStop.length > 0 &&
+                  guiasStop.every((g) => g.estado === 'ENTREGADO' || g.estado === 'INCIDENCIA'
+                const paradaDetalleCompleto =
+                  guiasStop.length > 0 &&
+                  guiasStop.every((g) => guiaIdsDetalleGuardado.has(g.id))
                 const isSelected = effectiveSelectedStopId === stop.id
                 return (
-                  <div key={stop.id} className={`border-b border-slate-100 last:border-b-0 ${isSelected ? 'border-l-4 border-l-primary bg-primary/5' : ''}`}>
+                  <div
+                    key={stop.id}
+                    className={`overflow-hidden rounded-xl border bg-white shadow-sm ring-1 transition-colors ${
+                      paradaDetalleCompleto
+                        ? 'border-emerald-300 bg-emerald-50/50 ring-emerald-200/70'
+                        : isSelected
+                          ? 'border-primary/40 ring-primary/15'
+                          : 'border-slate-200 ring-slate-900/5'
+                    } ${isSelected && !paradaDetalleCompleto ? 'ring-primary/25' : ''}`}
+                  >
                     <button type="button" onClick={() => setSelectedStopId(effectiveSelectedStopId === stop.id ? null : stop.id)}
-                      className="flex w-full items-start justify-between p-4 text-left">
-                      <div>
+                      className="flex w-full items-start justify-between gap-3 p-4 text-left hover:bg-slate-50/80">
+                      <div className="min-w-0">
                         <p className="text-xs font-bold uppercase text-primary">Parada #{stop.orden}</p>
                         <h5 className="font-bold text-slate-900">{stop.direccion}</h5>
                         <p className="text-xs text-slate-500">{stop.cliente.nombre}</p>
                         {stop.notas && <p className="text-xs text-slate-400">{stop.notas}</p>}
                       </div>
-                      <span className="rounded border border-slate-200 bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
-                        {guiasStop.length} guía(s)
-                      </span>
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        <span
+                          className={`rounded px-2 py-0.5 text-[10px] font-bold ${
+                            paradaDetalleCompleto
+                              ? 'bg-emerald-600 text-white'
+                              : paradaCompletaEntrega
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'border border-slate-200 bg-slate-100 text-slate-600'
+                          }"}
+                        >
+                          {paradaDetalleCompleto
+                            ? 'Datos guardados'
+                            : paradaCompletaEntrega
+                              ? 'Entrega ok'
+                              : 'Pendiente'}
+                        </span>
+                        <span className="rounded border border-slate-200 bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
+                          {guiasStop.length} guía(s)
+                        </span>
+                      </div>
                     </button>
 
                     {isSelected && (
-                      <div className="space-y-3 px-4 pb-4">
+                      <div className="space-y-3 border-t border-slate-100 bg-slate-50/30 px-4 py-4">
                         {guiasStop.map((g) => (
                           <div key={g.id} className={`rounded-lg border p-3 ${
                             g.estado === 'INCIDENCIA' ? 'border-amber-200 bg-amber-50' :
@@ -342,42 +605,55 @@ export function ChoferRutaDetallePage() {
                             </div>
                             <p className="text-xs text-slate-600">{g.descripcion}</p>
 
-                            {/* Campos de entrega — onBlur llama PATCH /api/guias/:id/detalle */}
-                            <div className="mt-3 grid grid-cols-2 gap-2">
-                              <div>
-                                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Recibido por</label>
-                                <input type="text" placeholder="Nombre de quien recibe" defaultValue={g.receptorNombre ?? ''}
-                                  onBlur={(e) => handleDetalleBlur(g.id, 'receptorNombre', e.target.value)}
-                                  className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs" />
+                            {/* Entrega: formulario → fotos → guardar (todo el bloque de esta guía) */}
+                            <div className="mt-3 space-y-4">
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Recibido por</label>
+                                  <input type="text" placeholder="Nombre de quien recibe" value={detalleFormPorGuia[g.id]?.receptorNombre ?? ''}
+                                    onChange={(e) => setCampoDetalle(g.id, 'receptorNombre', e.target.value)}
+                                    className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs" />
+                                </div>
+                                <div>
+                                  <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Temperatura (°C)</label>
+                                  <input type="text" placeholder="Ej: 18°C" value={detalleFormPorGuia[g.id]?.temperatura ?? ''}
+                                    onChange={(e) => setCampoDetalle(g.id, 'temperatura', e.target.value)}
+                                    className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs" />
+                                </div>
+                                <div>
+                                  <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Hora llegada</label>
+                                  <input type="time" value={detalleFormPorGuia[g.id]?.horaLlegada ?? ''}
+                                    onChange={(e) => setCampoDetalle(g.id, 'horaLlegada', e.target.value)}
+                                    className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs" />
+                                </div>
+                                <div>
+                                  <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Hora salida</label>
+                                  <input type="time" value={detalleFormPorGuia[g.id]?.horaSalida ?? ''}
+                                    onChange={(e) => setCampoDetalle(g.id, 'horaSalida', e.target.value)}
+                                    className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs" />
+                                </div>
+                                <div className="col-span-2">
+                                  <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Observaciones</label>
+                                  <textarea rows={2} placeholder="Novedades o comentarios (opcional)" value={detalleFormPorGuia[g.id]?.observaciones ?? ''}
+                                    onChange={(e) => setCampoDetalle(g.id, 'observaciones', e.target.value)}
+                                    className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs" />
+                                </div>
                               </div>
-                              <div>
-                                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Temperatura (°C)</label>
-                                <input type="text" placeholder="Ej: 18°C" defaultValue={g.temperatura ?? ''}
-                                  onBlur={(e) => handleDetalleBlur(g.id, 'temperatura', e.target.value)}
-                                  className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs" />
-                              </div>
-                              <div>
-                                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Hora llegada</label>
-                                <input type="time" defaultValue={g.horaLlegada ?? ''}
-                                  onBlur={(e) => handleDetalleBlur(g.id, 'horaLlegada', e.target.value)}
-                                  className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs" />
-                              </div>
-                              <div>
-                                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Hora salida</label>
-                                <input type="time" defaultValue={g.horaSalida ?? ''}
-                                  onBlur={(e) => handleDetalleBlur(g.id, 'horaSalida', e.target.value)}
-                                  className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs" />
-                              </div>
-                              <div className="col-span-2">
-                                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Observaciones</label>
-                                <textarea rows={2} placeholder="Novedades o comentarios (opcional)" defaultValue={g.observaciones ?? ''}
-                                  onBlur={(e) => handleDetalleBlur(g.id, 'observaciones', e.target.value)}
-                                  className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs" />
-                              </div>
-                            </div>
 
-                            <div className="mt-3">
-                              <PhotoUploader scope="guia" guiaId={g.id} label="Fotos de entrega" max={8} />
+                              <PhotoUploader scope="guia" guiaId={g.id} label="Fotos de entrega" max={8} onUploaded={fetchRuta} />
+
+                              <div className="border-t border-slate-200 pt-4">
+                                <div className="w-full sm:flex sm:justify-end">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleGuardarDetalleGuia(g.id)}
+                                    disabled={guardandoGuiaId === g.id}
+                                    className="w-full rounded-lg bg-primary px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-primary/90 disabled:opacity-60 sm:w-auto"
+                                  >
+                                    {guardandoGuiaId === g.id ? 'Guardando…' : 'Guardar datos de entrega'}
+                                  </button>
+                                </div>
+                              </div>
                             </div>
                           </div>
                         ))}
