@@ -179,6 +179,7 @@ export function ChoferRutaDetallePage() {
   }, [])
 
   useEffect(() => {
+    setSelectedStopId(null)
     setUbicacionActiva(false)
     setMiUbicacion(null)
     miUbicacionRef.current = null
@@ -187,6 +188,13 @@ export function ChoferRutaDetallePage() {
       geoWatchRef.current = null
     }
   }, [id])
+
+  // Solo al cambiar de ruta: abrir la primera parada. Si colapsas (null), no volvemos a forzar aunque se actualice la ruta.
+  useEffect(() => {
+    if (!ruta?.stops?.length) return
+    const first = [...ruta.stops].sort((a, b) => a.orden - b.orden)[0]
+    setSelectedStopId(first.id)
+  }, [ruta?.id])
 
   // Enviar posición al servidor (cliente en tiempo real) mientras la ruta está en curso
   useEffect(() => {
@@ -371,8 +379,6 @@ export function ChoferRutaDetallePage() {
   const hoy = new Date()
   const mes = hoy.toLocaleString('es-ES', { month: 'short' }).toUpperCase()
   const dia = hoy.getDate()
-  const effectiveSelectedStopId = selectedStopId ?? stopsRuta[0]?.id ?? null
-
   return (
     <div className="mx-auto w-full max-w-7xl space-y-4 pb-24 md:pb-6">
       {/* Header */}
@@ -535,7 +541,7 @@ export function ChoferRutaDetallePage() {
                 const paradaDetalleCompleto =
                   guiasStop.length > 0 &&
                   guiasStop.every((g) => guiaIdsDetalleGuardado.has(g.id))
-                const isSelected = effectiveSelectedStopId === stop.id
+                const isSelected = selectedStopId === stop.id
                 const pillGuia = (g: (typeof guiasStop)[0]) =>
                   g.estado === 'INCIDENCIA'
                     ? 'bg-amber-50 text-amber-900 ring-amber-100/80'
@@ -555,7 +561,7 @@ export function ChoferRutaDetallePage() {
                   >
                     <button
                       type="button"
-                      onClick={() => setSelectedStopId(effectiveSelectedStopId === stop.id ? null : stop.id)}
+                      onClick={() => setSelectedStopId(selectedStopId === stop.id ? null : stop.id)}
                       className="relative w-full p-4 text-left hover:bg-slate-50/60"
                     >
                       <span
