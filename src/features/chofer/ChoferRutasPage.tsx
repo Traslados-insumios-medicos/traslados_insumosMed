@@ -111,7 +111,7 @@ export function ChoferRutasPage() {
       </div>
 
       {/* Filtros */}
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         {(['activas', 'todas', 'completadas'] as Filtro[]).map((f) => (
           <button key={f} type="button" onClick={() => setFiltro(f)}
             className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
