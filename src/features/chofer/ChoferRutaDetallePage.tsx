@@ -639,7 +639,7 @@ export function ChoferRutaDetallePage() {
 
                             {/* Entrega: formulario → fotos → guardar (todo el bloque de esta guía) */}
                             <div className="mt-3 space-y-4">
-                              <div className="grid grid-cols-2 gap-2">
+                              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                                 <div>
                                   <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Recibido por</label>
                                   <input type="text" placeholder="Nombre de quien recibe" value={detalleFormPorGuia[g.id]?.receptorNombre ?? ''}
