@@ -394,37 +394,70 @@ export function AdminRutasPage() {
                   <div className="border-t border-slate-200 p-4">
                     <div className="grid gap-6 md:grid-cols-2">
                       <div>
-                        <h4 className="mb-3 flex items-center gap-2 text-sm font-bold text-slate-900">
+                        <h4 className="mb-4 flex items-center gap-2 text-sm font-bold text-slate-900">
                           <span className="material-symbols-outlined text-primary">format_list_numbered</span>
                           Paradas y guías
                         </h4>
-                        <ul className="space-y-3">
+                        <div className="space-y-4">
                           {ruta.stops.map((stop) => (
-                            <li key={stop.id} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                              <p className="text-xs font-semibold uppercase tracking-wider text-primary">Parada #{stop.orden}</p>
-                              <p className="mt-1 text-sm font-medium text-slate-900">{stop.direccion}</p>
-                              <p className="text-xs text-slate-500">{stop.cliente.nombre}</p>
-                              {stop.notas && <p className="mt-0.5 text-xs text-slate-500">{stop.notas}</p>}
-                              {stop.guias.length > 0 && (
-                                <ul className="mt-2 space-y-2 border-t border-slate-200 pt-2">
+                            <article
+                              key={stop.id}
+                              className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm ring-1 ring-slate-900/5"
+                            >
+                              <div className="border-b border-slate-100 bg-slate-50/80 px-4 py-3">
+                                <div className="flex flex-wrap items-start justify-between gap-2">
+                                  <div className="flex min-w-0 items-center gap-2">
+                                    <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary">
+                                      {stop.orden}
+                                    </span>
+                                    <div className="min-w-0">
+                                      <p className="text-[10px] font-semibold uppercase tracking-wider text-primary">
+                                        Parada {stop.orden}
+                                      </p>
+                                      <p className="text-sm font-semibold text-slate-900">{stop.direccion}</p>
+                                    </div>
+                                  </div>
+                                  <span className="shrink-0 rounded-full bg-white px-2.5 py-0.5 text-[11px] font-medium text-slate-600 ring-1 ring-slate-200">
+                                    {stop.guias.length} guía{stop.guias.length !== 1 ? 's' : ''}
+                                  </span>
+                                </div>
+                                <p className="mt-2 text-xs text-slate-600">{stop.cliente.nombre}</p>
+                                {stop.notas && (
+                                  <p className="mt-1.5 rounded-md bg-amber-50/80 px-2 py-1.5 text-[11px] text-amber-900 ring-1 ring-amber-100">
+                                    {stop.notas}
+                                  </p>
+                                )}
+                              </div>
+                              {stop.guias.length > 0 ? (
+                                <ul className="divide-y divide-slate-100 p-3">
                                   {stop.guias.map((g) => (
-                                    <li key={g.id} className="text-xs text-slate-600">
-                                      <div className="flex items-center justify-between gap-2">
-                                        <span className="min-w-0 font-medium">{g.numeroGuia} — {g.descripcion}</span>
-                                        <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] ${
-                                          g.estado === 'ENTREGADO' ? 'bg-emerald-100 text-emerald-700' :
-                                          g.estado === 'INCIDENCIA' ? 'bg-amber-100 text-amber-700' :
-                                          'bg-slate-100 text-slate-600'
-                                        }`}>{g.estado}</span>
+                                    <li key={g.id} className="py-3 first:pt-0 last:pb-0">
+                                      <div className="flex items-center justify-between gap-2 text-xs text-slate-600">
+                                        <span className="min-w-0 font-medium text-slate-800">
+                                          {g.numeroGuia} — {g.descripcion}
+                                        </span>
+                                        <span
+                                          className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] ${
+                                            g.estado === 'ENTREGADO'
+                                              ? 'bg-emerald-100 text-emerald-700'
+                                              : g.estado === 'INCIDENCIA'
+                                                ? 'bg-amber-100 text-amber-700'
+                                                : 'bg-slate-100 text-slate-600'
+                                          }`}
+                                        >
+                                          {g.estado}
+                                        </span>
                                       </div>
                                       <DetalleEntregaGuia g={g} />
                                     </li>
                                   ))}
                                 </ul>
+                              ) : (
+                                <p className="px-4 py-3 text-xs text-slate-500">Sin guías en esta parada.</p>
                               )}
-                            </li>
+                            </article>
                           ))}
-                        </ul>
+                        </div>
                       </div>
 
                       <div>
