@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { io } from 'socket.io-client'
+import { SeguimientoChoferStepper } from '../../components/cliente/SeguimientoChoferStepper'
 import { api } from '../../services/api'
 import { RouteMap } from '../../components/map/RouteMap'
 import type { Stop } from '../../types/models'
@@ -37,6 +39,7 @@ interface StopApi {
 interface RutaApi {
   id: string
   estado: string
+  seguimientoChofer?: string
   choferId: string
   chofer: { id: string; nombre: string }
   stops: StopApi[]
@@ -103,6 +106,27 @@ export function ClienteRutaTiempoRealPage() {
       cancel = true
     }
   }, [guiaActiva?.rutaId, addToast])
+
+  useEffect(() => {
+    const rutaId = ruta?.id
+    if (!rutaId || !guiaActiva) return
+    const token = localStorage.getItem('token')
+    if (!token) return
+    const socket = io(import.meta.env.VITE_WS_URL ?? 'http://localhost:3000', {
+      auth: { token },
+      transports: ['websocket'],
+    })
+    socket.emit('join:ruta', rutaId)
+    socket.on('seguimiento_ruta', (p: { rutaId: string; seguimientoChofer: string }) => {
+      if (p.rutaId !== rutaId) return
+      setRuta((prev) =>
+        prev ? { ...prev, seguimientoChofer: p.seguimientoChofer } : prev,
+      )
+    })
+    return () => {
+      socket.disconnect()
+    }
+  }, [ruta?.id, guiaActiva?.id])
 
   const stopsRuta: Stop[] = useMemo(() => {
     if (!ruta?.stops?.length) return []
@@ -185,6 +209,12 @@ export function ClienteRutaTiempoRealPage() {
           </div>
 
           <div className="flex flex-col gap-4">
+            <SeguimientoChoferStepper
+              rutaEstado={ruta.estado}
+              seguimiento={ruta.seguimientoChofer ?? 'NINGUNO'}
+              guiaEstado={guiaActiva.estado}
+            />
+
             <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
               <p className="text-xs font-semibold uppercase tracking-wider text-primary">ETA estimado</p>
               <p className="mt-1 text-3xl font-black text-slate-900">~{etaMinutos} min</p>

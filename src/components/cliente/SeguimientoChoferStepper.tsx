@@ -1,0 +1,104 @@
+import { Fragment } from 'react'
+
+export type SeguimientoChoferValue = 'NINGUNO' | 'EN_CAMINO' | 'EN_TRAFICO' | 'CERCA_DESTINO'
+
+const LEVEL: Record<SeguimientoChoferValue, number> = {
+  NINGUNO: 0,
+  EN_CAMINO: 1,
+  EN_TRAFICO: 2,
+  CERCA_DESTINO: 3,
+}
+
+const STEPS: { label: string; icon: string }[] = [
+  { label: 'Ruta en curso', icon: 'route' },
+  { label: 'En camino', icon: 'local_shipping' },
+  { label: 'En tráfico', icon: 'traffic' },
+  { label: 'Cerca de tu entrega', icon: 'location_on' },
+]
+
+export interface SeguimientoChoferStepperProps {
+  rutaEstado: string
+  seguimiento: string
+  guiaEstado?: string
+  title?: string
+}
+
+export function SeguimientoChoferStepper({
+  rutaEstado,
+  seguimiento,
+  guiaEstado,
+  title = 'Seguimiento del chofer',
+}: SeguimientoChoferStepperProps) {
+  const raw = seguimiento as SeguimientoChoferValue
+  const level = Object.prototype.hasOwnProperty.call(LEVEL, raw) ? LEVEL[raw] : 0
+  const rutaTerminada = rutaEstado === 'COMPLETADA' || rutaEstado === 'CANCELADA'
+  const entregaCerrada = guiaEstado === 'ENTREGADO' || guiaEstado === 'INCIDENCIA'
+  const forzarCompleto = rutaTerminada || entregaCerrada
+
+  const doneAt = (i: number) => {
+    if (forzarCompleto) return true
+    if (i === 0) return rutaEstado === 'EN_CURSO' || rutaEstado === 'COMPLETADA'
+    return level >= i
+  }
+
+  let activeIndex = -1
+  for (let i = 0; i < STEPS.length; i++) {
+    if (!doneAt(i)) {
+      activeIndex = i
+      break
+    }
+  }
+
+  if (!forzarCompleto && activeIndex === -1 && rutaEstado === 'EN_CURSO' && level >= STEPS.length - 1) {
+    activeIndex = STEPS.length - 1
+  }
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+      <h3 className="mb-5 text-lg font-bold text-slate-900">{title}</h3>
+      <div className="flex w-full min-w-0 items-center">
+        {STEPS.map((step, i) => (
+          <Fragment key={step.label}>
+            <div className="flex w-14 shrink-0 flex-col items-center sm:w-[4.5rem]">
+              <div
+                className={`flex size-10 items-center justify-center rounded-full sm:size-11 ${
+                  i === activeIndex
+                    ? 'border-2 border-primary bg-primary/15 text-primary ring-4 ring-primary/15'
+                    : doneAt(i)
+                      ? 'bg-primary text-white'
+                      : 'bg-slate-100 text-slate-400'
+                }`}
+              >
+                <span className="material-symbols-outlined text-lg sm:text-xl">{step.icon}</span>
+              </div>
+              <p
+                className={`mt-2 text-center text-[9px] font-bold leading-tight sm:text-[10px] ${
+                  i === activeIndex ? 'text-primary' : doneAt(i) ? 'text-slate-800' : 'text-slate-400'
+                }`}
+              >
+                {step.label}
+              </p>
+            </div>
+            {i < STEPS.length - 1 && (
+              <div
+                className={`mx-0.5 mb-6 h-1 min-h-px min-w-0 flex-1 rounded-full self-center ${
+                  doneAt(i + 1) ? 'bg-primary' : 'bg-slate-200'
+                }`}
+                aria-hidden
+              />
+            )}
+          </Fragment>
+        ))}
+      </div>
+      <p className="mt-4 text-center text-xs text-slate-500">
+        {rutaEstado === 'PENDIENTE'
+          ? 'La ruta aún no ha iniciado.'
+          : rutaTerminada
+            ? 'Ruta finalizada.'
+            : seguimiento === 'NINGUNO' && rutaEstado === 'EN_CURSO'
+              ? 'El chofer puede ir actualizando su avance; aquí verás cada etapa.'
+              : '\u00a0'}
+      </p>
+    </div>
+  )
+}
