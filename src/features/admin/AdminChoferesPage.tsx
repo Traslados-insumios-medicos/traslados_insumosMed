@@ -28,17 +28,21 @@ export function AdminChoferesPage() {
   const [detailId, setDetailId] = useState<string | null>(null)
   const [detailChofer, setDetailChofer] = useState<ChoferDetalle | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
+  /** Si es false, la lista solo trae choferes activos (los dados de baja desaparecen de la tabla). */
+  const [mostrarInactivos, setMostrarInactivos] = useState(false)
 
   const totalPages = Math.max(1, Math.ceil(total / LIMIT))
 
   const fetchChoferes = useCallback(async (p: number) => {
     setLoading(true)
     try {
-      const res = await api.get<PaginatedResponse>(`/usuarios?rol=CHOFER&page=${p}&limit=${LIMIT}`)
+      const params = new URLSearchParams({ rol: 'CHOFER', page: String(p), limit: String(LIMIT) })
+      if (!mostrarInactivos) params.set('activo', 'true')
+      const res = await api.get<PaginatedResponse>(`/usuarios?${params}`)
       setChoferes(res.data.data); setTotal(res.data.total); setPage(p)
     } catch { addToast('Error al cargar choferes', 'error') }
     finally { setLoading(false) }
-  }, [addToast])
+  }, [addToast, mostrarInactivos])
 
   useEffect(() => { fetchChoferes(1) }, [fetchChoferes])
 
@@ -49,8 +53,13 @@ export function AdminChoferesPage() {
   const handleToggleActivo = async (id: string) => {
     try {
       const res = await api.patch<{ id: string; nombre: string; activo: boolean }>(`/usuarios/${id}/toggle-activo`)
-      setChoferes((prev) => prev.map((ch) => ch.id === id ? { ...ch, activo: res.data.activo } : ch))
-      setDetailChofer((d) => (d && d.id === id ? { ...d, activo: res.data.activo } : d))
+      const nowActivo = res.data.activo
+      if (!mostrarInactivos && !nowActivo) {
+        await fetchChoferes(page)
+      } else {
+        setChoferes((prev) => prev.map((ch) => ch.id === id ? { ...ch, activo: nowActivo } : ch))
+      }
+      setDetailChofer((d) => (d && d.id === id ? { ...d, activo: nowActivo } : d))
       addToast('Estado actualizado', 'success')
     } catch { addToast('Error al cambiar estado', 'error') }
   }
@@ -72,7 +81,10 @@ export function AdminChoferesPage() {
 
   const handleEliminarChofer = async (ch: Chofer) => {
     if (!ch.activo) return
-    if (!window.confirm(`¿Desactivar a "${ch.nombre}"? Quedará inactivo; puede reactivarlo desde la columna Estado.`)) return
+    if (!window.confirm(
+      `¿Dar de baja a "${ch.nombre}"? Dejará de estar activo y desaparecerá de esta lista. ` +
+      'Para volver a verlo, active la opción «Mostrar inactivos».',
+    )) return
     await handleToggleActivo(ch.id)
   }
 
@@ -106,8 +118,13 @@ export function AdminChoferesPage() {
           <h1 className="font-display text-xl font-bold text-slate-900">Choferes</h1>
           <p className="mt-0.5 text-sm text-slate-500">Gestión de conductores y asignaciones</p>
         </div>
-        <div className="flex items-center gap-3">
-          <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">{totalActivos} activos</span>
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm">
+            <input type="checkbox" className="rounded border-slate-300 text-primary focus:ring-primary"
+              checked={mostrarInactivos} onChange={(e) => setMostrarInactivos(e.target.checked)} />
+            Mostrar inactivos
+          </label>
+          <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">{totalActivos} activos en esta página</span>
           <button type="button" onClick={() => setShowModal(true)}
             className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-primary-dark transition-colors">
             <span className="material-symbols-outlined text-base">add</span>Nuevo chofer
@@ -288,7 +305,7 @@ export function AdminChoferesPage() {
                       </button>
                       <button type="button" onClick={() => void handleEliminarChofer(ch)} disabled={!ch.activo}
                         className="inline-flex rounded-lg p-2 text-slate-600 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent disabled:hover:text-slate-600"
-                        title={ch.activo ? 'Desactivar chofer' : 'Ya inactivo'} aria-label="Eliminar / desactivar chofer">
+                        title={ch.activo ? 'Dar de baja (sale de la lista)' : 'Ya inactivo'} aria-label="Dar de baja chofer">
                         <span className="material-symbols-outlined text-xl">delete</span>
                       </button>
                     </div>
