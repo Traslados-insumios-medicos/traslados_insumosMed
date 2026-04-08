@@ -10,6 +10,12 @@ interface GuiaApi {
   estado: string
   clienteId: string
   stopId: string
+  receptorNombre?: string | null
+  horaLlegada?: string | null
+  horaSalida?: string | null
+  temperatura?: string | null
+  observaciones?: string | null
+  fotos?: Array<{ id: string; urlPreview: string; createdAt: string; tipo: string }>
 }
 
 interface StopApi {
@@ -55,6 +61,72 @@ interface StopForm {
 
 const stopVacio = (): StopForm => ({ clienteId: '', direccion: '', notas: '', guiaDescripcion: '' })
 const LIMIT = 20
+
+function fotosEntregaGuia(g: GuiaApi) {
+  return (g.fotos ?? []).filter((f) => f.tipo === 'GUIA')
+}
+
+function DetalleEntregaGuia({ g }: { g: GuiaApi }) {
+  const fotos = fotosEntregaGuia(g)
+  const tieneTexto =
+    !!(g.receptorNombre?.trim()) ||
+    !!(g.temperatura?.trim()) ||
+    !!(g.horaLlegada?.trim()) ||
+    !!(g.horaSalida?.trim()) ||
+    !!(g.observaciones?.trim())
+  if (!tieneTexto && fotos.length === 0) return null
+  return (
+    <div className="mt-2 space-y-2 rounded-md border border-slate-200 bg-white p-2 text-[11px] text-slate-600">
+      {tieneTexto && (
+        <dl className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+          {g.receptorNombre?.trim() && (
+            <>
+              <dt className="font-semibold text-slate-500">Recibido por</dt>
+              <dd>{g.receptorNombre}</dd>
+            </>
+          )}
+          {g.temperatura?.trim() && (
+            <>
+              <dt className="font-semibold text-slate-500">Temperatura</dt>
+              <dd>{g.temperatura}</dd>
+            </>
+          )}
+          {g.horaLlegada?.trim() && (
+            <>
+              <dt className="font-semibold text-slate-500">Hora llegada</dt>
+              <dd>{g.horaLlegada}</dd>
+            </>
+          )}
+          {g.horaSalida?.trim() && (
+            <>
+              <dt className="font-semibold text-slate-500">Hora salida</dt>
+              <dd>{g.horaSalida}</dd>
+            </>
+          )}
+          {g.observaciones?.trim() && (
+            <>
+              <dt className="col-span-full font-semibold text-slate-500">Observaciones</dt>
+              <dd className="col-span-full whitespace-pre-wrap">{g.observaciones}</dd>
+            </>
+          )}
+        </dl>
+      )}
+      {fotos.length > 0 && (
+        <div>
+          <p className="mb-1.5 font-semibold text-slate-500">Fotos de entrega</p>
+          <div className="flex flex-wrap gap-2">
+            {fotos.map((f) => (
+              <a key={f.id} href={f.urlPreview} target="_blank" rel="noopener noreferrer"
+                className="block overflow-hidden rounded border border-slate-200 hover:opacity-90">
+                <img src={f.urlPreview} alt="" className="h-20 w-20 object-cover" />
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 export function AdminRutasPage() {
   const addToast = useToastStore((s) => s.addToast)
@@ -334,15 +406,18 @@ export function AdminRutasPage() {
                               <p className="text-xs text-slate-500">{stop.cliente.nombre}</p>
                               {stop.notas && <p className="mt-0.5 text-xs text-slate-500">{stop.notas}</p>}
                               {stop.guias.length > 0 && (
-                                <ul className="mt-2 space-y-1 border-t border-slate-200 pt-2">
+                                <ul className="mt-2 space-y-2 border-t border-slate-200 pt-2">
                                   {stop.guias.map((g) => (
-                                    <li key={g.id} className="flex items-center justify-between text-xs text-slate-600">
-                                      <span>{g.numeroGuia} — {g.descripcion}</span>
-                                      <span className={`rounded px-1.5 py-0.5 text-[10px] ${
-                                        g.estado === 'ENTREGADO' ? 'bg-emerald-100 text-emerald-700' :
-                                        g.estado === 'INCIDENCIA' ? 'bg-amber-100 text-amber-700' :
-                                        'bg-slate-100 text-slate-600'
-                                      }`}>{g.estado}</span>
+                                    <li key={g.id} className="text-xs text-slate-600">
+                                      <div className="flex items-center justify-between gap-2">
+                                        <span className="min-w-0 font-medium">{g.numeroGuia} — {g.descripcion}</span>
+                                        <span className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] ${
+                                          g.estado === 'ENTREGADO' ? 'bg-emerald-100 text-emerald-700' :
+                                          g.estado === 'INCIDENCIA' ? 'bg-amber-100 text-amber-700' :
+                                          'bg-slate-100 text-slate-600'
+                                        }`}>{g.estado}</span>
+                                      </div>
+                                      <DetalleEntregaGuia g={g} />
                                     </li>
                                   ))}
                                 </ul>

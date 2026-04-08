@@ -13,6 +13,15 @@ interface GuiaApi {
   receptorNombre?: string | null; horaLlegada?: string | null
   horaSalida?: string | null; temperatura?: string | null; observaciones?: string | null
   stopId: string
+  updatedAt?: string
+}
+
+interface GuiaDetalleForm {
+  receptorNombre: string
+  temperatura: string
+  horaLlegada: string
+  horaSalida: string
+  observaciones: string
 }
 
 interface StopApi {
@@ -44,6 +53,8 @@ export function ChoferRutaDetallePage() {
   const [miUbicacion, setMiUbicacion] = useState<{ lat: number; lng: number } | null>(null)
   const geoWatchRef = useRef<number | null>(null)
   const miUbicacionRef = useRef<{ lat: number; lng: number } | null>(null)
+  const [detalleFormPorGuia, setDetalleFormPorGuia] = useState<Record<string, GuiaDetalleForm>>({})
+  const [guardandoGuiaId, setGuardandoGuiaId] = useState<string | null>(null)
 
   const fetchRuta = useCallback(async () => {
     if (!id) return
@@ -76,6 +87,28 @@ export function ChoferRutaDetallePage() {
       completada,
     }
   }), [stopsRuta])
+
+  const rutaDetalleSyncKey = useMemo(
+    () => (ruta ? ruta.guias.map((g) => `${g.id}:${g.updatedAt ?? ''}`).join('|') : ''),
+    [ruta],
+  )
+
+  useEffect(() => {
+    if (!ruta) return
+    setDetalleFormPorGuia((prev) => {
+      const next = { ...prev }
+      ruta.guias.forEach((g) => {
+        next[g.id] = {
+          receptorNombre: g.receptorNombre ?? '',
+          temperatura: g.temperatura ?? '',
+          horaLlegada: g.horaLlegada ?? '',
+          horaSalida: g.horaSalida ?? '',
+          observaciones: g.observaciones ?? '',
+        }
+      })
+      return next
+    })
+  }, [rutaDetalleSyncKey, ruta])
 
   useEffect(() => {
     miUbicacionRef.current = miUbicacion
@@ -179,11 +212,72 @@ export function ChoferRutaDetallePage() {
     }
   }
 
-  const handleDetalleBlur = async (guiaId: string, field: string, value: string) => {
+  const patchDetalleGuiaEnEstado = (guiaId: string, patch: Partial<GuiaApi>) => {
+    setRuta((prev) =>
+      prev
+        ? {
+            ...prev,
+            guias: prev.guias.map((g) => (g.id === guiaId ? { ...g, ...patch } : g)),
+            stops: prev.stops.map((s) => ({
+              ...s,
+              guias: s.guias.map((g) => (g.id === guiaId ? { ...g, ...patch } : g)),
+            })),
+          }
+        : prev,
+    )
+  }
+
+  const setCampoDetalle = (guiaId: string, campo: keyof GuiaDetalleForm, valor: string) => {
+    setDetalleFormPorGuia((prev) => ({
+      ...prev,
+      [guiaId]: { ...(prev[guiaId] ?? { receptorNombre: '', temperatura: '', horaLlegada: '', horaSalida: '', observaciones: '' }), [campo]: valor },
+    }))
+  }
+
+  const handleGuardarDetalleGuia = async (guiaId: string) => {
+    const f = detalleFormPorGuia[guiaId]
+    if (!f) return
+    setGuardandoGuiaId(guiaId)
     try {
-      await api.patch(`/guias/${guiaId}/detalle`, { [field]: value || undefined })
+      const res = await api.patch<{
+        id: string
+        receptorNombre: string | null
+        horaLlegada: string | null
+        horaSalida: string | null
+        temperatura: string | null
+        observaciones: string | null
+        updatedAt: string
+      }>(`/guias/${guiaId}/detalle`, {
+        receptorNombre: f.receptorNombre.trim() || undefined,
+        temperatura: f.temperatura.trim() || undefined,
+        horaLlegada: f.horaLlegada.trim() || undefined,
+        horaSalida: f.horaSalida.trim() || undefined,
+        observaciones: f.observaciones.trim() || undefined,
+      })
+      const row = res.data
+      patchDetalleGuiaEnEstado(guiaId, {
+        receptorNombre: row.receptorNombre,
+        horaLlegada: row.horaLlegada,
+        horaSalida: row.horaSalida,
+        temperatura: row.temperatura,
+        observaciones: row.observaciones,
+        updatedAt: row.updatedAt,
+      })
+      setDetalleFormPorGuia((prev) => ({
+        ...prev,
+        [guiaId]: {
+          receptorNombre: row.receptorNombre ?? '',
+          temperatura: row.temperatura ?? '',
+          horaLlegada: row.horaLlegada ?? '',
+          horaSalida: row.horaSalida ?? '',
+          observaciones: row.observaciones ?? '',
+        },
+      }))
+      addToast('Datos guardados. El administrador los ve en Rutas → expandir ruta.', 'success')
     } catch {
-      addToast('Error al guardar campo', 'error')
+      addToast('No se pudieron guardar los datos de entrega', 'error')
+    } finally {
+      setGuardandoGuiaId(null)
     }
   }
 
@@ -463,42 +557,52 @@ export function ChoferRutaDetallePage() {
                             </div>
                             <p className="text-xs text-slate-600">{g.descripcion}</p>
 
-                            {/* Campos de entrega — onBlur llama PATCH /api/guias/:id/detalle */}
+                            {/* Campos de entrega — Guardar envía PATCH /api/guias/:id/detalle */}
                             <div className="mt-3 grid grid-cols-2 gap-2">
                               <div>
                                 <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Recibido por</label>
-                                <input type="text" placeholder="Nombre de quien recibe" defaultValue={g.receptorNombre ?? ''}
-                                  onBlur={(e) => handleDetalleBlur(g.id, 'receptorNombre', e.target.value)}
+                                <input type="text" placeholder="Nombre de quien recibe" value={detalleFormPorGuia[g.id]?.receptorNombre ?? ''}
+                                  onChange={(e) => setCampoDetalle(g.id, 'receptorNombre', e.target.value)}
                                   className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs" />
                               </div>
                               <div>
                                 <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Temperatura (°C)</label>
-                                <input type="text" placeholder="Ej: 18°C" defaultValue={g.temperatura ?? ''}
-                                  onBlur={(e) => handleDetalleBlur(g.id, 'temperatura', e.target.value)}
+                                <input type="text" placeholder="Ej: 18°C" value={detalleFormPorGuia[g.id]?.temperatura ?? ''}
+                                  onChange={(e) => setCampoDetalle(g.id, 'temperatura', e.target.value)}
                                   className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs" />
                               </div>
                               <div>
                                 <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Hora llegada</label>
-                                <input type="time" defaultValue={g.horaLlegada ?? ''}
-                                  onBlur={(e) => handleDetalleBlur(g.id, 'horaLlegada', e.target.value)}
+                                <input type="time" value={detalleFormPorGuia[g.id]?.horaLlegada ?? ''}
+                                  onChange={(e) => setCampoDetalle(g.id, 'horaLlegada', e.target.value)}
                                   className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs" />
                               </div>
                               <div>
                                 <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Hora salida</label>
-                                <input type="time" defaultValue={g.horaSalida ?? ''}
-                                  onBlur={(e) => handleDetalleBlur(g.id, 'horaSalida', e.target.value)}
+                                <input type="time" value={detalleFormPorGuia[g.id]?.horaSalida ?? ''}
+                                  onChange={(e) => setCampoDetalle(g.id, 'horaSalida', e.target.value)}
                                   className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs" />
                               </div>
                               <div className="col-span-2">
                                 <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Observaciones</label>
-                                <textarea rows={2} placeholder="Novedades o comentarios (opcional)" defaultValue={g.observaciones ?? ''}
-                                  onBlur={(e) => handleDetalleBlur(g.id, 'observaciones', e.target.value)}
+                                <textarea rows={2} placeholder="Novedades o comentarios (opcional)" value={detalleFormPorGuia[g.id]?.observaciones ?? ''}
+                                  onChange={(e) => setCampoDetalle(g.id, 'observaciones', e.target.value)}
                                   className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs" />
+                              </div>
+                              <div className="col-span-2 flex justify-end">
+                                <button
+                                  type="button"
+                                  onClick={() => handleGuardarDetalleGuia(g.id)}
+                                  disabled={guardandoGuiaId === g.id}
+                                  className="rounded-lg bg-primary px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-primary/90 disabled:opacity-60"
+                                >
+                                  {guardandoGuiaId === g.id ? 'Guardando…' : 'Guardar datos de entrega'}
+                                </button>
                               </div>
                             </div>
 
                             <div className="mt-3">
-                              <PhotoUploader scope="guia" guiaId={g.id} label="Fotos de entrega" max={8} />
+                              <PhotoUploader scope="guia" guiaId={g.id} label="Fotos de entrega" max={8} onUploaded={fetchRuta} />
                             </div>
                           </div>
                         ))}
