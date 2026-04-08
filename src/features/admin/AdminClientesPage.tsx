@@ -111,7 +111,7 @@ export function AdminClientesPage() {
     setEditingId(c.id)
     setEditSnapshot(c)
     setTipo(c.tipo)
-    setClientePrincipalId(c.clientePrincipalId ?? '')
+    setClientePrincipalId('')
     setShowModal(true)
   }
 
@@ -150,10 +150,9 @@ export function AdminClientesPage() {
     if (editingId && editSnapshot) {
       setSubmitting(true)
       try {
-        const res = await api.put<Cliente>(`/clientes/${editingId}`, {
-          tipo,
-          clientePrincipalId: tipo === 'SECUNDARIO' ? (clientePrincipalId || null) : null,
-        })
+        const body: { tipo: TipoCliente; clientePrincipalId?: string | null } = { tipo }
+        if (tipo === 'PRINCIPAL') body.clientePrincipalId = null
+        const res = await api.put<Cliente>(`/clientes/${editingId}`, body)
         setClientes((prev) => prev.map((c) => (c.id === editingId ? res.data : c)))
         setDetailCliente((d) => (d && d.id === editingId ? { ...d, ...res.data } : d))
         addToast('Tipo de cliente actualizado', 'success')
@@ -252,7 +251,9 @@ export function AdminClientesPage() {
             <form onSubmit={handleSubmit} className="space-y-5 p-5">
               {editingId && editSnapshot ? (
                 <>
-                  <p className="text-xs text-slate-500">Los datos del cliente son de solo lectura. Solo puede cambiar el tipo y, si aplica, el cliente principal.</p>
+                  <p className="text-xs text-slate-500">
+                    Datos de solo lectura. Solo indique si este registro es <strong className="font-semibold text-slate-700">Principal</strong> o <strong className="font-semibold text-slate-700">Secundario</strong>. Aquí no se asigna la jerarquía (eso va al crear el cliente o en otros flujos).
+                  </p>
                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                     <dl className="space-y-2.5 text-sm">
                       <div><dt className="text-xs font-medium text-slate-400">Nombre</dt><dd className="font-semibold text-slate-900">{editSnapshot.nombre}</dd></div>
@@ -260,12 +261,19 @@ export function AdminClientesPage() {
                       <div><dt className="text-xs font-medium text-slate-400">Dirección</dt><dd className="text-slate-800">{editSnapshot.direccion}</dd></div>
                       <div><dt className="text-xs font-medium text-slate-400">Teléfono</dt><dd className="text-slate-800">{editSnapshot.telefonoContacto ?? '—'}</dd></div>
                       <div><dt className="text-xs font-medium text-slate-400">Email contacto</dt><dd className="text-slate-800">{editSnapshot.emailContacto ?? '—'}</dd></div>
+                      {editSnapshot.tipo === 'SECUNDARIO' && editSnapshot.clientePrincipal && (
+                        <div>
+                          <dt className="text-xs font-medium text-slate-400">Cliente principal (referencia actual)</dt>
+                          <dd className="text-slate-800">{editSnapshot.clientePrincipal.nombre}</dd>
+                        </div>
+                      )}
                     </dl>
                   </div>
 
                   <div className="space-y-1">
                     <label className="text-xs font-medium text-slate-400">Tipo de cliente *</label>
-                    <div className="flex gap-3">
+                    <p className="mb-2 text-[11px] text-slate-400">Primero: Principal (empresa con panel). Segundo: Secundario (sucursal / punto de entrega).</p>
+                    <div className="flex flex-col gap-3 sm:flex-row">
                       {(['PRINCIPAL', 'SECUNDARIO'] as TipoCliente[]).map((t) => (
                         <label key={t} className={`flex flex-1 cursor-pointer items-center gap-2 rounded-lg border-2 p-3 transition-all ${
                           tipo === t ? 'border-primary bg-primary/5' : 'border-slate-200'
@@ -284,17 +292,6 @@ export function AdminClientesPage() {
                       ))}
                     </div>
                   </div>
-
-                  {tipo === 'SECUNDARIO' && (
-                    <div className="space-y-1">
-                      <label className="text-xs font-medium text-slate-400">Cliente principal</label>
-                      <select value={clientePrincipalId} onChange={(e) => setClientePrincipalId(e.target.value)}
-                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900">
-                        <option value="">Sin asignar</option>
-                        {principales.filter((p) => p.id !== editingId).map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-                      </select>
-                    </div>
-                  )}
                 </>
               ) : (
                 <>
