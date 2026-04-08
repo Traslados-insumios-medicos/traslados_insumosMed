@@ -93,9 +93,10 @@ export function MainLayout() {
             <NavItem to="/admin/reportes" icon="analytics" label="Reportes" onClick={close} />
             <NavItem to="/admin/novedades" icon="warning" label="Novedades" onClick={close} />
           </>)}
-          {role === 'CHOFER' && (
-            <NavItem to="/chofer/rutas" icon="route" label="Mi Ruta" onClick={close} />
-          )}
+          {role === 'CHOFER' && (<>
+            <NavItem to="/chofer/rutas" icon="route" label="Mis Rutas" onClick={close} />
+            <NavItem to="/chofer/historial" icon="history" label="Historial" onClick={close} />
+          </>)}
           {role === 'CLIENTE' && (<>
             <NavItem to="/cliente/envios" icon="inventory_2" label="Envíos" onClick={close} />
             <NavItem to="/cliente/ruta" icon="location_on" label="Ruta en vivo" onClick={close} />

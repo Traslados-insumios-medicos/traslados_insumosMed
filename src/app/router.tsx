@@ -11,6 +11,7 @@ import { AdminReportesPage } from '../features/admin/AdminReportesPage'
 import { AdminRutasPage } from '../features/admin/AdminRutasPage'
 import { AdminNovedadesPage } from '../features/admin/AdminNovedadesPage'
 import { ChoferRutasPage } from '../features/chofer/ChoferRutasPage'
+import { ChoferHistorialPage } from '../features/chofer/ChoferHistorialPage'
 import { ChoferRutaDetallePage } from '../features/chofer/ChoferRutaDetallePage'
 import { ClienteEnviosPage } from '../features/cliente/ClienteEnviosPage'
 import { ClienteEnvioDetallePage } from '../features/cliente/ClienteEnvioDetallePage'
@@ -41,6 +42,7 @@ export const router = createBrowserRouter([
       { path: '/admin/rutas', element: <AdminRutasPage /> },
       { path: '/admin/novedades', element: <AdminNovedadesPage /> },
       { path: '/chofer/rutas', element: <ChoferRutasPage /> },
+      { path: '/chofer/historial', element: <ChoferHistorialPage /> },
       { path: '/chofer/rutas/:id', element: <ChoferRutaDetallePage /> },
       { path: '/cliente/envios', element: <ClienteEnviosPage /> },
       { path: '/cliente/envios/:guiaId', element: <ClienteEnvioDetallePage /> },

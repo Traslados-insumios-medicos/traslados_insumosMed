@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { api } from '../../services/api'
 import { useAuthStore } from '../../store/authStore'
 import { useToastStore } from '../../store/toastStore'
@@ -21,7 +21,13 @@ export function ChoferRutasPage() {
 
   const [rutas, setRutas] = useState<RutaApi[]>([])
   const [loading, setLoading] = useState(false)
-  const [filtro, setFiltro] = useState<Filtro>('activas')
+  const location = useLocation()
+  const isHistorial = location.pathname.includes('historial')
+  const [filtro, setFiltro] = useState<Filtro>(isHistorial ? 'todas' : 'activas')
+
+  useEffect(() => {
+    setFiltro(isHistorial ? 'todas' : 'activas')
+  }, [isHistorial])
 
   const fetchRutas = useCallback(async () => {
     setLoading(true)

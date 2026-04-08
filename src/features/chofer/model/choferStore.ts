@@ -126,8 +126,9 @@ export const useChoferStore = create<ChoferState>((set, get) => ({
   fetchMisRutas: async () => {
     set({ loading: true, error: null })
     try {
-      const { data } = await api.get<RutaAPI[]>('/rutas/mis-rutas')
-      set({ rutas: data, loading: false })
+      // El backend filtra automáticamente por choferId cuando el rol es CHOFER
+      const { data } = await api.get<{ data: RutaAPI[]; total: number }>('/rutas')
+      set({ rutas: data.data, loading: false })
     } catch (e: any) {
       set({ error: e.response?.data?.message ?? 'Error al cargar rutas', loading: false })
     }
