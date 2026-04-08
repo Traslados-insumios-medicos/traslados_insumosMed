@@ -595,9 +595,6 @@ export function ChoferRutaDetallePage() {
                               <PhotoUploader scope="guia" guiaId={g.id} label="Fotos de entrega" max={8} onUploaded={fetchRuta} />
 
                               <div className="border-t border-slate-200 pt-4">
-                                <p className="mb-3 text-[10px] leading-snug text-slate-500 sm:text-right">
-                                  Registro completo de la guía: las fotos se guardan al subirlas; este botón envía recibido, temperatura, horarios y observaciones.
-                                </p>
                                 <div className="flex justify-end">
                                   <button
                                     type="button"
