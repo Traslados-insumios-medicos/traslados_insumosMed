@@ -39,7 +39,7 @@ export function AdminClientesPage() {
 
   const [showModal, setShowModal] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
-  /** Datos mostrados solo lectura al editar tipo (nombre, RUC, etc.) */
+  /** Fila original al abrir edición (p. ej. referencia de cliente principal si era secundario) */
   const [editSnapshot, setEditSnapshot] = useState<Cliente | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -110,6 +110,11 @@ export function AdminClientesPage() {
   const handleEdit = (c: Cliente) => {
     setEditingId(c.id)
     setEditSnapshot(c)
+    setNombre(c.nombre)
+    setRuc(c.ruc)
+    setDireccion(c.direccion)
+    setTelefono(c.telefonoContacto ?? '')
+    setEmailContacto(c.emailContacto ?? '')
     setTipo(c.tipo)
     setClientePrincipalId('')
     setShowModal(true)
@@ -148,14 +153,31 @@ export function AdminClientesPage() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (editingId && editSnapshot) {
+      if (!nombre.trim() || !direccion.trim()) {
+        addToast('Complete nombre y dirección', 'error')
+        return
+      }
       setSubmitting(true)
       try {
-        const body: { tipo: TipoCliente; clientePrincipalId?: string | null } = { tipo }
+        const body: {
+          nombre: string
+          direccion: string
+          telefonoContacto?: string
+          emailContacto?: string
+          tipo: TipoCliente
+          clientePrincipalId?: string | null
+        } = {
+          nombre: nombre.trim(),
+          direccion: direccion.trim(),
+          telefonoContacto: telefono.trim() || undefined,
+          emailContacto: emailContacto.trim() || undefined,
+          tipo,
+        }
         if (tipo === 'PRINCIPAL') body.clientePrincipalId = null
         const res = await api.put<Cliente>(`/clientes/${editingId}`, body)
         setClientes((prev) => prev.map((c) => (c.id === editingId ? res.data : c)))
         setDetailCliente((d) => (d && d.id === editingId ? { ...d, ...res.data } : d))
-        addToast('Tipo de cliente actualizado', 'success')
+        addToast('Cliente actualizado', 'success')
         resetForm()
       } catch {
         addToast('Error al actualizar cliente', 'error')
@@ -252,27 +274,50 @@ export function AdminClientesPage() {
               {editingId && editSnapshot ? (
                 <>
                   <p className="text-xs text-slate-500">
-                    Datos de solo lectura. Solo indique si este registro es <strong className="font-semibold text-slate-700">Principal</strong> o <strong className="font-semibold text-slate-700">Secundario</strong>. Aquí no se asigna la jerarquía (eso va al crear el cliente o en otros flujos).
+                    Edite nombre, dirección, teléfono y correo. El <strong className="font-semibold text-slate-700">RUC</strong> no se puede cambiar. También puede marcar si el cliente es <strong className="font-semibold text-slate-700">Principal</strong> o <strong className="font-semibold text-slate-700">Secundario</strong>.
                   </p>
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                    <dl className="space-y-2.5 text-sm">
-                      <div><dt className="text-xs font-medium text-slate-400">Nombre</dt><dd className="font-semibold text-slate-900">{editSnapshot.nombre}</dd></div>
-                      <div><dt className="text-xs font-medium text-slate-400">RUC</dt><dd className="text-slate-800">{editSnapshot.ruc}</dd></div>
-                      <div><dt className="text-xs font-medium text-slate-400">Dirección</dt><dd className="text-slate-800">{editSnapshot.direccion}</dd></div>
-                      <div><dt className="text-xs font-medium text-slate-400">Teléfono</dt><dd className="text-slate-800">{editSnapshot.telefonoContacto ?? '—'}</dd></div>
-                      <div><dt className="text-xs font-medium text-slate-400">Email contacto</dt><dd className="text-slate-800">{editSnapshot.emailContacto ?? '—'}</dd></div>
-                      {editSnapshot.tipo === 'SECUNDARIO' && editSnapshot.clientePrincipal && (
-                        <div>
-                          <dt className="text-xs font-medium text-slate-400">Cliente principal (referencia actual)</dt>
-                          <dd className="text-slate-800">{editSnapshot.clientePrincipal.nombre}</dd>
-                        </div>
-                      )}
-                    </dl>
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-slate-400">Nombre *</label>
+                      <input className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-primary"
+                        value={nombre} onChange={(e) => setNombre(e.target.value)} required />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-slate-400">RUC</label>
+                      <input className="w-full rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-sm text-slate-600"
+                        value={ruc} readOnly tabIndex={-1} title="El RUC no es editable" />
+                    </div>
                   </div>
 
                   <div className="space-y-1">
+                    <label className="text-xs font-medium text-slate-400">Dirección *</label>
+                    <input className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-primary"
+                      value={direccion} onChange={(e) => setDireccion(e.target.value)} required />
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-slate-400">Teléfono</label>
+                      <input className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-primary"
+                        value={telefono} onChange={(e) => setTelefono(e.target.value)} />
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium text-slate-400">Email contacto</label>
+                      <input type="email" className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:ring-2 focus:ring-primary"
+                        value={emailContacto} onChange={(e) => setEmailContacto(e.target.value)} />
+                    </div>
+                  </div>
+
+                  {tipo === 'SECUNDARIO' && editSnapshot.clientePrincipal && (
+                    <p className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                      Cliente principal vinculado: <span className="font-medium text-slate-800">{editSnapshot.clientePrincipal.nombre}</span> (referencia).
+                    </p>
+                  )}
+
+                  <div className="space-y-1">
                     <label className="text-xs font-medium text-slate-400">Tipo de cliente *</label>
-                    <p className="mb-2 text-[11px] text-slate-400">Primero: Principal (empresa con panel). Segundo: Secundario (sucursal / punto de entrega).</p>
+                    <p className="mb-2 text-[11px] text-slate-400">Principal: empresa con panel. Secundario: sucursal o punto de entrega.</p>
                     <div className="flex flex-col gap-3 sm:flex-row">
                       {(['PRINCIPAL', 'SECUNDARIO'] as TipoCliente[]).map((t) => (
                         <label key={t} className={`flex flex-1 cursor-pointer items-center gap-2 rounded-lg border-2 p-3 transition-all ${
