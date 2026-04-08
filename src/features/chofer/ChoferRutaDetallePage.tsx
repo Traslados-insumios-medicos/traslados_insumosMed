@@ -39,6 +39,16 @@ interface RutaApi {
   stops: StopApi[]; guias: GuiaApi[]; fotos: FotoApi[]
 }
 
+function guiaTieneDetallePersistido(g: GuiaApi) {
+  return !!(
+    g.receptorNombre?.trim() ||
+    g.temperatura?.trim() ||
+    g.horaLlegada?.trim() ||
+    g.horaSalida?.trim() ||
+    g.observaciones?.trim()
+  )
+}
+
 export function ChoferRutaDetallePage() {
   const { id } = useParams<{ id: string }>()
   const { currentUser } = useAuthStore()
@@ -55,6 +65,8 @@ export function ChoferRutaDetallePage() {
   const miUbicacionRef = useRef<{ lat: number; lng: number } | null>(null)
   const [detalleFormPorGuia, setDetalleFormPorGuia] = useState<Record<string, GuiaDetalleForm>>({})
   const [guardandoGuiaId, setGuardandoGuiaId] = useState<string | null>(null)
+  const [guiaIdsDetalleGuardado, setGuiaIdsDetalleGuardado] = useState<Set<string>>(() => new Set())
+  const rutaIdParaDetalleRef = useRef<string | null>(null)
 
   const fetchRuta = useCallback(async () => {
     if (!id) return
@@ -109,6 +121,23 @@ export function ChoferRutaDetallePage() {
       return next
     })
   }, [rutaDetalleSyncKey, ruta])
+
+  useEffect(() => {
+    if (!ruta) return
+    const mergePersistidos = (base: Set<string>) => {
+      const next = new Set(base)
+      ruta.guias.forEach((g) => {
+        if (guiaTieneDetallePersistido(g)) next.add(g.id)
+      })
+      return next
+    }
+    if (rutaIdParaDetalleRef.current !== ruta.id) {
+      rutaIdParaDetalleRef.current = ruta.id
+      setGuiaIdsDetalleGuardado(mergePersistidos(new Set()))
+    } else {
+      setGuiaIdsDetalleGuardado((prev) => mergePersistidos(prev))
+    }
+  }, [ruta, rutaDetalleSyncKey])
 
   useEffect(() => {
     miUbicacionRef.current = miUbicacion
@@ -273,6 +302,7 @@ export function ChoferRutaDetallePage() {
           observaciones: row.observaciones ?? '',
         },
       }))
+      setGuiaIdsDetalleGuardado((prev) => new Set(prev).add(guiaId))
       addToast('Datos guardados. El administrador los ve en Rutas → expandir ruta.', 'success')
     } catch {
       addToast('No se pudieron guardar los datos de entrega', 'error')
@@ -490,24 +520,36 @@ export function ChoferRutaDetallePage() {
             </div>
           </div>
 
-          {/* Paradas */}
-          <div className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white lg:min-h-0 lg:flex-1">
-            <h4 className="flex flex-shrink-0 items-center gap-2 border-b border-slate-200 px-4 py-3 font-bold text-slate-900">
+          {/* Paradas: una card por parada */}
+          <div className="flex min-h-0 flex-1 flex-col gap-3 lg:overflow-hidden">
+            <h4 className="flex flex-shrink-0 items-center gap-2 px-0.5 font-bold text-slate-900">
               <span className="material-symbols-outlined text-primary">format_list_bulleted</span>
               Paradas y guías
             </h4>
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex flex-1 flex-col gap-3 overflow-y-auto pb-1 pr-0.5">
               {stopsRuta.map((stop) => {
                 const guiasStop = stop.guias
-                const paradaCompleta =
+                const paradaCompletaEntrega =
                   guiasStop.length > 0 &&
-                  guiasStop.every((g) => g.estado === 'ENTREGADO' || g.estado === 'INCIDENCIA')
+                  guiasStop.every((g) => g.estado === 'ENTREGADO' || g.estado === 'INCIDENCIA'
+                const paradaDetalleCompleto =
+                  guiasStop.length > 0 &&
+                  guiasStop.every((g) => guiaIdsDetalleGuardado.has(g.id))
                 const isSelected = effectiveSelectedStopId === stop.id
                 return (
-                  <div key={stop.id} className={`border-b border-slate-100 last:border-b-0 ${isSelected ? 'border-l-4 border-l-primary bg-primary/5' : ''}`}>
+                  <div
+                    key={stop.id}
+                    className={`overflow-hidden rounded-xl border bg-white shadow-sm ring-1 transition-colors ${
+                      paradaDetalleCompleto
+                        ? 'border-emerald-300 bg-emerald-50/50 ring-emerald-200/70'
+                        : isSelected
+                          ? 'border-primary/40 ring-primary/15'
+                          : 'border-slate-200 ring-slate-900/5'
+                    } ${isSelected && !paradaDetalleCompleto ? 'ring-primary/25' : ''}`}
+                  >
                     <button type="button" onClick={() => setSelectedStopId(effectiveSelectedStopId === stop.id ? null : stop.id)}
-                      className="flex w-full items-start justify-between p-4 text-left">
-                      <div>
+                      className="flex w-full items-start justify-between gap-3 p-4 text-left hover:bg-slate-50/80">
+                      <div className="min-w-0">
                         <p className="text-xs font-bold uppercase text-primary">Parada #{stop.orden}</p>
                         <h5 className="font-bold text-slate-900">{stop.direccion}</h5>
                         <p className="text-xs text-slate-500">{stop.cliente.nombre}</p>
@@ -516,12 +558,18 @@ export function ChoferRutaDetallePage() {
                       <div className="flex shrink-0 flex-col items-end gap-1">
                         <span
                           className={`rounded px-2 py-0.5 text-[10px] font-bold ${
-                            paradaCompleta
-                              ? 'bg-emerald-100 text-emerald-800'
-                              : 'border border-slate-200 bg-slate-100 text-slate-600'
-                          }`}
+                            paradaDetalleCompleto
+                              ? 'bg-emerald-600 text-white'
+                              : paradaCompletaEntrega
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'border border-slate-200 bg-slate-100 text-slate-600'
+                          }"}
                         >
-                          {paradaCompleta ? 'Completada' : 'Pendiente'}
+                          {paradaDetalleCompleto
+                            ? 'Datos guardados'
+                            : paradaCompletaEntrega
+                              ? 'Entrega ok'
+                              : 'Pendiente'}
                         </span>
                         <span className="rounded border border-slate-200 bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
                           {guiasStop.length} guía(s)
@@ -530,7 +578,7 @@ export function ChoferRutaDetallePage() {
                     </button>
 
                     {isSelected && (
-                      <div className="space-y-3 px-4 pb-4">
+                      <div className="space-y-3 border-t border-slate-100 bg-slate-50/30 px-4 py-4">
                         {guiasStop.map((g) => (
                           <div key={g.id} className={`rounded-lg border p-3 ${
                             g.estado === 'INCIDENCIA' ? 'border-amber-200 bg-amber-50' :
@@ -595,12 +643,12 @@ export function ChoferRutaDetallePage() {
                               <PhotoUploader scope="guia" guiaId={g.id} label="Fotos de entrega" max={8} onUploaded={fetchRuta} />
 
                               <div className="border-t border-slate-200 pt-4">
-                                <div className="flex justify-end">
+                                <div className="w-full sm:flex sm:justify-end">
                                   <button
                                     type="button"
                                     onClick={() => handleGuardarDetalleGuia(g.id)}
                                     disabled={guardandoGuiaId === g.id}
-                                    className="rounded-lg bg-primary px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-primary/90 disabled:opacity-60"
+                                    className="w-full rounded-lg bg-primary px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-primary/90 disabled:opacity-60 sm:w-auto"
                                   >
                                     {guardandoGuiaId === g.id ? 'Guardando…' : 'Guardar datos de entrega'}
                                   </button>
