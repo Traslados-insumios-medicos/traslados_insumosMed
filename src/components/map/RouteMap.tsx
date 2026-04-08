@@ -18,6 +18,25 @@ export interface RouteMapProps {
 
 const QUITO_CENTER: [number, number] = [-78.47, -0.18] // [lng, lat] for Mapbox
 
+async function getRouteCoordinates(stops: Stop[]): Promise<[number, number][]> {
+  const fallback = stops.map((s) => [s.lng, s.lat] as [number, number])
+  if (stops.length < 2 || !mapboxgl.accessToken) return fallback
+
+  try {
+    const coords = stops.map((s) => `${s.lng},${s.lat}`).join(';')
+    const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${coords}?geometries=geojson&overview=full&access_token=${mapboxgl.accessToken}`
+    const res = await fetch(url)
+    if (!res.ok) return fallback
+    const data = (await res.json()) as {
+      routes?: Array<{ geometry?: { coordinates?: [number, number][] } }>
+    }
+    const routeCoords = data.routes?.[0]?.geometry?.coordinates
+    return routeCoords?.length ? routeCoords : fallback
+  } catch {
+    return fallback
+  }
+}
+
 export function RouteMap({ stops, currentPosition, highlightedStopId, fitBoundsTrigger }: RouteMapProps) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<mapboxgl.Map | null>(null)
@@ -45,12 +64,13 @@ export function RouteMap({ stops, currentPosition, highlightedStopId, fitBoundsT
 
     mapRef.current = map
 
-    map.on('load', () => {
+    map.on('load', async () => {
       map.addControl(new mapboxgl.NavigationControl({ showCompass: true }), 'top-right')
       map.addControl(new mapboxgl.FullscreenControl(), 'top-right')
 
       // Draw route line
       if (stops.length > 1) {
+        const routeCoordinates = await getRouteCoordinates(stops)
         map.addSource('route', {
           type: 'geojson',
           data: {
@@ -58,7 +78,7 @@ export function RouteMap({ stops, currentPosition, highlightedStopId, fitBoundsT
             properties: {},
             geometry: {
               type: 'LineString',
-              coordinates: stops.map((s) => [s.lng, s.lat]),
+              coordinates: routeCoordinates,
             },
           },
         })
