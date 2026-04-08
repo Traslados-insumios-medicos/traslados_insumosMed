@@ -520,60 +520,86 @@ export function ChoferRutaDetallePage() {
             </div>
           </div>
 
-          {/* Paradas: cada parada = card blanca sobre bandeja gris (se ven como bloques separados) */}
+          {/* Paradas: cards estilo listado admin (título primario, guías en pastillas) */}
           <div className="flex min-h-0 flex-1 flex-col gap-3 lg:overflow-hidden">
             <h4 className="flex flex-shrink-0 items-center gap-2 px-0.5 font-bold text-slate-900">
               <span className="material-symbols-outlined text-primary">format_list_bulleted</span>
               Paradas y guías
             </h4>
-            <div className="flex max-h-[min(70vh,820px)] flex-1 flex-col gap-4 overflow-y-auto rounded-2xl border border-slate-200/80 bg-slate-100/80 p-3 sm:max-h-none sm:p-4">
+            <div className="flex max-h-[min(70vh,820px)] flex-1 flex-col gap-4 overflow-y-auto pb-2 sm:max-h-none">
               {stopsRuta.map((stop) => {
                 const guiasStop = stop.guias
                 const paradaCompletaEntrega =
                   guiasStop.length > 0 &&
-                  guiasStop.every((g) => g.estado === 'ENTREGADO' || g.estado === 'INCIDENCIA'
+                  guiasStop.every((g) => g.estado === 'ENTREGADO' || g.estado === 'INCIDENCIA')
                 const paradaDetalleCompleto =
                   guiasStop.length > 0 &&
                   guiasStop.every((g) => guiaIdsDetalleGuardado.has(g.id))
                 const isSelected = effectiveSelectedStopId === stop.id
+                const pillGuia = (g: (typeof guiasStop)[0]) =>
+                  g.estado === 'INCIDENCIA'
+                    ? 'bg-amber-50 text-amber-900 ring-amber-100/80'
+                    : g.estado === 'ENTREGADO'
+                      ? 'bg-emerald-100 text-emerald-900 ring-emerald-200/80'
+                      : 'bg-emerald-50 text-emerald-800 ring-emerald-100/90'
                 return (
                   <article
                     key={stop.id}
-                    className={`overflow-hidden rounded-xl border bg-white shadow-md transition-colors ${
+                    className={`overflow-hidden rounded-xl border bg-white shadow-sm transition-colors ${
                       paradaDetalleCompleto
-                        ? 'border-emerald-300 bg-emerald-50/60 shadow-emerald-900/10'
+                        ? 'border-emerald-300 bg-emerald-50/50 shadow-[0_2px_12px_-2px_rgba(16,185,129,0.2)]'
                         : isSelected
-                          ? 'border-primary/45 shadow-[0_4px_20px_-4px_rgba(37,99,235,0.25)] ring-2 ring-primary/20'
-                          : 'border-slate-200/90 shadow-slate-900/[0.06]'
+                          ? 'border-primary/35 shadow-md ring-1 ring-primary/15'
+                          : 'border-slate-200 shadow-slate-900/[0.04]'
                     }`}
                   >
-                    <button type="button" onClick={() => setSelectedStopId(effectiveSelectedStopId === stop.id ? null : stop.id)}
-                      className="flex w-full items-start justify-between gap-3 p-4 text-left hover:bg-slate-50/80">
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold uppercase text-primary">Parada #{stop.orden}</p>
-                        <h5 className="font-bold text-slate-900">{stop.direccion}</h5>
-                        <p className="text-xs text-slate-500">{stop.cliente.nombre}</p>
-                        {stop.notas && <p className="text-xs text-slate-400">{stop.notas}</p>}
-                      </div>
-                      <div className="flex shrink-0 flex-col items-end gap-1">
-                        <span
-                          className={`rounded px-2 py-0.5 text-[10px] font-bold ${
-                            paradaDetalleCompleto
-                              ? 'bg-emerald-600 text-white'
-                              : paradaCompletaEntrega
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : 'border border-slate-200 bg-slate-100 text-slate-600'
-                          }"}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedStopId(effectiveSelectedStopId === stop.id ? null : stop.id)}
+                      className="relative w-full p-4 text-left hover:bg-slate-50/60"
+                    >
+                      <span
+                        className={`material-symbols-outlined pointer-events-none absolute right-3 top-4 text-slate-400 transition-transform duration-200 ${
+                          isSelected ? 'rotate-180' : ''
+                        }`}
+                        aria-hidden
+                      >
+                        expand_more
+                      </span>
+                      <div className="min-w-0 pr-8">
+                        <p className="text-[11px] font-bold uppercase tracking-wide text-primary">
+                          Parada #{stop.orden}
+                        </p>
+                        <h5 className="mt-1 text-[15px] font-bold leading-snug text-primary md:text-base">
+                          {stop.direccion}
+                        </h5>
+                        <p className="mt-1.5 text-sm font-medium text-slate-500">{stop.cliente.nombre}</p>
+                        {stop.notas && (
+                          <p className="mt-1 text-xs leading-relaxed text-slate-500">{stop.notas}</p>
+                        )}
+                        {guiasStop.length > 0 && (
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {guiasStop.map((g) => (
+                              <span
+                                key={g.id}
+                                className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ${pillGuia(g)}`}
+                              >
+                                {g.numeroGuia}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        <p
+                          className={`mt-2.5 text-[10px] font-bold uppercase tracking-wider ${
+                            paradaDetalleCompleto ? 'text-emerald-700' : 'text-slate-400'
+                          }`}
                         >
                           {paradaDetalleCompleto
-                            ? 'Datos guardados'
+                            ? 'Datos de entrega guardados'
                             : paradaCompletaEntrega
-                              ? 'Entrega ok'
-                              : 'Pendiente'}
-                        </span>
-                        <span className="rounded border border-slate-200 bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
-                          {guiasStop.length} guía(s)
-                        </span>
+                              ? 'Entrega marcada — guarda datos si aplica'
+                              : 'Toca para registrar entrega'}
+                        </p>
                       </div>
                     </button>
 
