@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence } from 'framer-motion'
+import { io } from 'socket.io-client'
 import { Link, useParams } from 'react-router-dom'
 import { api } from '../../services/api'
 import { useAuthStore } from '../../store/authStore'
@@ -39,6 +40,10 @@ export function ChoferRutaDetallePage() {
   const [selectedStopId, setSelectedStopId] = useState<string | null>(null)
   const [fitBoundsTrigger, setFitBoundsTrigger] = useState(0)
   const [incidenceGuia, setIncidenceGuia] = useState<{ id: string; numeroGuia: string } | null>(null)
+  const [ubicacionActiva, setUbicacionActiva] = useState(false)
+  const [miUbicacion, setMiUbicacion] = useState<{ lat: number; lng: number } | null>(null)
+  const geoWatchRef = useRef<number | null>(null)
+  const miUbicacionRef = useRef<{ lat: number; lng: number } | null>(null)
 
   const fetchRuta = useCallback(async () => {
     if (!id) return
@@ -60,12 +65,90 @@ export function ChoferRutaDetallePage() {
   )
 
   // Map StopApi to the Stop shape that RouteMap expects
-  const stopsParaMapa = useMemo(() => stopsRuta.map((s) => ({
-    id: s.id, orden: s.orden, direccion: s.direccion,
-    lat: s.lat, lng: s.lng, notas: s.notas ?? undefined,
-    clienteId: s.cliente.id,
-    guiaIds: s.guias.map((g) => g.id),
-  })), [stopsRuta])
+  const stopsParaMapa = useMemo(() => stopsRuta.map((s) => {
+    const completada =
+      s.guias.length > 0 && s.guias.every((g) => g.estado === 'ENTREGADO' || g.estado === 'INCIDENCIA')
+    return {
+      id: s.id, orden: s.orden, direccion: s.direccion,
+      lat: s.lat, lng: s.lng, notas: s.notas ?? undefined,
+      clienteId: s.cliente.id,
+      guiaIds: s.guias.map((g) => g.id),
+      completada,
+    }
+  }), [stopsRuta])
+
+  useEffect(() => {
+    miUbicacionRef.current = miUbicacion
+  }, [miUbicacion])
+
+  const detenerUbicacion = useCallback(() => {
+    if (geoWatchRef.current != null) {
+      navigator.geolocation.clearWatch(geoWatchRef.current)
+      geoWatchRef.current = null
+    }
+    setUbicacionActiva(false)
+    setMiUbicacion(null)
+    miUbicacionRef.current = null
+  }, [])
+
+  const activarUbicacion = useCallback(() => {
+    if (!navigator.geolocation) {
+      addToast('Tu navegador no permite geolocalización', 'error')
+      return
+    }
+    geoWatchRef.current = navigator.geolocation.watchPosition(
+      (pos) => {
+        setMiUbicacion({
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+        })
+      },
+      () => {
+        addToast('No se pudo leer tu ubicación. Revisa permisos del navegador.', 'error')
+      },
+      { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 },
+    )
+    setUbicacionActiva(true)
+    addToast('Ubicación activa: el mapa sigue tu ruta hacia las paradas pendientes', 'success')
+  }, [addToast])
+
+  useEffect(() => () => {
+    if (geoWatchRef.current != null) navigator.geolocation.clearWatch(geoWatchRef.current)
+  }, [])
+
+  useEffect(() => {
+    setUbicacionActiva(false)
+    setMiUbicacion(null)
+    miUbicacionRef.current = null
+    if (geoWatchRef.current != null) {
+      navigator.geolocation.clearWatch(geoWatchRef.current)
+      geoWatchRef.current = null
+    }
+  }, [id])
+
+  // Enviar posición al servidor (cliente en tiempo real) mientras la ruta está en curso
+  useEffect(() => {
+    if (!ubicacionActiva || ruta?.estado !== 'EN_CURSO' || !id) return
+    const token = localStorage.getItem('token')
+    if (!token) return
+    const socket = io(import.meta.env.VITE_WS_URL ?? 'http://localhost:3000', {
+      auth: { token },
+      transports: ['websocket'],
+    })
+    socket.emit('join:ruta', id)
+    const enviar = () => {
+      const p = miUbicacionRef.current
+      if (p && socket.connected) {
+        socket.emit('posicion_chofer', { rutaId: id, lat: p.lat, lng: p.lng })
+      }
+    }
+    socket.on('connect', enviar)
+    const interval = window.setInterval(enviar, 4000)
+    return () => {
+      window.clearInterval(interval)
+      socket.disconnect()
+    }
+  }, [ubicacionActiva, ruta?.estado, id])
 
   // All guias flat from stops
   const guiasPorRuta = useMemo(() => ruta?.guias ?? [], [ruta])
@@ -273,18 +356,42 @@ export function ChoferRutaDetallePage() {
 
           {/* Mapa */}
           <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-            <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2">
-              <span className="text-sm font-semibold text-slate-700">Recorrido</span>
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 px-3 py-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm font-semibold text-slate-700">Recorrido</span>
+                {ruta.estado === 'EN_CURSO' && (
+                  <button
+                    type="button"
+                    onClick={() => (ubicacionActiva ? detenerUbicacion() : activarUbicacion())}
+                    className={`rounded-lg px-3 py-1.5 text-xs font-bold ${
+                      ubicacionActiva
+                        ? 'bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200'
+                        : 'bg-slate-100 text-slate-700 ring-1 ring-slate-200 hover:bg-slate-200'
+                    }`}
+                  >
+                    <span className="material-symbols-outlined align-middle text-sm">my_location</span>{' '}
+                    {ubicacionActiva ? 'Ubicación activa' : 'Activar mi ubicación'}
+                  </button>
+                )}
+              </div>
               <button type="button" onClick={() => setFitBoundsTrigger((t) => t + 1)}
                 className="rounded-lg bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/20">
                 Ver ruta completa
               </button>
             </div>
+            {ubicacionActiva && ruta.estado === 'EN_CURSO' && (
+              <p className="border-b border-slate-100 bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
+                La línea azul sigue calles desde tu posición hacia las paradas pendientes. Las completadas se muestran en verde (
+                ✓) y ya no forman parte del trazado activo.
+              </p>
+            )}
             <div className="h-64 sm:h-72 lg:h-[360px]">
               <RouteMap
                 stops={stopsParaMapa}
+                currentPosition={ubicacionActiva ? miUbicacion : null}
                 highlightedStopId={selectedStopId}
                 fitBoundsTrigger={fitBoundsTrigger}
+                trazarRutaDesdeMiPosicion={ubicacionActiva && miUbicacion != null}
               />
             </div>
           </div>
@@ -298,6 +405,9 @@ export function ChoferRutaDetallePage() {
             <div className="flex-1 overflow-y-auto">
               {stopsRuta.map((stop) => {
                 const guiasStop = stop.guias
+                const paradaCompleta =
+                  guiasStop.length > 0 &&
+                  guiasStop.every((g) => g.estado === 'ENTREGADO' || g.estado === 'INCIDENCIA')
                 const isSelected = effectiveSelectedStopId === stop.id
                 return (
                   <div key={stop.id} className={`border-b border-slate-100 last:border-b-0 ${isSelected ? 'border-l-4 border-l-primary bg-primary/5' : ''}`}>
@@ -309,9 +419,20 @@ export function ChoferRutaDetallePage() {
                         <p className="text-xs text-slate-500">{stop.cliente.nombre}</p>
                         {stop.notas && <p className="text-xs text-slate-400">{stop.notas}</p>}
                       </div>
-                      <span className="rounded border border-slate-200 bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
-                        {guiasStop.length} guía(s)
-                      </span>
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        <span
+                          className={`rounded px-2 py-0.5 text-[10px] font-bold ${
+                            paradaCompleta
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : 'border border-slate-200 bg-slate-100 text-slate-600'
+                          }`}
+                        >
+                          {paradaCompleta ? 'Completada' : 'Pendiente'}
+                        </span>
+                        <span className="rounded border border-slate-200 bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
+                          {guiasStop.length} guía(s)
+                        </span>
+                      </div>
                     </button>
 
                     {isSelected && (

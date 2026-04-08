@@ -32,6 +32,8 @@ export interface Stop {
   clienteId: string
   notas?: string
   guiaIds: string[]
+  /** Si todas las guías de la parada están ENTREGADO o INCIDENCIA (panel chofer). */
+  completada?: boolean
 }
 
 export interface GuiaEntrega {
