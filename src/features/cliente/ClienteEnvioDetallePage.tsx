@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
+import { io } from 'socket.io-client'
+import { SeguimientoChoferStepper } from '../../components/cliente/SeguimientoChoferStepper'
 import { api } from '../../services/api'
 import { useToastStore } from '../../store/toastStore'
 import { exportToExcel, exportToPDF } from '../../utils/exportUtils'
@@ -24,6 +26,12 @@ interface NovedadApi {
   createdAt: string
 }
 
+interface RutaEnGuia {
+  id: string
+  estado: string
+  seguimientoChofer: string
+}
+
 interface GuiaDetalleApi {
   id: string
   numeroGuia: string
@@ -38,6 +46,7 @@ interface GuiaDetalleApi {
   observaciones?: string | null
   fotos: FotoApi[]
   novedades: NovedadApi[]
+  ruta: RutaEnGuia
 }
 
 export function ClienteEnvioDetallePage() {
@@ -67,6 +76,29 @@ export function ClienteEnvioDetallePage() {
       cancel = true
     }
   }, [guiaId, addToast])
+
+  useEffect(() => {
+    if (!guia?.ruta?.id) return
+    const token = localStorage.getItem('token')
+    if (!token) return
+    const rutaId = guia.ruta.id
+    const socket = io(import.meta.env.VITE_WS_URL ?? 'http://localhost:3000', {
+      auth: { token },
+      transports: ['websocket'],
+    })
+    socket.emit('join:ruta', rutaId)
+    socket.on('seguimiento_ruta', (p: { rutaId: string; seguimientoChofer: string }) => {
+      if (p.rutaId !== rutaId) return
+      setGuia((prev) =>
+        prev?.ruta
+          ? { ...prev, ruta: { ...prev.ruta, seguimientoChofer: p.seguimientoChofer } }
+          : prev,
+      )
+    })
+    return () => {
+      socket.disconnect()
+    }
+  }, [guia?.ruta?.id])
 
   if (loading) {
     return (
@@ -207,6 +239,14 @@ export function ClienteEnvioDetallePage() {
 
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
+          {guia.ruta && (
+            <SeguimientoChoferStepper
+              rutaEstado={guia.ruta.estado}
+              seguimiento={guia.ruta.seguimientoChofer ?? 'NINGUNO'}
+              guiaEstado={guia.estado}
+            />
+          )}
+
           <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
             <h3 className="mb-6 text-lg font-bold text-slate-900">Progreso de entrega</h3>
             <div className="relative space-y-8 before:absolute before:left-5 before:h-full before:w-0.5 before:bg-slate-200">

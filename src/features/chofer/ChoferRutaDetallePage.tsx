@@ -24,6 +24,7 @@ interface FotoApi { id: string; urlPreview: string; createdAt: string; tipo: str
 
 interface RutaApi {
   id: string; fecha: string; estado: string
+  seguimientoChofer?: string
   chofer: { id: string; nombre: string }
   stops: StopApi[]; guias: GuiaApi[]; fotos: FotoApi[]
 }
@@ -114,6 +115,17 @@ export function ChoferRutaDetallePage() {
     }
   }
 
+  const handleSeguimientoCliente = async (seguimientoChofer: 'EN_CAMINO' | 'EN_TRAFICO' | 'CERCA_DESTINO') => {
+    if (!id) return
+    try {
+      const res = await api.patch<RutaApi>(`/rutas/${id}/seguimiento`, { seguimientoChofer })
+      setRuta(res.data)
+      addToast('Estado enviado al cliente', 'success')
+    } catch {
+      addToast('No se pudo actualizar el seguimiento', 'error')
+    }
+  }
+
   const handleFinalizarRuta = async () => {
     if (!id || !puedeFinalizar) return
     try {
@@ -198,6 +210,66 @@ export function ChoferRutaDetallePage() {
               </div>
             </div>
           </div>
+
+          {/* Estados visibles para el cliente */}
+          {ruta.estado === 'EN_CURSO' && (
+            <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 shadow-sm">
+              <h4 className="mb-1 flex items-center gap-2 text-sm font-bold text-slate-900">
+                <span className="material-symbols-outlined text-primary text-lg">share_location</span>
+                Avance para el cliente
+              </h4>
+              <p className="mb-3 text-xs text-slate-600">
+                Toca el estado que coincida con tu situación; el cliente lo verá en los pasos del envío.
+              </p>
+              <p className="mb-3 text-[11px] font-medium text-slate-500">
+                Actual:{' '}
+                <span className="text-primary">
+                  {ruta.seguimientoChofer === 'EN_CAMINO'
+                    ? 'En camino'
+                    : ruta.seguimientoChofer === 'EN_TRAFICO'
+                      ? 'En tráfico'
+                      : ruta.seguimientoChofer === 'CERCA_DESTINO'
+                        ? 'Cerca del destino'
+                        : 'Sin reportar aún'}
+                </span>
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleSeguimientoCliente('EN_CAMINO')}
+                  className={`rounded-lg px-3 py-2 text-xs font-bold transition-colors ${
+                    ruta.seguimientoChofer === 'EN_CAMINO'
+                      ? 'bg-primary text-white'
+                      : 'bg-white text-slate-800 ring-1 ring-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  En camino
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSeguimientoCliente('EN_TRAFICO')}
+                  className={`rounded-lg px-3 py-2 text-xs font-bold transition-colors ${
+                    ruta.seguimientoChofer === 'EN_TRAFICO'
+                      ? 'bg-amber-600 text-white'
+                      : 'bg-white text-slate-800 ring-1 ring-slate-200 hover:bg-amber-50'
+                  }`}
+                >
+                  En tráfico
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSeguimientoCliente('CERCA_DESTINO')}
+                  className={`rounded-lg px-3 py-2 text-xs font-bold transition-colors ${
+                    ruta.seguimientoChofer === 'CERCA_DESTINO'
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-white text-slate-800 ring-1 ring-slate-200 hover:bg-emerald-50'
+                  }`}
+                >
+                  Cerca del destino
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Mapa */}
           <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
