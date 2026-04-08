@@ -531,7 +531,7 @@ export function ChoferRutaDetallePage() {
                 const guiasStop = stop.guias
                 const paradaCompletaEntrega =
                   guiasStop.length > 0 &&
-                  guiasStop.every((g) => g.estado === 'ENTREGADO' || g.estado === 'INCIDENCIA'
+                  guiasStop.every((g) => g.estado === 'ENTREGADO' || g.estado === 'INCIDENCIA')
                 const paradaDetalleCompleto =
                   guiasStop.length > 0 &&
                   guiasStop.every((g) => guiaIdsDetalleGuardado.has(g.id))
@@ -563,8 +563,8 @@ export function ChoferRutaDetallePage() {
                               : paradaCompletaEntrega
                                 ? 'bg-emerald-100 text-emerald-800'
                                 : 'border border-slate-200 bg-slate-100 text-slate-600'
-                          }"}
-                        >
+                          }`}>
+                        
                           {paradaDetalleCompleto
                             ? 'Datos guardados'
                             : paradaCompletaEntrega

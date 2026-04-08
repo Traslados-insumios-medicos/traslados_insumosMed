@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { ModalMotion } from '../../components/ui/ModalMotion'
 import { api } from '../../services/api'
 import { useToastStore } from '../../store/toastStore'
@@ -30,8 +30,32 @@ export function AdminChoferesPage() {
   const [nombre, setNombre] = useState('')
   const [cedula, setCedula] = useState('')
   const [email, setEmail] = useState('')
+  const [nombreError, setNombreError] = useState('')
+  const [cedulaError, setCedulaError] = useState('')
+  const [emailError, setEmailError] = useState('')
   const [passwordModal, setPasswordModal] = useState<PasswordModalData | null>(null)
   const [copied, setCopied] = useState(false)
+
+  const NOMBRE_REGEX = /^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]*$/
+  const CEDULA_REGEX = /^\d{0,10}$/
+  const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/
+
+  const handleNombreChange = (val: string) => {
+    if (!NOMBRE_REGEX.test(val)) return // bloquea caracteres inválidos
+    setNombre(val)
+    setNombreError(val && !/^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]+$/.test(val) ? 'El nombre solo debe contener letras, tildes y ñ' : '')
+  }
+
+  const handleCedulaChange = (val: string) => {
+    if (!CEDULA_REGEX.test(val)) return // bloquea letras y más de 10 dígitos
+    setCedula(val)
+    setCedulaError(val && val.length !== 10 ? 'La cédula debe tener exactamente 10 dígitos numéricos' : '')
+  }
+
+  const handleEmailChange = (val: string) => {
+    setEmail(val)
+    setEmailError(val && !EMAIL_REGEX.test(val) ? 'El email debe contener @, dominio y extensión válida (ej. usuario@empresa.com)' : '')
+  }
 
   const totalPages = Math.max(1, Math.ceil(total / LIMIT))
 
@@ -46,7 +70,11 @@ export function AdminChoferesPage() {
 
   useEffect(() => { fetchChoferes(1) }, [fetchChoferes])
 
-  const resetForm = () => { setEditingId(null); setNombre(''); setCedula(''); setEmail(''); setShowModal(false) }
+  const resetForm = () => {
+    setEditingId(null); setNombre(''); setCedula(''); setEmail('')
+    setNombreError(''); setCedulaError(''); setEmailError('')
+    setShowModal(false)
+  }
 
   const handleEdit = (ch: Chofer) => { setEditingId(ch.id); setNombre(ch.nombre); setCedula(ch.cedula ?? ''); setEmail(ch.email); setShowModal(true) }
 
@@ -64,6 +92,9 @@ export function AdminChoferesPage() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     if (!nombre || !email) return
+    if (nombreError || cedulaError || emailError) return
+    if (cedula && cedula.length !== 10) { setCedulaError('La cédula debe tener exactamente 10 dígitos numéricos'); return }
+    if (!EMAIL_REGEX.test(email)) { setEmailError('El email debe contener @, dominio y extensión válida (ej. usuario@empresa.com)'); return }
     setSubmitting(true)
     try {
       if (editingId) {
@@ -116,23 +147,26 @@ export function AdminChoferesPage() {
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Nombre *</label>
-                  <input className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                    value={nombre} onChange={(e) => setNombre(e.target.value)} required />
+                  <input className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20 ${nombreError ? 'border-red-400 focus:border-red-400' : 'border-slate-300 focus:border-primary'}`}
+                    value={nombre} onChange={(e) => handleNombreChange(e.target.value)} required />
+                  {nombreError && <p className="mt-1 text-xs text-red-500">{nombreError}</p>}
                 </div>
                 <div>
                   <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Cédula</label>
-                  <input className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                    value={cedula} onChange={(e) => setCedula(e.target.value)} placeholder="1712345678" />
+                  <input className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20 ${cedulaError ? 'border-red-400 focus:border-red-400' : 'border-slate-300 focus:border-primary'}`}
+                    value={cedula} onChange={(e) => handleCedulaChange(e.target.value)} placeholder="1712345678" inputMode="numeric" />
+                  {cedulaError && <p className="mt-1 text-xs text-red-500">{cedulaError}</p>}
                 </div>
               </div>
               <div>
                 <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Email *</label>
-                <input type="email" className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                  value={email} onChange={(e) => setEmail(e.target.value)} required />
+                <input type="email" className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20 ${emailError ? 'border-red-400 focus:border-red-400' : 'border-slate-300 focus:border-primary'}`}
+                  value={email} onChange={(e) => handleEmailChange(e.target.value)} required />
+                {emailError && <p className="mt-1 text-xs text-red-500">{emailError}</p>}
               </div>
               <div className="flex justify-end gap-3 border-t border-slate-100 pt-4">
                 <button type="button" onClick={resetForm} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">Cancelar</button>
-                <button type="submit" disabled={submitting}
+                <button type="submit" disabled={submitting || !!nombreError || !!cedulaError || !!emailError}
                   className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-dark disabled:opacity-60">
                   {submitting && <span className="material-symbols-outlined animate-spin text-base">progress_activity</span>}
                   {editingId ? 'Guardar' : 'Crear chofer'}
@@ -215,7 +249,7 @@ export function AdminChoferesPage() {
                     <ToggleActivo activo={ch.activo} onToggle={() => handleToggleActivo(ch.id)} />
                   </td>
                   <td className="px-4 py-3">
-                    <button type="button" onClick={() => handleEdit(ch)} className="text-xs font-semibold text-primary hover:underline">Editar</button>
+                    <button type="button" onClick={() => handleEdit(ch)} className="rounded p-1 text-slate-400 transition-colors hover:text-primary"><span className="material-symbols-outlined text-base">edit</span></button>
                   </td>
                 </tr>
               ))}

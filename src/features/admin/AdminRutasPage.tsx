@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { MapboxAddressInput } from '../../components/ui/MapboxAddressInput'
 import { ModalMotion } from '../../components/ui/ModalMotion'
 import { api } from '../../services/api'
 import { useToastStore } from '../../store/toastStore'
@@ -50,17 +51,20 @@ interface PaginatedRutas {
   limit: number
 }
 
-interface ClienteOption { id: string; nombre: string }
+interface ClienteOption { id: string; nombre: string; tipo: string; clientePrincipalId?: string | null; clientesSecundarios?: { id: string; nombre: string }[] }
 interface ChoferOption { id: string; nombre: string }
 
 interface StopForm {
-  clienteId: string
+  clienteId: string       // principal seleccionado
+  subClienteId: string    // secundario seleccionado (opcional)
   direccion: string
+  lat: number | null
+  lng: number | null
   notas: string
   guiaDescripcion: string
 }
 
-const stopVacio = (): StopForm => ({ clienteId: '', direccion: '', notas: '', guiaDescripcion: '' })
+const stopVacio = (): StopForm => ({ clienteId: '', subClienteId: '', direccion: '', lat: null, lng: null, notas: '', guiaDescripcion: '' })
 const LIMIT = 20
 
 export function AdminRutasPage() {
@@ -107,7 +111,7 @@ export function AdminRutasPage() {
     api.get<{ data: ChoferOption[] }>('/usuarios?rol=CHOFER&limit=100')
       .then((r) => setChoferes(r.data.data))
       .catch(() => {})
-    api.get<{ data: ClienteOption[] }>('/clientes?limit=100')
+    api.get<{ data: ClienteOption[] }>('/clientes?limit=100&tipo=PRINCIPAL')
       .then((r) => setClientes(r.data.data))
       .catch(() => {})
   }, [fetchRutas])
@@ -124,10 +128,18 @@ export function AdminRutasPage() {
   const handleStopChange = (i: number, field: keyof StopForm, value: string) =>
     setStopsForm((p) => p.map((s, idx) => (idx === i ? { ...s, [field]: value } : s)))
   const handleClienteChange = (i: number, clienteId: string) => {
-    setStopsForm((p) => p.map((s, idx) => idx === i ? { ...s, clienteId, direccion: s.direccion || '' } : s))
+    setStopsForm((p) => p.map((s, idx) => idx === i ? { ...s, clienteId, subClienteId: '', direccion: '', lat: null, lng: null } : s))
   }
 
-  const canSubmit = choferId && stopsForm.every((s) => s.clienteId && s.direccion)
+  const handleSubClienteChange = (i: number, subClienteId: string) => {
+    setStopsForm((p) => p.map((s, idx) => idx === i ? { ...s, subClienteId } : s))
+  }
+
+  const handleDireccionChange = (i: number, direccion: string, coords?: { lat: number; lng: number }) => {
+    setStopsForm((p) => p.map((s, idx) => idx === i ? { ...s, direccion, lat: coords?.lat ?? null, lng: coords?.lng ?? null } : s))
+  }
+
+  const canSubmit = choferId && stopsForm.every((s) => s.clienteId && s.direccion && s.lat !== null)
 
   const handleSubmit = async () => {
     if (!canSubmit) return
@@ -139,7 +151,9 @@ export function AdminRutasPage() {
         stops: stopsForm.map((s, i) => ({
           orden: i + 1,
           direccion: s.direccion,
-          clienteId: s.clienteId,
+          lat: s.lat,
+          lng: s.lng,
+          clienteId: s.subClienteId || s.clienteId,
           notas: s.notas || undefined,
           guiaDescripcion: s.guiaDescripcion || 'Insumos médicos',
         })),
@@ -237,6 +251,7 @@ export function AdminRutasPage() {
                         )}
                       </div>
                       <div className="space-y-3">
+                        {/* Cliente principal */}
                         <select
                           value={s.clienteId}
                           onChange={(e) => handleClienteChange(i, e.target.value)}
@@ -245,13 +260,33 @@ export function AdminRutasPage() {
                           <option value="">Seleccionar cliente...</option>
                           {clientes.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                         </select>
-                        <input
-                          type="text"
-                          placeholder="Dirección"
+                        {/* Cliente secundario — solo si el principal tiene secundarios */}
+                        {s.clienteId && (() => {
+                          const principal = clientes.find((c) => c.id === s.clienteId)
+                          const subs = principal?.clientesSecundarios ?? []
+                          if (!subs.length) return null
+                          return (
+                            <select
+                              value={s.subClienteId}
+                              onChange={(e) => handleSubClienteChange(i, e.target.value)}
+                              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600"
+                            >
+                              <option value="">Punto de entrega (opcional)...</option>
+                              {subs.map((sub) => <option key={sub.id} value={sub.id}>{sub.nombre}</option>)}
+                            </select>
+                          )
+                        })()}
+                        {/* Dirección con autocomplete Mapbox */}
+                        <MapboxAddressInput
                           value={s.direccion}
-                          onChange={(e) => handleStopChange(i, 'direccion', e.target.value)}
-                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                          onChange={(dir, coords) => handleDireccionChange(i, dir, coords)}
                         />
+                        {s.lat !== null && (
+                          <p className="flex items-center gap-1 text-[11px] text-emerald-600">
+                            <span className="material-symbols-outlined text-sm">check_circle</span>
+                            Coordenadas guardadas
+                          </p>
+                        )}
                         <input
                           type="text"
                           placeholder="Descripción de guía (ej: Insumos médicos)"

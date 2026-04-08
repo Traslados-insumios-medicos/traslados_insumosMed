@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react'
+import { MapboxAddressInput } from '../../components/ui/MapboxAddressInput'
 import { ModalMotion } from '../../components/ui/ModalMotion'
 import { api } from '../../services/api'
 import { useToastStore } from '../../store/toastStore'
@@ -42,6 +43,7 @@ export function AdminClientesPage() {
   const [nombre, setNombre] = useState('')
   const [ruc, setRuc] = useState('')
   const [direccion, setDireccion] = useState('')
+  const [coordsDireccion, setCoordsDireccion] = useState<{ lat: number; lng: number } | null>(null)
   const [telefono, setTelefono] = useState('')
   const [emailContacto, setEmailContacto] = useState('')
   const [tipo, setTipo] = useState<TipoCliente>('SECUNDARIO')
@@ -52,6 +54,53 @@ export function AdminClientesPage() {
   const [passwordModal, setPasswordModal] = useState<PasswordModalData | null>(null)
   const [copied, setCopied] = useState(false)
   const [expandedPrincipales, setExpandedPrincipales] = useState<Set<string>>(new Set())
+
+  // Errores de validación
+  const [nombreError, setNombreError] = useState('')
+  const [rucError, setRucError] = useState('')
+  const [telefonoError, setTelefonoError] = useState('')
+  const [emailContactoError, setEmailContactoError] = useState('')
+  const [usuarioNombreError, setUsuarioNombreError] = useState('')
+  const [usuarioEmailError, setUsuarioEmailError] = useState('')
+
+  const NOMBRE_REGEX = /^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]*$/
+  const RUC_REGEX = /^\d{0,13}$/
+  const TELEFONO_REGEX = /^\d{0,10}$/
+  const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/
+
+  const handleNombreChange = (val: string) => {
+    if (!NOMBRE_REGEX.test(val)) return
+    setNombre(val)
+    setNombreError(val && !/^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]+$/.test(val) ? 'El nombre solo debe contener letras, tildes y ñ' : '')
+  }
+
+  const handleRucChange = (val: string) => {
+    if (!RUC_REGEX.test(val)) return
+    setRuc(val)
+    setRucError(val && val.length !== 13 ? 'El RUC debe tener exactamente 13 dígitos numéricos' : '')
+  }
+
+  const handleTelefonoChange = (val: string) => {
+    if (!TELEFONO_REGEX.test(val)) return
+    setTelefono(val)
+    setTelefonoError(val && val.length !== 10 ? 'El teléfono debe tener exactamente 10 dígitos' : '')
+  }
+
+  const handleEmailContactoChange = (val: string) => {
+    setEmailContacto(val)
+    setEmailContactoError(val && !EMAIL_REGEX.test(val) ? 'El email debe contener @, dominio y extensión válida (ej. usuario@empresa.com)' : '')
+  }
+
+  const handleUsuarioNombreChange = (val: string) => {
+    if (!NOMBRE_REGEX.test(val)) return
+    setUsuarioNombre(val)
+    setUsuarioNombreError(val && !/^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]+$/.test(val) ? 'El nombre solo debe contener letras, tildes y ñ' : '')
+  }
+
+  const handleUsuarioEmailChange = (val: string) => {
+    setUsuarioEmail(val)
+    setUsuarioEmailError(val && !EMAIL_REGEX.test(val) ? 'El email debe contener @, dominio y extensión válida (ej. usuario@empresa.com)' : '')
+  }
   const totalPages = Math.max(1, Math.ceil(total / LIMIT))
 
   const fetchClientes = useCallback(async (p: number) => {
@@ -73,15 +122,17 @@ export function AdminClientesPage() {
   }, [])
 
   const resetForm = () => {
-    setEditingId(null); setNombre(''); setRuc(''); setDireccion('')
+    setEditingId(null); setNombre(''); setRuc(''); setDireccion(''); setCoordsDireccion(null)
     setTelefono(''); setEmailContacto(''); setTipo('SECUNDARIO')
     setClientePrincipalId(''); setCrearUsuario(false)
     setUsuarioNombre(''); setUsuarioEmail(''); setShowModal(false)
+    setNombreError(''); setRucError(''); setTelefonoError('')
+    setEmailContactoError(''); setUsuarioNombreError(''); setUsuarioEmailError('')
   }
 
   const handleEdit = (c: Cliente) => {
     setEditingId(c.id); setNombre(c.nombre); setRuc(c.ruc)
-    setDireccion(c.direccion); setTelefono(c.telefonoContacto ?? '')
+    setDireccion(c.direccion); setCoordsDireccion(null); setTelefono(c.telefonoContacto ?? '')
     setEmailContacto(c.emailContacto ?? ''); setTipo(c.tipo)
     setClientePrincipalId(c.clientePrincipalId ?? '')
     setCrearUsuario(false); setUsuarioNombre(''); setUsuarioEmail('')
@@ -102,6 +153,9 @@ export function AdminClientesPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!nombre || !ruc || !direccion) return
+    if (nombreError || rucError || telefonoError || emailContactoError || usuarioNombreError || usuarioEmailError) return
+    if (ruc.length !== 13) { setRucError('El RUC debe tener exactamente 13 dígitos numéricos'); return }
+    if (emailContacto && !EMAIL_REGEX.test(emailContacto)) { setEmailContactoError('El email debe contener @, dominio y extensión válida (ej. usuario@empresa.com)'); return }
     setSubmitting(true)
     try {
       if (editingId) {
@@ -224,30 +278,36 @@ export function AdminClientesPage() {
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Nombre *</label>
-              <input className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary"
-                value={nombre} onChange={(e) => setNombre(e.target.value)} required />
+              <input className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary ${nombreError ? 'border-red-400' : 'border-slate-300'}`}
+                value={nombre} onChange={(e) => handleNombreChange(e.target.value)} required />
+              {nombreError && <p className="text-xs text-red-500">{nombreError}</p>}
             </div>
             <div className="space-y-2">
               <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">RUC *</label>
-              <input className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm disabled:opacity-50 focus:ring-2 focus:ring-primary"
-                value={ruc} onChange={(e) => setRuc(e.target.value)} required disabled={!!editingId} />
+              <input className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm disabled:opacity-50 focus:ring-2 focus:ring-primary ${rucError ? 'border-red-400' : 'border-slate-300'}`}
+                value={ruc} onChange={(e) => handleRucChange(e.target.value)} required disabled={!!editingId} inputMode="numeric" />
+              {rucError && <p className="text-xs text-red-500">{rucError}</p>}
             </div>
           </div>
           <div className="space-y-2">
             <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Dirección *</label>
-            <input className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary"
-              value={direccion} onChange={(e) => setDireccion(e.target.value)} required />
+            <MapboxAddressInput
+              value={direccion}
+              onChange={(val, coords) => { setDireccion(val); if (coords) setCoordsDireccion(coords) }}
+            />
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Teléfono</label>
-              <input className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary"
-                value={telefono} onChange={(e) => setTelefono(e.target.value)} />
+              <input className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary ${telefonoError ? 'border-red-400' : 'border-slate-300'}`}
+                value={telefono} onChange={(e) => handleTelefonoChange(e.target.value)} inputMode="numeric" />
+              {telefonoError && <p className="text-xs text-red-500">{telefonoError}</p>}
             </div>
             <div className="space-y-2">
               <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Email</label>
-              <input type="email" className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary"
-                value={emailContacto} onChange={(e) => setEmailContacto(e.target.value)} />
+              <input type="email" className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary ${emailContactoError ? 'border-red-400' : 'border-slate-300'}`}
+                value={emailContacto} onChange={(e) => handleEmailContactoChange(e.target.value)} />
+              {emailContactoError && <p className="text-xs text-red-500">{emailContactoError}</p>}
             </div>
           </div>
           {!editingId && tipo === 'PRINCIPAL' && (
@@ -257,16 +317,18 @@ export function AdminClientesPage() {
                 <span className="text-sm font-medium text-slate-700">Crear usuario de acceso</span>
               </label>
               {crearUsuario && (
-                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <div className="mt-4 grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
                     <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Nombre usuario *</label>
-                    <input className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary"
-                      value={usuarioNombre} onChange={(e) => setUsuarioNombre(e.target.value)} required={crearUsuario} />
+                    <input className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary ${usuarioNombreError ? 'border-red-400' : 'border-slate-300'}`}
+                      value={usuarioNombre} onChange={(e) => handleUsuarioNombreChange(e.target.value)} required={crearUsuario} />
+                    {usuarioNombreError && <p className="text-xs text-red-500">{usuarioNombreError}</p>}
                   </div>
                   <div className="space-y-2">
                     <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Email usuario *</label>
-                    <input type="email" className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary"
-                      value={usuarioEmail} onChange={(e) => setUsuarioEmail(e.target.value)} required={crearUsuario} />
+                    <input type="email" className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary ${usuarioEmailError ? 'border-red-400' : 'border-slate-300'}`}
+                      value={usuarioEmail} onChange={(e) => handleUsuarioEmailChange(e.target.value)} required={crearUsuario} />
+                    {usuarioEmailError && <p className="text-xs text-red-500">{usuarioEmailError}</p>}
                   </div>
                 </div>
               )}
@@ -274,7 +336,7 @@ export function AdminClientesPage() {
           )}
           <div className="flex justify-end gap-3 border-t border-slate-200 pt-5">
             <button type="button" onClick={resetForm} className="rounded-lg border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancelar</button>
-            <button type="submit" disabled={submitting}
+            <button type="submit" disabled={submitting || !!nombreError || !!rucError || !!telefonoError || !!emailContactoError || !!usuarioNombreError || !!usuarioEmailError}
               className="flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-bold text-white hover:bg-primary/90 disabled:opacity-60">
               {submitting && <span className="material-symbols-outlined animate-spin text-base">progress_activity</span>}
               {editingId ? 'Guardar cambios' : 'Crear cliente'}
@@ -335,7 +397,7 @@ export function AdminClientesPage() {
                   </div>
                   <div className="flex shrink-0 items-center gap-3">
                     <ToggleActivo activo={c.activo} onToggle={() => handleToggleActivo(c.id)} />
-                    <button type="button" onClick={() => handleEdit(c)} className="text-xs font-medium text-primary hover:underline">Editar</button>
+                    <button type="button" onClick={() => handleEdit(c)} className="rounded p-1 text-slate-400 transition-colors hover:text-primary"><span className="material-symbols-outlined text-base">edit</span></button>
                   </div>
                 </div>
               ))}
@@ -364,7 +426,7 @@ export function AdminClientesPage() {
                     <td className="px-6 py-4 text-slate-500">{c.ruc}</td>
                     <td className="px-6 py-4"><ToggleActivo activo={c.activo} onToggle={() => handleToggleActivo(c.id)} /></td>
                     <td className="px-6 py-4">
-                      <button type="button" onClick={() => handleEdit(c)} className="text-xs font-medium text-primary hover:underline">Editar</button>
+                      <button type="button" onClick={() => handleEdit(c)} className="rounded p-1 text-slate-400 transition-colors hover:text-primary"><span className="material-symbols-outlined text-base">edit</span></button>
                     </td>
                   </tr>
                 ))}
@@ -391,7 +453,7 @@ export function AdminClientesPage() {
                       </div>
                       <div className="flex shrink-0 items-center gap-3">
                         <ToggleActivo activo={c.activo} onToggle={() => handleToggleActivo(c.id)} />
-                        <button type="button" onClick={() => handleEdit(c)} className="text-xs font-medium text-primary hover:underline">Editar</button>
+                        <button type="button" onClick={() => handleEdit(c)} className="rounded p-1 text-slate-400 transition-colors hover:text-primary"><span className="material-symbols-outlined text-base">edit</span></button>
                       </div>
                     </div>
                   ))}
@@ -435,7 +497,7 @@ export function AdminClientesPage() {
                         <td className="px-6 py-4 text-slate-500">{c.ruc}</td>
                         <td className="px-6 py-4"><ToggleActivo activo={c.activo} onToggle={() => handleToggleActivo(c.id)} /></td>
                         <td className="px-6 py-4">
-                          <button type="button" onClick={() => handleEdit(c)} className="text-xs font-medium text-primary hover:underline">Editar</button>
+                          <button type="button" onClick={() => handleEdit(c)} className="rounded p-1 text-slate-400 transition-colors hover:text-primary"><span className="material-symbols-outlined text-base">edit</span></button>
                         </td>
                       </tr>
                     ))}
@@ -462,7 +524,7 @@ export function AdminClientesPage() {
                       </div>
                       <div className="flex shrink-0 items-center gap-2">
                         <ToggleActivo activo={c.activo} onToggle={() => handleToggleActivo(c.id)} />
-                        <button type="button" onClick={() => handleEdit(c)} className="text-xs font-medium text-primary hover:underline">Editar</button>
+                        <button type="button" onClick={() => handleEdit(c)} className="rounded p-1 text-slate-400 transition-colors hover:text-primary"><span className="material-symbols-outlined text-base">edit</span></button>
                         {secundarios.length > 0 && (
                           <button type="button" onClick={() => toggleExpand(c.id)} className="text-slate-400">
                             <span className="material-symbols-outlined text-base transition-transform duration-200"
@@ -519,7 +581,7 @@ export function AdminClientesPage() {
                         <td className="px-6 py-4"><ToggleActivo activo={c.activo} onToggle={() => handleToggleActivo(c.id)} /></td>
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
-                            <button type="button" onClick={() => handleEdit(c)} className="text-xs font-medium text-primary hover:underline">Editar</button>
+                            <button type="button" onClick={() => handleEdit(c)} className="rounded p-1 text-slate-400 transition-colors hover:text-primary"><span className="material-symbols-outlined text-base">edit</span></button>
                             {secundarios.length > 0 && (
                               <button type="button" onClick={() => toggleExpand(c.id)} className="text-slate-400 hover:text-slate-600 transition-colors">
                                 <span className="material-symbols-outlined text-base transition-transform duration-200"
