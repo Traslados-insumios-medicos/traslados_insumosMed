@@ -557,52 +557,58 @@ export function ChoferRutaDetallePage() {
                             </div>
                             <p className="text-xs text-slate-600">{g.descripcion}</p>
 
-                            {/* Campos de entrega — Guardar envía PATCH /api/guias/:id/detalle */}
-                            <div className="mt-3 grid grid-cols-2 gap-2">
-                              <div>
-                                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Recibido por</label>
-                                <input type="text" placeholder="Nombre de quien recibe" value={detalleFormPorGuia[g.id]?.receptorNombre ?? ''}
-                                  onChange={(e) => setCampoDetalle(g.id, 'receptorNombre', e.target.value)}
-                                  className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs" />
+                            {/* Entrega: formulario → fotos → guardar (todo el bloque de esta guía) */}
+                            <div className="mt-3 space-y-4">
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Recibido por</label>
+                                  <input type="text" placeholder="Nombre de quien recibe" value={detalleFormPorGuia[g.id]?.receptorNombre ?? ''}
+                                    onChange={(e) => setCampoDetalle(g.id, 'receptorNombre', e.target.value)}
+                                    className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs" />
+                                </div>
+                                <div>
+                                  <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Temperatura (°C)</label>
+                                  <input type="text" placeholder="Ej: 18°C" value={detalleFormPorGuia[g.id]?.temperatura ?? ''}
+                                    onChange={(e) => setCampoDetalle(g.id, 'temperatura', e.target.value)}
+                                    className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs" />
+                                </div>
+                                <div>
+                                  <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Hora llegada</label>
+                                  <input type="time" value={detalleFormPorGuia[g.id]?.horaLlegada ?? ''}
+                                    onChange={(e) => setCampoDetalle(g.id, 'horaLlegada', e.target.value)}
+                                    className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs" />
+                                </div>
+                                <div>
+                                  <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Hora salida</label>
+                                  <input type="time" value={detalleFormPorGuia[g.id]?.horaSalida ?? ''}
+                                    onChange={(e) => setCampoDetalle(g.id, 'horaSalida', e.target.value)}
+                                    className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs" />
+                                </div>
+                                <div className="col-span-2">
+                                  <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Observaciones</label>
+                                  <textarea rows={2} placeholder="Novedades o comentarios (opcional)" value={detalleFormPorGuia[g.id]?.observaciones ?? ''}
+                                    onChange={(e) => setCampoDetalle(g.id, 'observaciones', e.target.value)}
+                                    className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs" />
+                                </div>
                               </div>
-                              <div>
-                                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Temperatura (°C)</label>
-                                <input type="text" placeholder="Ej: 18°C" value={detalleFormPorGuia[g.id]?.temperatura ?? ''}
-                                  onChange={(e) => setCampoDetalle(g.id, 'temperatura', e.target.value)}
-                                  className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs" />
-                              </div>
-                              <div>
-                                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Hora llegada</label>
-                                <input type="time" value={detalleFormPorGuia[g.id]?.horaLlegada ?? ''}
-                                  onChange={(e) => setCampoDetalle(g.id, 'horaLlegada', e.target.value)}
-                                  className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs" />
-                              </div>
-                              <div>
-                                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Hora salida</label>
-                                <input type="time" value={detalleFormPorGuia[g.id]?.horaSalida ?? ''}
-                                  onChange={(e) => setCampoDetalle(g.id, 'horaSalida', e.target.value)}
-                                  className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs" />
-                              </div>
-                              <div className="col-span-2">
-                                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Observaciones</label>
-                                <textarea rows={2} placeholder="Novedades o comentarios (opcional)" value={detalleFormPorGuia[g.id]?.observaciones ?? ''}
-                                  onChange={(e) => setCampoDetalle(g.id, 'observaciones', e.target.value)}
-                                  className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs" />
-                              </div>
-                              <div className="col-span-2 flex justify-end">
-                                <button
-                                  type="button"
-                                  onClick={() => handleGuardarDetalleGuia(g.id)}
-                                  disabled={guardandoGuiaId === g.id}
-                                  className="rounded-lg bg-primary px-4 py-2 text-xs font-bold text-white shadow-sm hover:bg-primary/90 disabled:opacity-60"
-                                >
-                                  {guardandoGuiaId === g.id ? 'Guardando…' : 'Guardar datos de entrega'}
-                                </button>
-                              </div>
-                            </div>
 
-                            <div className="mt-3">
                               <PhotoUploader scope="guia" guiaId={g.id} label="Fotos de entrega" max={8} onUploaded={fetchRuta} />
+
+                              <div className="border-t border-slate-200 pt-4">
+                                <p className="mb-3 text-[10px] leading-snug text-slate-500 sm:text-right">
+                                  Registro completo de la guía: las fotos se guardan al subirlas; este botón envía recibido, temperatura, horarios y observaciones.
+                                </p>
+                                <div className="flex justify-end">
+                                  <button
+                                    type="button"
+                                    onClick={() => handleGuardarDetalleGuia(g.id)}
+                                    disabled={guardandoGuiaId === g.id}
+                                    className="rounded-lg bg-primary px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-primary/90 disabled:opacity-60"
+                                  >
+                                    {guardandoGuiaId === g.id ? 'Guardando…' : 'Guardar datos de entrega'}
+                                  </button>
+                                </div>
+                              </div>
                             </div>
                           </div>
                         ))}
