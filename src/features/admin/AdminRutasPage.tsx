@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { MapboxAddressInput } from '../../components/ui/MapboxAddressInput'
 import { ModalMotion } from '../../components/ui/ModalMotion'
 import { api } from '../../services/api'
 import { useToastStore } from '../../store/toastStore'
@@ -15,7 +16,7 @@ interface GuiaApi {
   horaSalida?: string | null
   temperatura?: string | null
   observaciones?: string | null
-  fotos?: Array<{ id: string; urlPreview: string; createdAt: string; tipo: string }>
+  fotos: FotoApi[]
 }
 
 interface StopApi {
@@ -31,6 +32,7 @@ interface FotoApi {
   id: string
   urlPreview: string
   createdAt: string
+  tipo: string
 }
 
 interface RutaApi {
@@ -49,84 +51,21 @@ interface PaginatedRutas {
   limit: number
 }
 
-interface ClienteOption { id: string; nombre: string }
+interface ClienteOption { id: string; nombre: string; tipo: string; clientePrincipalId?: string | null; clientesSecundarios?: { id: string; nombre: string }[] }
 interface ChoferOption { id: string; nombre: string }
 
 interface StopForm {
-  clienteId: string
+  clienteId: string       // principal seleccionado
+  subClienteId: string    // secundario seleccionado (opcional)
   direccion: string
+  lat: number | null
+  lng: number | null
   notas: string
   guiaDescripcion: string
 }
 
-const stopVacio = (): StopForm => ({ clienteId: '', direccion: '', notas: '', guiaDescripcion: '' })
+const stopVacio = (): StopForm => ({ clienteId: '', subClienteId: '', direccion: '', lat: null, lng: null, notas: '', guiaDescripcion: '' })
 const LIMIT = 20
-
-function fotosEntregaGuia(g: GuiaApi) {
-  return (g.fotos ?? []).filter((f) => f.tipo === 'GUIA')
-}
-
-function DetalleEntregaGuia({ g }: { g: GuiaApi }) {
-  const fotos = fotosEntregaGuia(g)
-  const tieneTexto =
-    !!(g.receptorNombre?.trim()) ||
-    !!(g.temperatura?.trim()) ||
-    !!(g.horaLlegada?.trim()) ||
-    !!(g.horaSalida?.trim()) ||
-    !!(g.observaciones?.trim())
-  if (!tieneTexto && fotos.length === 0) return null
-  return (
-    <div className="mt-2 space-y-2 rounded-md border border-slate-200 bg-white p-2 text-[11px] text-slate-600">
-      {tieneTexto && (
-        <dl className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-          {g.receptorNombre?.trim() && (
-            <>
-              <dt className="font-semibold text-slate-500">Recibido por</dt>
-              <dd>{g.receptorNombre}</dd>
-            </>
-          )}
-          {g.temperatura?.trim() && (
-            <>
-              <dt className="font-semibold text-slate-500">Temperatura</dt>
-              <dd>{g.temperatura}</dd>
-            </>
-          )}
-          {g.horaLlegada?.trim() && (
-            <>
-              <dt className="font-semibold text-slate-500">Hora llegada</dt>
-              <dd>{g.horaLlegada}</dd>
-            </>
-          )}
-          {g.horaSalida?.trim() && (
-            <>
-              <dt className="font-semibold text-slate-500">Hora salida</dt>
-              <dd>{g.horaSalida}</dd>
-            </>
-          )}
-          {g.observaciones?.trim() && (
-            <>
-              <dt className="col-span-full font-semibold text-slate-500">Observaciones</dt>
-              <dd className="col-span-full whitespace-pre-wrap">{g.observaciones}</dd>
-            </>
-          )}
-        </dl>
-      )}
-      {fotos.length > 0 && (
-        <div>
-          <p className="mb-1.5 font-semibold text-slate-500">Fotos de entrega</p>
-          <div className="flex flex-wrap gap-2">
-            {fotos.map((f) => (
-              <a key={f.id} href={f.urlPreview} target="_blank" rel="noopener noreferrer"
-                className="block overflow-hidden rounded border border-slate-200 hover:opacity-90">
-                <img src={f.urlPreview} alt="" className="h-20 w-20 object-cover" />
-              </a>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
 
 export function AdminRutasPage() {
   const addToast = useToastStore((s) => s.addToast)
@@ -142,6 +81,8 @@ export function AdminRutasPage() {
   const [rutaExpandidaId, setRutaExpandidaId] = useState<string | null>(null)
   const [showModal, setShowModal] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+
+  const [selectedStop, setSelectedStop] = useState<StopApi | null>(null)
 
   // form
   const [choferId, setChoferId] = useState('')
@@ -170,7 +111,7 @@ export function AdminRutasPage() {
     api.get<{ data: ChoferOption[] }>('/usuarios?rol=CHOFER&limit=100')
       .then((r) => setChoferes(r.data.data))
       .catch(() => {})
-    api.get<{ data: ClienteOption[] }>('/clientes?limit=100')
+    api.get<{ data: ClienteOption[] }>('/clientes?limit=100&tipo=PRINCIPAL')
       .then((r) => setClientes(r.data.data))
       .catch(() => {})
   }, [fetchRutas])
@@ -187,10 +128,18 @@ export function AdminRutasPage() {
   const handleStopChange = (i: number, field: keyof StopForm, value: string) =>
     setStopsForm((p) => p.map((s, idx) => (idx === i ? { ...s, [field]: value } : s)))
   const handleClienteChange = (i: number, clienteId: string) => {
-    setStopsForm((p) => p.map((s, idx) => idx === i ? { ...s, clienteId, direccion: s.direccion || '' } : s))
+    setStopsForm((p) => p.map((s, idx) => idx === i ? { ...s, clienteId, subClienteId: '', direccion: '', lat: null, lng: null } : s))
   }
 
-  const canSubmit = choferId && stopsForm.every((s) => s.clienteId && s.direccion)
+  const handleSubClienteChange = (i: number, subClienteId: string) => {
+    setStopsForm((p) => p.map((s, idx) => idx === i ? { ...s, subClienteId } : s))
+  }
+
+  const handleDireccionChange = (i: number, direccion: string, coords?: { lat: number; lng: number }) => {
+    setStopsForm((p) => p.map((s, idx) => idx === i ? { ...s, direccion, lat: coords?.lat ?? null, lng: coords?.lng ?? null } : s))
+  }
+
+  const canSubmit = choferId && stopsForm.every((s) => s.clienteId && s.direccion && s.lat !== null)
 
   const handleSubmit = async () => {
     if (!canSubmit) return
@@ -202,7 +151,9 @@ export function AdminRutasPage() {
         stops: stopsForm.map((s, i) => ({
           orden: i + 1,
           direccion: s.direccion,
-          clienteId: s.clienteId,
+          lat: s.lat,
+          lng: s.lng,
+          clienteId: s.subClienteId || s.clienteId,
           notas: s.notas || undefined,
           guiaDescripcion: s.guiaDescripcion || 'Insumos médicos',
         })),
@@ -300,6 +251,7 @@ export function AdminRutasPage() {
                         )}
                       </div>
                       <div className="space-y-3">
+                        {/* Cliente principal */}
                         <select
                           value={s.clienteId}
                           onChange={(e) => handleClienteChange(i, e.target.value)}
@@ -308,13 +260,33 @@ export function AdminRutasPage() {
                           <option value="">Seleccionar cliente...</option>
                           {clientes.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                         </select>
-                        <input
-                          type="text"
-                          placeholder="Dirección"
+                        {/* Cliente secundario — solo si el principal tiene secundarios */}
+                        {s.clienteId && (() => {
+                          const principal = clientes.find((c) => c.id === s.clienteId)
+                          const subs = principal?.clientesSecundarios ?? []
+                          if (!subs.length) return null
+                          return (
+                            <select
+                              value={s.subClienteId}
+                              onChange={(e) => handleSubClienteChange(i, e.target.value)}
+                              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600"
+                            >
+                              <option value="">Punto de entrega (opcional)...</option>
+                              {subs.map((sub) => <option key={sub.id} value={sub.id}>{sub.nombre}</option>)}
+                            </select>
+                          )
+                        })()}
+                        {/* Dirección con autocomplete Mapbox */}
+                        <MapboxAddressInput
                           value={s.direccion}
-                          onChange={(e) => handleStopChange(i, 'direccion', e.target.value)}
-                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                          onChange={(dir, coords) => handleDireccionChange(i, dir, coords)}
                         />
+                        {s.lat !== null && (
+                          <p className="flex items-center gap-1 text-[11px] text-emerald-600">
+                            <span className="material-symbols-outlined text-sm">check_circle</span>
+                            Coordenadas guardadas
+                          </p>
+                        )}
                         <input
                           type="text"
                           placeholder="Descripción de guía (ej: Insumos médicos)"
@@ -394,70 +366,35 @@ export function AdminRutasPage() {
                   <div className="border-t border-slate-200 p-4">
                     <div className="grid gap-6 md:grid-cols-2">
                       <div>
-                        <h4 className="mb-4 flex items-center gap-2 text-sm font-bold text-slate-900">
+                        <h4 className="mb-3 flex items-center gap-2 text-sm font-bold text-slate-900">
                           <span className="material-symbols-outlined text-primary">format_list_numbered</span>
                           Paradas y guías
                         </h4>
-                        <div className="space-y-4">
+                        <ul className="space-y-3">
                           {ruta.stops.map((stop) => (
-                            <article
-                              key={stop.id}
-                              className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm ring-1 ring-slate-900/5"
-                            >
-                              <div className="border-b border-slate-100 bg-slate-50/80 px-4 py-3">
-                                <div className="flex flex-wrap items-start justify-between gap-2">
-                                  <div className="flex min-w-0 items-center gap-2">
-                                    <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-xs font-bold text-primary">
-                                      {stop.orden}
-                                    </span>
-                                    <div className="min-w-0">
-                                      <p className="text-[10px] font-semibold uppercase tracking-wider text-primary">
-                                        Parada {stop.orden}
-                                      </p>
-                                      <p className="text-sm font-semibold text-slate-900">{stop.direccion}</p>
-                                    </div>
-                                  </div>
-                                  <span className="shrink-0 rounded-full bg-white px-2.5 py-0.5 text-[11px] font-medium text-slate-600 ring-1 ring-slate-200">
-                                    {stop.guias.length} guía{stop.guias.length !== 1 ? 's' : ''}
-                                  </span>
-                                </div>
-                                <p className="mt-2 text-xs text-slate-600">{stop.cliente.nombre}</p>
-                                {stop.notas && (
-                                  <p className="mt-1.5 rounded-md bg-amber-50/80 px-2 py-1.5 text-[11px] text-amber-900 ring-1 ring-amber-100">
-                                    {stop.notas}
-                                  </p>
-                                )}
-                              </div>
-                              {stop.guias.length > 0 ? (
-                                <ul className="divide-y divide-slate-100 p-3">
+                            <li key={stop.id}>
+                              <button
+                                type="button"
+                                onClick={() => setSelectedStop(stop)}
+                                className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-left transition-all hover:border-primary hover:bg-primary/5"
+                              >
+                                <p className="text-xs font-semibold uppercase tracking-wider text-primary">Parada #{stop.orden}</p>
+                                <p className="mt-1 text-sm font-medium text-slate-900">{stop.direccion}</p>
+                                <p className="text-xs text-slate-500">{stop.cliente.nombre}</p>
+                                {stop.notas && <p className="mt-0.5 text-xs text-slate-500">{stop.notas}</p>}
+                                <div className="mt-2 flex flex-wrap gap-1.5">
                                   {stop.guias.map((g) => (
-                                    <li key={g.id} className="py-3 first:pt-0 last:pb-0">
-                                      <div className="flex items-center justify-between gap-2 text-xs text-slate-600">
-                                        <span className="min-w-0 font-medium text-slate-800">
-                                          {g.numeroGuia} — {g.descripcion}
-                                        </span>
-                                        <span
-                                          className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] ${
-                                            g.estado === 'ENTREGADO'
-                                              ? 'bg-emerald-100 text-emerald-700'
-                                              : g.estado === 'INCIDENCIA'
-                                                ? 'bg-amber-100 text-amber-700'
-                                                : 'bg-slate-100 text-slate-600'
-                                          }`}
-                                        >
-                                          {g.estado}
-                                        </span>
-                                      </div>
-                                      <DetalleEntregaGuia g={g} />
-                                    </li>
+                                    <span key={g.id} className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                                      g.estado === 'ENTREGADO' ? 'bg-emerald-100 text-emerald-700' :
+                                      g.estado === 'INCIDENCIA' ? 'bg-amber-100 text-amber-700' :
+                                      'bg-slate-100 text-slate-600'
+                                    }`}>{g.numeroGuia}</span>
                                   ))}
-                                </ul>
-                              ) : (
-                                <p className="px-4 py-3 text-xs text-slate-500">Sin guías en esta parada.</p>
-                              )}
-                            </article>
+                                </div>
+                              </button>
+                            </li>
                           ))}
-                        </div>
+                        </ul>
                       </div>
 
                       <div>
@@ -508,6 +445,114 @@ export function AdminRutasPage() {
           </div>
         </div>
       )}
+
+      {/* Modal detalle de parada */}
+      <ModalMotion
+        show={!!selectedStop}
+        backdropClassName="bg-black/60"
+        panelClassName="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl"
+      >
+        {selectedStop && (
+          <>
+            <div className="flex items-start justify-between border-b border-slate-200 p-5">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-primary">Parada #{selectedStop.orden}</p>
+                <h3 className="mt-0.5 text-lg font-bold text-slate-900">{selectedStop.direccion}</h3>
+                <p className="text-sm text-slate-500">{selectedStop.cliente.nombre}</p>
+                {selectedStop.notas && (
+                  <p className="mt-1 text-xs text-slate-400">{selectedStop.notas}</p>
+                )}
+              </div>
+              <button type="button" onClick={() => setSelectedStop(null)} className="text-slate-400 hover:text-slate-600">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <div className="space-y-5 p-5">
+              {selectedStop.guias.map((g) => {
+                const fotos = g.fotos ?? []
+                return (
+                  <div key={g.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    {/* Header guía */}
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-bold text-slate-900">Guía #{g.numeroGuia}</p>
+                        <p className="text-xs text-slate-500">{g.descripcion}</p>
+                      </div>
+                      <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold uppercase ${
+                        g.estado === 'ENTREGADO' ? 'bg-emerald-100 text-emerald-700' :
+                        g.estado === 'INCIDENCIA' ? 'bg-amber-100 text-amber-700' :
+                        'bg-slate-100 text-slate-600'
+                      }`}>{g.estado}</span>
+                    </div>
+
+                    {/* Detalles de entrega */}
+                    {(g.receptorNombre || g.horaLlegada || g.horaSalida || g.temperatura || g.observaciones) && (
+                      <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-slate-200 pt-3 sm:grid-cols-3">
+                        {g.receptorNombre && (
+                          <div>
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Recibido por</p>
+                            <p className="text-xs text-slate-700">{g.receptorNombre}</p>
+                          </div>
+                        )}
+                        {g.temperatura && (
+                          <div>
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Temperatura</p>
+                            <p className="text-xs text-slate-700">{g.temperatura}</p>
+                          </div>
+                        )}
+                        {g.horaLlegada && (
+                          <div>
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Llegada</p>
+                            <p className="text-xs text-slate-700">{g.horaLlegada}</p>
+                          </div>
+                        )}
+                        {g.horaSalida && (
+                          <div>
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Salida</p>
+                            <p className="text-xs text-slate-700">{g.horaSalida}</p>
+                          </div>
+                        )}
+                        {g.observaciones && (
+                          <div className="col-span-2 sm:col-span-3">
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Observaciones</p>
+                            <p className="text-xs text-slate-700">{g.observaciones}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Fotos de entrega */}
+                    {fotos.length > 0 && (
+                      <div className="mt-3 border-t border-slate-200 pt-3">
+                        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                          Fotos de entrega ({fotos.length})
+                        </p>
+                        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                          {fotos.map((f) => (
+                            <a key={f.id} href={f.urlPreview} target="_blank" rel="noopener noreferrer"
+                              className="group overflow-hidden rounded-lg border border-slate-200 transition-all hover:border-primary hover:shadow-md">
+                              <img src={f.urlPreview} alt="Foto entrega"
+                                className="h-32 w-full object-cover transition-transform duration-200 group-hover:scale-105" />
+                              <p className="border-t border-slate-100 bg-white px-2 py-1 text-[10px] text-slate-400">
+                                {new Date(f.createdAt).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                              </p>
+                            </a>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {fotos.length === 0 && g.estado === 'ENTREGADO' && (
+                      <p className="mt-3 border-t border-slate-200 pt-3 text-xs text-slate-400">Sin fotos de entrega.</p>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </>
+        )}
+      </ModalMotion>
     </div>
   )
 }
