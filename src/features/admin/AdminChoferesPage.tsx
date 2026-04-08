@@ -4,6 +4,7 @@ import { api } from '../../services/api'
 import { useToastStore } from '../../store/toastStore'
 
 interface Chofer { id: string; nombre: string; email: string; cedula?: string | null; activo: boolean }
+interface ChoferDetalle extends Chofer { rol: string; clienteId: string | null }
 interface PaginatedResponse { data: Chofer[]; total: number; page: number; limit: number }
 interface PasswordModalData { choferNombre: string; password: string }
 
@@ -24,6 +25,10 @@ export function AdminChoferesPage() {
   const [passwordModal, setPasswordModal] = useState<PasswordModalData | null>(null)
   const [copied, setCopied] = useState(false)
 
+  const [detailId, setDetailId] = useState<string | null>(null)
+  const [detailChofer, setDetailChofer] = useState<ChoferDetalle | null>(null)
+  const [detailLoading, setDetailLoading] = useState(false)
+
   const totalPages = Math.max(1, Math.ceil(total / LIMIT))
 
   const fetchChoferes = useCallback(async (p: number) => {
@@ -43,10 +48,32 @@ export function AdminChoferesPage() {
 
   const handleToggleActivo = async (id: string) => {
     try {
-      const res = await api.patch<Chofer>(`/usuarios/${id}/toggle-activo`)
+      const res = await api.patch<{ id: string; nombre: string; activo: boolean }>(`/usuarios/${id}/toggle-activo`)
       setChoferes((prev) => prev.map((ch) => ch.id === id ? { ...ch, activo: res.data.activo } : ch))
+      setDetailChofer((d) => (d && d.id === id ? { ...d, activo: res.data.activo } : d))
       addToast('Estado actualizado', 'success')
     } catch { addToast('Error al cambiar estado', 'error') }
+  }
+
+  const openDetail = (id: string) => {
+    setDetailId(id)
+    setDetailChofer(null)
+    setDetailLoading(true)
+    api.get<ChoferDetalle>(`/usuarios/${id}`)
+      .then((r) => setDetailChofer(r.data))
+      .catch(() => { addToast('Error al cargar detalle', 'error'); setDetailId(null) })
+      .finally(() => setDetailLoading(false))
+  }
+
+  const closeDetail = () => {
+    setDetailId(null)
+    setDetailChofer(null)
+  }
+
+  const handleEliminarChofer = async (ch: Chofer) => {
+    if (!ch.activo) return
+    if (!window.confirm(`¿Desactivar a "${ch.nombre}"? Quedará inactivo; puede reactivarlo desde la columna Estado.`)) return
+    await handleToggleActivo(ch.id)
   }
 
   const handleSubmit = async (e: FormEvent) => {
@@ -166,6 +193,48 @@ export function AdminChoferesPage() {
         )}
       </ModalMotion>
 
+      <ModalMotion
+        show={!!detailId}
+        backdropClassName="bg-slate-900/40"
+        panelClassName="w-full max-w-md rounded-2xl bg-white shadow-modal"
+      >
+        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+          <h3 className="font-display text-base font-semibold text-slate-900">Detalle del chofer</h3>
+          <button type="button" onClick={closeDetail} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100" aria-label="Cerrar detalle">
+            <span className="material-symbols-outlined text-lg">close</span>
+          </button>
+        </div>
+        <div className="space-y-4 p-6">
+          {detailLoading && (
+            <div className="flex justify-center py-8">
+              <span className="material-symbols-outlined animate-spin text-3xl text-primary">progress_activity</span>
+            </div>
+          )}
+          {!detailLoading && detailChofer && (
+            <>
+              <dl className="space-y-3 text-sm">
+                <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Nombre</dt><dd className="font-medium text-slate-900">{detailChofer.nombre}</dd></div>
+                <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Email</dt><dd className="text-slate-700">{detailChofer.email}</dd></div>
+                <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Cédula</dt><dd className="text-slate-700">{detailChofer.cedula ?? '—'}</dd></div>
+                <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Rol</dt><dd className="text-slate-700">{detailChofer.rol}</dd></div>
+                <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Estado</dt><dd className="text-slate-700">{detailChofer.activo ? 'Activo' : 'Inactivo'}</dd></div>
+                {detailChofer.clienteId && (
+                  <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Cliente vinculado (id)</dt><dd className="font-mono text-xs text-slate-600">{detailChofer.clienteId}</dd></div>
+                )}
+              </dl>
+              <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
+                <button type="button" onClick={closeDetail} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">Cerrar</button>
+                <button type="button" onClick={() => { const ch = detailChofer; closeDetail(); handleEdit(ch) }}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-dark">
+                  <span className="material-symbols-outlined text-base">edit</span>
+                  Editar
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </ModalMotion>
+
       {/* Tabla */}
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-card">
         {loading ? (
@@ -206,7 +275,23 @@ export function AdminChoferesPage() {
                     </button>
                   </td>
                   <td className="px-4 py-3">
-                    <button type="button" onClick={() => handleEdit(ch)} className="text-xs font-semibold text-primary hover:underline">Editar</button>
+                    <div className="flex flex-wrap items-center gap-0.5">
+                      <button type="button" onClick={() => openDetail(ch.id)}
+                        className="inline-flex rounded-lg p-2 text-slate-600 transition hover:bg-slate-100 hover:text-primary"
+                        title="Ver detalle" aria-label="Ver detalle">
+                        <span className="material-symbols-outlined text-xl">visibility</span>
+                      </button>
+                      <button type="button" onClick={() => handleEdit(ch)}
+                        className="inline-flex rounded-lg p-2 text-slate-600 transition hover:bg-slate-100 hover:text-primary"
+                        title="Editar" aria-label="Editar">
+                        <span className="material-symbols-outlined text-xl">edit</span>
+                      </button>
+                      <button type="button" onClick={() => void handleEliminarChofer(ch)} disabled={!ch.activo}
+                        className="inline-flex rounded-lg p-2 text-slate-600 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent disabled:hover:text-slate-600"
+                        title={ch.activo ? 'Desactivar chofer' : 'Ya inactivo'} aria-label="Eliminar / desactivar chofer">
+                        <span className="material-symbols-outlined text-xl">delete</span>
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

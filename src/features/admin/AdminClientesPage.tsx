@@ -56,6 +56,10 @@ export function AdminClientesPage() {
   const [passwordModal, setPasswordModal] = useState<PasswordModalData | null>(null)
   const [copied, setCopied] = useState(false)
 
+  const [detailId, setDetailId] = useState<string | null>(null)
+  const [detailCliente, setDetailCliente] = useState<Cliente | null>(null)
+  const [detailLoading, setDetailLoading] = useState(false)
+
   const totalPages = Math.max(1, Math.ceil(total / LIMIT))
 
   const fetchClientes = useCallback(async (p: number) => {
@@ -102,8 +106,30 @@ export function AdminClientesPage() {
     try {
       const res = await api.patch<Cliente>(`/clientes/${id}/toggle-activo`)
       setClientes((prev) => prev.map((c) => (c.id === id ? res.data : c)))
+      setDetailCliente((d) => (d && d.id === id ? { ...d, ...res.data } : d))
       addToast('Estado actualizado', 'success')
     } catch { addToast('Error al cambiar estado', 'error') }
+  }
+
+  const openDetail = (id: string) => {
+    setDetailId(id)
+    setDetailCliente(null)
+    setDetailLoading(true)
+    api.get<Cliente>(`/clientes/${id}`)
+      .then((r) => setDetailCliente(r.data))
+      .catch(() => { addToast('Error al cargar detalle', 'error'); setDetailId(null) })
+      .finally(() => setDetailLoading(false))
+  }
+
+  const closeDetail = () => {
+    setDetailId(null)
+    setDetailCliente(null)
+  }
+
+  const handleEliminarCliente = async (c: Cliente) => {
+    if (!c.activo) return
+    if (!window.confirm(`¿Desactivar a "${c.nombre}"? Quedará inactivo; puede reactivarlo desde la columna Estado.`)) return
+    await handleToggleActivo(c.id)
   }
 
   const handleSubmit = async (e: FormEvent) => {
@@ -352,6 +378,62 @@ export function AdminClientesPage() {
         )}
       </ModalMotion>
 
+      {/* Detalle (solo lectura) */}
+      <ModalMotion
+        show={!!detailId}
+        backdropClassName="bg-black/50"
+        panelClassName="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl"
+      >
+        <div className="flex items-center justify-between border-b border-slate-200 p-5">
+          <h3 className="text-lg font-bold text-slate-900">Detalle del cliente</h3>
+          <button type="button" onClick={closeDetail} className="text-slate-400 hover:text-slate-600" aria-label="Cerrar detalle">
+            <span className="material-symbols-outlined">close</span>
+          </button>
+        </div>
+        <div className="space-y-4 p-5">
+          {detailLoading && (
+            <div className="flex justify-center py-8">
+              <span className="material-symbols-outlined animate-spin text-3xl text-primary">progress_activity</span>
+            </div>
+          )}
+          {!detailLoading && detailCliente && (
+            <>
+              <dl className="space-y-3 text-sm">
+                <div><dt className="text-xs font-medium text-slate-400">Nombre</dt><dd className="font-semibold text-slate-900">{detailCliente.nombre}</dd></div>
+                <div><dt className="text-xs font-medium text-slate-400">RUC</dt><dd className="text-slate-800">{detailCliente.ruc}</dd></div>
+                <div><dt className="text-xs font-medium text-slate-400">Dirección</dt><dd className="text-slate-800">{detailCliente.direccion}</dd></div>
+                <div><dt className="text-xs font-medium text-slate-400">Teléfono</dt><dd className="text-slate-800">{detailCliente.telefonoContacto ?? '—'}</dd></div>
+                <div><dt className="text-xs font-medium text-slate-400">Email contacto</dt><dd className="text-slate-800">{detailCliente.emailContacto ?? '—'}</dd></div>
+                <div><dt className="text-xs font-medium text-slate-400">Tipo</dt><dd className="text-slate-800">{detailCliente.tipo === 'PRINCIPAL' ? 'Principal' : 'Secundario'}</dd></div>
+                <div><dt className="text-xs font-medium text-slate-400">Cliente principal</dt><dd className="text-slate-800">{detailCliente.clientePrincipal?.nombre ?? '—'}</dd></div>
+                <div><dt className="text-xs font-medium text-slate-400">Estado</dt><dd className="text-slate-800">{detailCliente.activo ? 'Activo' : 'Inactivo'}</dd></div>
+              </dl>
+              {!!detailCliente.clientesSecundarios?.length && (
+                <div>
+                  <p className="mb-2 text-xs font-medium text-slate-400">Sucursales / secundarios</p>
+                  <ul className="max-h-36 overflow-y-auto rounded-lg border border-slate-100 bg-slate-50 text-xs text-slate-700">
+                    {detailCliente.clientesSecundarios.map((s) => (
+                      <li key={s.id} className="flex justify-between border-b border-slate-100 px-3 py-2 last:border-0">
+                        <span>{s.nombre}</span>
+                        <span className={`shrink-0 font-medium ${s.activo ? 'text-emerald-600' : 'text-slate-400'}`}>{s.ruc}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <div className="flex justify-end gap-2 border-t border-slate-200 pt-4">
+                <button type="button" onClick={closeDetail} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">Cerrar</button>
+                <button type="button" onClick={() => { const c = detailCliente; closeDetail(); handleEdit(c) }}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white hover:bg-primary/90">
+                  <span className="material-symbols-outlined text-base">edit</span>
+                  Editar
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </ModalMotion>
+
       {/* Table */}
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         {loading ? (
@@ -408,9 +490,23 @@ export function AdminClientesPage() {
                     </button>
                   </td>
                   <td className="px-4 py-3">
-                    <button type="button" onClick={() => handleEdit(c)} className="text-xs font-medium text-primary hover:underline">
-                      Editar
-                    </button>
+                    <div className="flex flex-wrap items-center gap-0.5">
+                      <button type="button" onClick={() => openDetail(c.id)}
+                        className="inline-flex rounded-lg p-2 text-slate-600 transition hover:bg-slate-100 hover:text-primary"
+                        title="Ver detalle" aria-label="Ver detalle">
+                        <span className="material-symbols-outlined text-xl">visibility</span>
+                      </button>
+                      <button type="button" onClick={() => handleEdit(c)}
+                        className="inline-flex rounded-lg p-2 text-slate-600 transition hover:bg-slate-100 hover:text-primary"
+                        title="Editar" aria-label="Editar">
+                        <span className="material-symbols-outlined text-xl">edit</span>
+                      </button>
+                      <button type="button" onClick={() => void handleEliminarCliente(c)} disabled={!c.activo}
+                        className="inline-flex rounded-lg p-2 text-slate-600 transition hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-transparent disabled:hover:text-slate-600"
+                        title={c.activo ? 'Desactivar cliente' : 'Ya inactivo'} aria-label="Eliminar / desactivar cliente">
+                        <span className="material-symbols-outlined text-xl">delete</span>
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
