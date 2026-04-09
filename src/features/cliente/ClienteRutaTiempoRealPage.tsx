@@ -52,6 +52,7 @@ export function ClienteRutaTiempoRealPage() {
   const [loadingList, setLoadingList] = useState(true)
   const [loadingRuta, setLoadingRuta] = useState(false)
   const [rutaError, setRutaError] = useState(false)
+  const [seguimientoActualizadoAt, setSeguimientoActualizadoAt] = useState<string | null>(null)
 
   const fetchActivos = useCallback(async () => {
     setLoadingList(true)
@@ -91,7 +92,10 @@ export function ClienteRutaTiempoRealPage() {
       setRutaError(false)
       try {
         const res = await api.get<RutaApi>(`/rutas/${guiaActiva.rutaId}`)
-        if (!cancel) setRuta(res.data)
+        if (!cancel) {
+          setRuta(res.data)
+          setSeguimientoActualizadoAt(new Date().toISOString())
+        }
       } catch {
         if (!cancel) {
           setRuta(null)
@@ -122,6 +126,7 @@ export function ClienteRutaTiempoRealPage() {
       setRuta((prev) =>
         prev ? { ...prev, seguimientoChofer: p.seguimientoChofer } : prev,
       )
+      setSeguimientoActualizadoAt(new Date().toISOString())
     })
     return () => {
       socket.disconnect()
@@ -214,6 +219,10 @@ export function ClienteRutaTiempoRealPage() {
               seguimiento={ruta.seguimientoChofer ?? 'NINGUNO'}
               guiaEstado={guiaActiva.estado}
             />
+            <p className="text-right text-[11px] text-slate-400">
+              Última actualización:{' '}
+              {seguimientoActualizadoAt ? new Date(seguimientoActualizadoAt).toLocaleString('es-ES') : '—'}
+            </p>
 
             <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
               <p className="text-xs font-semibold uppercase tracking-wider text-primary">ETA estimado</p>

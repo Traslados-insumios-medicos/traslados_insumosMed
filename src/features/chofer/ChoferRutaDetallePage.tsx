@@ -8,6 +8,7 @@ import { useToastStore } from '../../store/toastStore'
 import { RouteMap } from '../../components/map/RouteMap'
 import { PhotoUploader } from './PhotoUploader'
 import { IncidenceDialog } from './IncidenceDialog'
+import { SeguimientoChoferStepper } from '../../components/cliente/SeguimientoChoferStepper'
 interface GuiaApi {
   id: string; numeroGuia: string; descripcion: string; estado: string
   receptorNombre?: string | null; horaLlegada?: string | null
@@ -67,6 +68,7 @@ export function ChoferRutaDetallePage() {
   const [guardandoGuiaId, setGuardandoGuiaId] = useState<string | null>(null)
   const [guiaIdsDetalleGuardado, setGuiaIdsDetalleGuardado] = useState<Set<string>>(() => new Set())
   const rutaIdParaDetalleRef = useRef<string | null>(null)
+  const [ultimaActualizacionSeguimiento, setUltimaActualizacionSeguimiento] = useState<string | null>(null)
 
   const fetchRuta = useCallback(async () => {
     if (!id) return
@@ -327,6 +329,7 @@ export function ChoferRutaDetallePage() {
     try {
       const res = await api.patch<RutaApi>(`/rutas/${id}/seguimiento`, { seguimientoChofer })
       setRuta(res.data)
+      setUltimaActualizacionSeguimiento(new Date().toISOString())
       addToast('Estado enviado al cliente', 'success')
     } catch {
       addToast('No se pudo actualizar el seguimiento', 'error')
@@ -475,6 +478,29 @@ export function ChoferRutaDetallePage() {
                   Cerca del destino
                 </button>
               </div>
+              <p className="mt-3 text-[11px] text-slate-500">
+                Última actualización enviada:{' '}
+                {ultimaActualizacionSeguimiento
+                  ? new Date(ultimaActualizacionSeguimiento).toLocaleString('es-ES')
+                  : '—'}
+              </p>
+            </div>
+          )}
+
+          {ruta.estado === 'EN_CURSO' && (
+            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+              <h4 className="mb-2 flex items-center gap-2 text-sm font-bold text-slate-900">
+                <span className="material-symbols-outlined text-primary text-lg">visibility</span>
+                Vista cliente (preview)
+              </h4>
+              <p className="mb-3 text-xs text-slate-500">
+                Así se está mostrando tu avance en el panel del cliente.
+              </p>
+              <SeguimientoChoferStepper
+                rutaEstado={ruta.estado}
+                seguimiento={ruta.seguimientoChofer ?? 'NINGUNO'}
+                title="Seguimiento visible al cliente"
+              />
             </div>
           )}
 

@@ -30,6 +30,7 @@ interface RutaEnGuia {
   id: string
   estado: string
   seguimientoChofer: string
+  updatedAt?: string
 }
 
 interface GuiaDetalleApi {
@@ -54,6 +55,7 @@ export function ClienteEnvioDetallePage() {
   const addToast = useToastStore((s) => s.addToast)
   const [guia, setGuia] = useState<GuiaDetalleApi | null>(null)
   const [loading, setLoading] = useState(true)
+  const [seguimientoActualizadoAt, setSeguimientoActualizadoAt] = useState<string | null>(null)
 
   useEffect(() => {
     if (!guiaId) return
@@ -62,7 +64,10 @@ export function ClienteEnvioDetallePage() {
       setLoading(true)
       try {
         const res = await api.get<GuiaDetalleApi>(`/guias/${guiaId}`)
-        if (!cancel) setGuia(res.data)
+        if (!cancel) {
+          setGuia(res.data)
+          setSeguimientoActualizadoAt(new Date().toISOString())
+        }
       } catch {
         if (!cancel) {
           setGuia(null)
@@ -94,6 +99,7 @@ export function ClienteEnvioDetallePage() {
           ? { ...prev, ruta: { ...prev.ruta, seguimientoChofer: p.seguimientoChofer } }
           : prev,
       )
+      setSeguimientoActualizadoAt(new Date().toISOString())
     })
     return () => {
       socket.disconnect()
@@ -133,6 +139,15 @@ export function ClienteEnvioDetallePage() {
     },
     { key: 'delivered', label: 'Entregado', done: guia.estado === 'ENTREGADO', active: false },
   ]
+
+  const estadoRutaTexto =
+    guia.ruta.estado === 'EN_CURSO'
+      ? 'Ruta en curso'
+      : guia.ruta.estado === 'COMPLETADA'
+        ? 'Ruta finalizada'
+        : guia.ruta.estado === 'CANCELADA'
+          ? 'Ruta cancelada'
+          : 'Ruta planificada'
 
   const handleExportExcel = () => {
     exportToExcel(
@@ -203,6 +218,7 @@ export function ClienteEnvioDetallePage() {
           <p className="text-sm text-slate-500">{guia.descripcion}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">{estadoRutaTexto}</span>
           <span
             className={`rounded-full px-2.5 py-1 text-xs font-medium ${
               guia.estado === 'ENTREGADO'
@@ -240,15 +256,24 @@ export function ClienteEnvioDetallePage() {
       <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
         <div className="space-y-6 lg:col-span-2">
           {guia.ruta && (
-            <SeguimientoChoferStepper
-              rutaEstado={guia.ruta.estado}
-              seguimiento={guia.ruta.seguimientoChofer ?? 'NINGUNO'}
-              guiaEstado={guia.estado}
-            />
+            <div className="space-y-2">
+              <SeguimientoChoferStepper
+                rutaEstado={guia.ruta.estado}
+                seguimiento={guia.ruta.seguimientoChofer ?? 'NINGUNO'}
+                guiaEstado={guia.estado}
+              />
+              <p className="text-right text-[11px] text-slate-400">
+                Última actualización:{' '}
+                {seguimientoActualizadoAt ? new Date(seguimientoActualizadoAt).toLocaleString('es-ES') : '—'}
+              </p>
+            </div>
           )}
 
           <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
             <h3 className="mb-6 text-lg font-bold text-slate-900">Progreso de entrega</h3>
+            <p className="mb-4 text-xs text-slate-500">
+              Esta línea de tiempo se actualiza automáticamente con los cambios reportados por el chofer.
+            </p>
             <div className="relative space-y-8 before:absolute before:left-5 before:h-full before:w-0.5 before:bg-slate-200">
               {statusSteps.map((step, i) => (
                 <div key={step.key} className="relative flex items-center gap-6">
