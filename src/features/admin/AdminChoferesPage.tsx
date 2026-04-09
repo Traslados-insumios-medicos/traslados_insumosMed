@@ -305,7 +305,7 @@ export function AdminChoferesPage() {
             </div>
             <div className="space-y-4 p-6">
               <p className="text-sm text-slate-600">
-                ¿Eliminar definitivamente a <span className="font-semibold text-slate-900">{deleteConfirmChofer.nombre}</span>? Se borrarán también todas sus rutas asignadas (paradas, guías y archivos vinculados según reglas del sistema).
+                ¿Eliminar definitivamente a <span className="font-semibold text-slate-900">{deleteConfirmChofer.nombre}</span>? En la base de datos se eliminan <span className="font-semibold">todas las rutas</span> donde figura como chofer (paradas, guías, fotos y seguimiento) y después el chofer. No queda rastro operativo de esas rutas.
               </p>
               <p className="text-xs text-slate-500">
                 Para solo desactivar el acceso, use el interruptor en la columna Estado.

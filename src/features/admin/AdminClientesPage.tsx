@@ -452,7 +452,7 @@ export function AdminClientesPage() {
             </div>
             <div className="space-y-4 p-6">
               <p className="text-sm text-slate-600">
-                ¿Eliminar definitivamente a <span className="font-semibold text-slate-900">{deleteConfirmCliente.nombre}</span>? Se eliminan también guías, paradas y usuarios de panel cliente asociados a este registro.
+                ¿Eliminar definitivamente a <span className="font-semibold text-slate-900">{deleteConfirmCliente.nombre}</span>? Se eliminan en la base todas sus guías y paradas, el usuario de panel cliente si existe y <span className="font-semibold">cualquier ruta que quede vacía</span> (sin paradas) con todo lo vinculado. Rutas compartidas con otros clientes siguen si los demás puntos permanecen.
               </p>
               {deleteConfirmCliente.tipo === 'PRINCIPAL' && (deleteConfirmCliente.clientesSecundarios?.length ?? 0) > 0 && (
                 <p className="text-xs font-medium text-amber-700">
