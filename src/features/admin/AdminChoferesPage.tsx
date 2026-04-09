@@ -39,6 +39,8 @@ export function AdminChoferesPage() {
   const [detailId, setDetailId] = useState<string | null>(null)
   const [detailChofer, setDetailChofer] = useState<ChoferDetalle | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
+  const [deleteConfirmChofer, setDeleteConfirmChofer] = useState<Chofer | null>(null)
+  const [deleteChoferSubmitting, setDeleteChoferSubmitting] = useState(false)
 
   const NOMBRE_REGEX = /^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]*$/
   const CEDULA_REGEX = /^\d{0,10}$/
@@ -105,18 +107,25 @@ export function AdminChoferesPage() {
     }
   }
 
-  const handleEliminarChofer = async (ch: Chofer) => {
-    if (!window.confirm(`¿Eliminar definitivamente a "${ch.nombre}"? Se borrará de la base de datos. Para solo desactivar el acceso, use el interruptor en Estado.`)) return
+  const openDeleteChoferModal = (ch: Chofer) => setDeleteConfirmChofer(ch)
+
+  const executeDeleteChofer = async () => {
+    const ch = deleteConfirmChofer
+    if (!ch) return
+    setDeleteChoferSubmitting(true)
     try {
       await api.delete(`/usuarios/${ch.id}`)
       addToast('Chofer eliminado', 'success')
       if (detailId === ch.id) closeDetail()
+      setDeleteConfirmChofer(null)
       await fetchChoferes(page)
     } catch (err: unknown) {
       const status = (err as { response?: { status?: number; data?: { message?: string } } })?.response?.status
       const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
       if (status === 409 && message) addToast(message, 'error')
       else addToast('No se pudo eliminar el chofer', 'error')
+    } finally {
+      setDeleteChoferSubmitting(false)
     }
   }
 
@@ -285,6 +294,38 @@ export function AdminChoferesPage() {
         </div>
       </ModalMotion>
 
+      <ModalMotion show={!!deleteConfirmChofer} backdropClassName="bg-slate-900/40" panelClassName="w-full max-w-md rounded-2xl bg-white shadow-modal">
+        {deleteConfirmChofer && (
+          <>
+            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+              <h3 className="font-display text-base font-semibold text-slate-900">Eliminar chofer</h3>
+              <button type="button" onClick={() => !deleteChoferSubmitting && setDeleteConfirmChofer(null)} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 disabled:opacity-40" aria-label="Cerrar">
+                <span className="material-symbols-outlined text-lg">close</span>
+              </button>
+            </div>
+            <div className="space-y-4 p-6">
+              <p className="text-sm text-slate-600">
+                ¿Eliminar definitivamente a <span className="font-semibold text-slate-900">{deleteConfirmChofer.nombre}</span>? Se borrará de la base de datos.
+              </p>
+              <p className="text-xs text-slate-500">
+                Para solo desactivar el acceso, use el interruptor en la columna Estado.
+              </p>
+              <div className="flex flex-wrap justify-end gap-3 border-t border-slate-100 pt-4">
+                <button type="button" disabled={deleteChoferSubmitting} onClick={() => setDeleteConfirmChofer(null)}
+                  className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50">
+                  Cancelar
+                </button>
+                <button type="button" disabled={deleteChoferSubmitting} onClick={() => void executeDeleteChofer()}
+                  className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-60">
+                  {deleteChoferSubmitting && <span className="material-symbols-outlined animate-spin text-base">progress_activity</span>}
+                  Eliminar
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+      </ModalMotion>
+
       {/* Tabla */}
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-card">
         {loading ? (
@@ -333,7 +374,7 @@ export function AdminChoferesPage() {
                         title="Editar" aria-label="Editar">
                         <span className="material-symbols-outlined text-base">edit</span>
                       </button>
-                      <button type="button" onClick={(e) => { e.stopPropagation(); void handleEliminarChofer(ch) }}
+                      <button type="button" onClick={(e) => { e.stopPropagation(); openDeleteChoferModal(ch) }}
                         className="rounded p-1 text-slate-400 transition-colors hover:text-red-600"
                         title="Eliminar de la base de datos" aria-label="Eliminar de la base de datos">
                         <span className="material-symbols-outlined text-base">delete</span>
