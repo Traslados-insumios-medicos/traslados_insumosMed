@@ -286,7 +286,7 @@ export function AdminChoferesPage() {
       </ModalMotion>
 
       {/* Tabla */}
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-card">
+      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-card">
         {loading ? (
           <div className="flex items-center justify-center py-16">
             <span className="material-symbols-outlined animate-spin text-3xl text-primary">progress_activity</span>
@@ -297,7 +297,7 @@ export function AdminChoferesPage() {
             <p className="mt-2 text-sm text-slate-400">No hay choferes registrados</p>
           </div>
         ) : (
-          <table className="w-full text-left text-sm">
+          <table className="w-full min-w-[600px] text-left text-sm">
             <thead className="border-b border-slate-100 bg-slate-50">
               <tr>
                 {['Nombre', 'Cédula', 'Email', 'Estado', 'Acciones'].map((h) => (

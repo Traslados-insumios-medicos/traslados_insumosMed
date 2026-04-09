@@ -51,7 +51,7 @@ interface PaginatedRutas {
   limit: number
 }
 
-interface ClienteOption { id: string; nombre: string; tipo: string; clientePrincipalId?: string | null; clientesSecundarios?: { id: string; nombre: string }[] }
+interface ClienteOption { id: string; nombre: string; tipo: string; clientePrincipalId?: string | null; clientesSecundarios?: { id: string; nombre: string; direccion?: string; ruc?: string; activo?: boolean }[] }
 interface ChoferOption { id: string; nombre: string }
 
 interface StopForm {
@@ -111,7 +111,7 @@ export function AdminRutasPage() {
     api.get<{ data: ChoferOption[] }>('/usuarios?rol=CHOFER&limit=100')
       .then((r) => setChoferes(r.data.data))
       .catch(() => {})
-    api.get<{ data: ClienteOption[] }>('/clientes?limit=100&tipo=PRINCIPAL')
+    api.get<{ data: ClienteOption[] }>('/clientes?limit=100&tipo=PRINCIPAL&includeSecundarios=true')
       .then((r) => setClientes(r.data.data))
       .catch(() => {})
   }, [fetchRutas])
@@ -132,7 +132,11 @@ export function AdminRutasPage() {
   }
 
   const handleSubClienteChange = (i: number, subClienteId: string) => {
-    setStopsForm((p) => p.map((s, idx) => idx === i ? { ...s, subClienteId } : s))
+    const stop = stopsForm[i]
+    const principal = clientes.find((c) => c.id === stop.clienteId)
+    const sub = principal?.clientesSecundarios?.find((s) => s.id === subClienteId)
+    const direccion = sub?.direccion ?? ''
+    setStopsForm((p) => p.map((s, idx) => idx === i ? { ...s, subClienteId, direccion, lat: null, lng: null } : s))
   }
 
   const handleDireccionChange = (i: number, direccion: string, coords?: { lat: number; lng: number }) => {
@@ -278,6 +282,7 @@ export function AdminRutasPage() {
                         })()}
                         {/* Dirección con autocomplete Mapbox */}
                         <MapboxAddressInput
+                          key={s.direccion || `stop-${i}`}
                           value={s.direccion}
                           onChange={(dir, coords) => handleDireccionChange(i, dir, coords)}
                         />

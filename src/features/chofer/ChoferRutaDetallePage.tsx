@@ -377,7 +377,7 @@ export function ChoferRutaDetallePage() {
   const effectiveSelectedStopId = selectedStopId ?? stopsRuta[0]?.id ?? null
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-4 pb-24 md:pb-6">
+    <div className="mx-auto w-full max-w-7xl space-y-4 pb-16 md:pb-6">
       {/* Header */}
       <div className="flex flex-shrink-0 items-center justify-between border-b border-slate-200 bg-white p-4 md:border-0 md:bg-transparent md:p-0">
         <div className="flex items-center gap-3">

@@ -54,8 +54,8 @@ export function SeguimientoChoferStepper({
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-      <h3 className="mb-5 text-lg font-bold text-slate-900">{title}</h3>
+    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <h3 className="mb-4 text-sm font-bold text-slate-900 leading-tight">{title}</h3>
       <div className="flex w-full min-w-0 items-center">
         {STEPS.map((step, i) => (
           <Fragment key={step.label}>
@@ -90,7 +90,7 @@ export function SeguimientoChoferStepper({
           </Fragment>
         ))}
       </div>
-      <p className="mt-4 text-center text-xs text-slate-500">
+      <p className="mt-3 text-center text-xs text-slate-500">
         {rutaEstado === 'PENDIENTE'
           ? 'La ruta aún no ha iniciado.'
           : rutaTerminada

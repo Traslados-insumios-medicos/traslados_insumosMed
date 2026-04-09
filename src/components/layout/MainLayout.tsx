@@ -122,18 +122,18 @@ export function MainLayout() {
 
         {/* Header */}
         <header className="flex h-16 shrink-0 items-center justify-between gap-4 border-b border-slate-200 bg-white px-5 shadow-nav">
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 items-center gap-3">
             <button type="button" onClick={() => setSidebarOpen(true)}
               className="rounded-lg p-2 text-slate-500 hover:bg-slate-100 md:hidden">
               <span className="material-symbols-outlined">menu</span>
             </button>
-            <div>
-              <p className="font-display text-sm font-semibold text-slate-800">
-                {role === 'ADMIN' && 'Panel de Administración'}
-                {role === 'CHOFER' && 'Panel del Chofer'}
-                {role === 'CLIENTE' && 'Portal del Cliente'}
+            <div className="min-w-0">
+              <p className="font-display text-sm font-semibold text-slate-800 truncate">
+                {role === 'ADMIN' && <><span className="hidden sm:inline">Panel de Administración</span><span className="sm:hidden">Admin</span></>}
+                {role === 'CHOFER' && <><span className="hidden sm:inline">Panel del Chofer</span><span className="sm:hidden">Chofer</span></>}
+                {role === 'CLIENTE' && <><span className="hidden sm:inline">Portal del Cliente</span><span className="sm:hidden">Cliente</span></>}
               </p>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-400 truncate">
                 {new Date().toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric', month: 'long' })}
               </p>
             </div>
@@ -161,7 +161,7 @@ export function MainLayout() {
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: -8, scale: 0.97 }}
                     transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] as const }}
-                    className="absolute right-0 top-full z-50 mt-2 w-96 max-w-[calc(100vw-1rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
+                    className="fixed inset-x-2 top-16 z-50 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-96"
                   >
                     {/* Header */}
                     <div className="flex items-center justify-between px-5 py-4">
