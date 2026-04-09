@@ -54,14 +54,14 @@ export function SeguimientoChoferStepper({
   }
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-      <h3 className="mb-5 text-lg font-bold text-slate-900">{title}</h3>
+    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+      <h3 className="mb-4 text-sm font-bold text-slate-900 leading-tight">{title}</h3>
       <div className="flex w-full min-w-0 items-center">
         {STEPS.map((step, i) => (
           <Fragment key={step.label}>
-            <div className="flex w-14 shrink-0 flex-col items-center sm:w-[4.5rem]">
+            <div className="flex min-w-0 flex-1 flex-col items-center">
               <div
-                className={`flex size-10 items-center justify-center rounded-full sm:size-11 ${
+                className={`flex size-9 items-center justify-center rounded-full sm:size-10 ${
                   i === activeIndex
                     ? 'border-2 border-primary bg-primary/15 text-primary ring-4 ring-primary/15'
                     : doneAt(i)
@@ -69,10 +69,10 @@ export function SeguimientoChoferStepper({
                       : 'bg-slate-100 text-slate-400'
                 }`}
               >
-                <span className="material-symbols-outlined text-lg sm:text-xl">{step.icon}</span>
+                <span className="material-symbols-outlined text-base sm:text-lg">{step.icon}</span>
               </div>
               <p
-                className={`mt-2 text-center text-[9px] font-bold leading-tight sm:text-[10px] ${
+                className={`mt-1.5 w-full text-center text-[8px] font-bold leading-tight sm:text-[9px] ${
                   i === activeIndex ? 'text-primary' : doneAt(i) ? 'text-slate-800' : 'text-slate-400'
                 }`}
               >
@@ -81,7 +81,7 @@ export function SeguimientoChoferStepper({
             </div>
             {i < STEPS.length - 1 && (
               <div
-                className={`mx-0.5 mb-6 h-1 min-h-px min-w-0 flex-1 rounded-full self-center ${
+                className={`mx-0.5 mb-5 h-0.5 w-3 shrink-0 rounded-full self-center sm:w-4 ${
                   doneAt(i + 1) ? 'bg-primary' : 'bg-slate-200'
                 }`}
                 aria-hidden
@@ -90,7 +90,7 @@ export function SeguimientoChoferStepper({
           </Fragment>
         ))}
       </div>
-      <p className="mt-4 text-center text-xs text-slate-500">
+      <p className="mt-3 text-center text-xs text-slate-500">
         {rutaEstado === 'PENDIENTE'
           ? 'La ruta aún no ha iniciado.'
           : rutaTerminada

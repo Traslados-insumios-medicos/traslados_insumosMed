@@ -377,7 +377,7 @@ export function ChoferRutaDetallePage() {
   const effectiveSelectedStopId = selectedStopId ?? stopsRuta[0]?.id ?? null
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-4 pb-24 md:pb-6">
+    <div className="mx-auto w-full max-w-7xl space-y-4 pb-16 md:pb-6">
       {/* Header */}
       <div className="flex flex-shrink-0 items-center justify-between border-b border-slate-200 bg-white p-4 md:border-0 md:bg-transparent md:p-0">
         <div className="flex items-center gap-3">
@@ -745,14 +745,14 @@ export function ChoferRutaDetallePage() {
       </div>
 
       {/* Nav móvil */}
-      <nav className="fixed bottom-0 left-0 right-0 flex gap-2 border-t border-slate-200 bg-white px-4 pb-6 pt-2 md:hidden">
-        <Link to={`/chofer/rutas/${id}`} className="flex flex-1 flex-col items-center justify-center gap-1 text-primary">
-          <span className="material-symbols-outlined">route</span>
-          <p className="text-[10px] font-bold uppercase tracking-tight">Mi Ruta</p>
+      <nav className="fixed bottom-0 left-0 right-0 flex border-t border-slate-200 bg-white pb-safe md:hidden">
+        <Link to={`/chofer/rutas/${id}`} className="flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-primary">
+          <span className="material-symbols-outlined text-xl">route</span>
+          <p className="text-[9px] font-bold uppercase tracking-tight">Mi Ruta</p>
         </Link>
-        <Link to="/chofer/rutas" className="flex flex-1 flex-col items-center justify-center gap-1 text-slate-400">
-          <span className="material-symbols-outlined">history</span>
-          <p className="text-[10px] font-bold uppercase tracking-tight">Historial</p>
+        <Link to="/chofer/rutas" className="flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-slate-400">
+          <span className="material-symbols-outlined text-xl">history</span>
+          <p className="text-[9px] font-bold uppercase tracking-tight">Historial</p>
         </Link>
       </nav>
 
