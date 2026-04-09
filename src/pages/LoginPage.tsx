@@ -1,7 +1,8 @@
-import { type FormEvent, useLayoutEffect, useRef, useState } from 'react'
+import { type FormEvent, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import gsap from 'gsap'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
+import { ModalMotion } from '../components/ui/ModalMotion'
 import logo from '../assets/logo.png'
 
 export function LoginPage() {
@@ -51,6 +52,17 @@ export function LoginPage() {
   const [showPass, setShowPass] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [showInactiveModal, setShowInactiveModal] = useState(false)
+  const [inactiveMsg, setInactiveMsg] = useState('Su acceso está inactivo. Contacte al administrador de la empresa.')
+
+  useEffect(() => {
+    const msg = sessionStorage.getItem('inactive_access_notice')
+    if (msg) {
+      setInactiveMsg(msg)
+      setShowInactiveModal(true)
+      sessionStorage.removeItem('inactive_access_notice')
+    }
+  }, [])
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -64,7 +76,15 @@ export function LoginPage() {
       else if (rol === 'CHOFER') navigate('/chofer/rutas')
       else navigate('/cliente/envios')
     } catch (err: any) {
-      setError(err?.response?.data?.message ?? 'Credenciales incorrectas')
+      const status = err?.response?.status
+      const msg = err?.response?.data?.message ?? 'Credenciales incorrectas'
+      if (status === 403 && String(msg).toLowerCase().includes('inactivo')) {
+        setInactiveMsg(msg)
+        setShowInactiveModal(true)
+        setError('')
+      } else {
+        setError(msg)
+      }
     } finally {
       setLoading(false)
     }
@@ -177,6 +197,33 @@ export function LoginPage() {
           </form>
         </div>
       </div>
+
+      <ModalMotion
+        show={showInactiveModal}
+        backdropClassName="bg-black/45"
+        panelClassName="w-full max-w-md rounded-2xl bg-white shadow-2xl"
+      >
+        <div className="border-b border-slate-100 px-6 py-4">
+          <h3 className="text-base font-bold text-slate-900">Acceso inactivo</h3>
+        </div>
+        <div className="space-y-4 px-6 py-5">
+          <p className="text-sm text-slate-600">
+            {inactiveMsg}
+          </p>
+          <p className="text-xs text-slate-400">
+            Cuando el administrador reactive su usuario, podrá volver a ingresar normalmente.
+          </p>
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => setShowInactiveModal(false)}
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover"
+            >
+              Entendido
+            </button>
+          </div>
+        </div>
+      </ModalMotion>
     </div>
   )
 }
