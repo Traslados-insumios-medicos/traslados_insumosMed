@@ -161,42 +161,62 @@ export function MainLayout() {
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: -8, scale: 0.97 }}
                     transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] as const }}
-                    className="absolute right-0 top-full z-50 mt-2 w-80 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-card-hover"
+                    className="absolute right-0 top-full z-50 mt-2 w-96 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
                   >
-                    <div className="flex items-center justify-between bg-slate-50 px-4 py-3 border-b border-slate-100">
-                      <p className="font-display text-sm font-semibold text-slate-800">Novedades</p>
-                      <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-600">
-                        {notifs.length}
-                      </span>
+                    {/* Header */}
+                    <div className="flex items-center justify-between px-5 py-4">
+                      <div className="flex items-center gap-2">
+                        <span className="material-symbols-outlined text-base text-primary">notifications</span>
+                        <p className="font-display text-sm font-bold text-slate-900">Novedades</p>
+                      </div>
+                      {notifs.length > 0 && (
+                        <span className="rounded-full bg-red-500 px-2 py-0.5 text-[11px] font-bold text-white">
+                          {notifs.length}
+                        </span>
+                      )}
                     </div>
-                    <div className="max-h-72 overflow-y-auto divide-y divide-slate-100">
+                    <div className="h-px bg-slate-100" />
+
+                    {/* List */}
+                    <div className="max-h-80 overflow-y-auto">
                       {notifs.length === 0 ? (
-                        <div className="flex flex-col items-center py-8 text-center">
-                          <span className="material-symbols-outlined text-3xl text-slate-300">notifications_off</span>
-                          <p className="mt-2 text-sm text-slate-400">Sin novedades</p>
+                        <div className="flex flex-col items-center gap-3 py-12 text-center">
+                          <div className="flex size-14 items-center justify-center rounded-full bg-slate-100">
+                            <span className="material-symbols-outlined text-2xl text-slate-400">notifications_off</span>
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-slate-600">Todo tranquilo</p>
+                            <p className="mt-0.5 text-xs text-slate-400">No hay novedades pendientes</p>
+                          </div>
                         </div>
                       ) : notifs.map((n) => (
                         <button key={n.id} type="button"
                           onClick={() => { setNotifOpen(false); navigate('/admin/novedades') }}
-                          className="w-full px-4 py-3 text-left hover:bg-slate-50 transition-colors">
-                          <div className="flex items-start gap-3">
-                            <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-red-50">
+                          className="group w-full px-5 py-3.5 text-left transition-colors hover:bg-slate-50">
+                          <div className="flex items-start gap-3.5">
+                            <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-red-50 ring-1 ring-red-100">
                               <span className="material-symbols-outlined text-sm text-red-500">warning</span>
                             </div>
-                            <div className="min-w-0">
-                              <p className="text-xs font-semibold text-slate-800">{tipoLabel[n.tipo] ?? n.tipo}</p>
-                              <p className="text-xs text-primary">Guía {n.guia.numeroGuia}</p>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center justify-between gap-2">
+                                <p className="text-xs font-semibold text-slate-800">{tipoLabel[n.tipo] ?? n.tipo}</p>
+                                <p className="shrink-0 text-[10px] text-slate-400">{new Date(n.createdAt).toLocaleString('es-ES', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
+                              </div>
+                              <p className="text-[11px] font-medium text-primary">Guía {n.guia.numeroGuia}</p>
                               <p className="mt-0.5 line-clamp-2 text-xs text-slate-500">{n.descripcion}</p>
-                              <p className="mt-1 text-[10px] text-slate-400">{new Date(n.createdAt).toLocaleString('es-ES')}</p>
                             </div>
                           </div>
                         </button>
                       ))}
                     </div>
-                    <div className="border-t border-slate-100 px-4 py-2.5">
+
+                    {/* Footer */}
+                    <div className="h-px bg-slate-100" />
+                    <div className="px-5 py-3">
                       <button type="button" onClick={() => { setNotifOpen(false); navigate('/admin/novedades') }}
-                        className="text-xs font-semibold text-primary hover:underline">
-                        Ver todas →
+                        className="flex items-center gap-1 text-xs font-semibold text-primary hover:underline">
+                        Ver todas las novedades
+                        <span className="material-symbols-outlined text-sm">arrow_forward</span>
                       </button>
                     </div>
                   </motion.div>

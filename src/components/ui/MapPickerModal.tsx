@@ -9,6 +9,7 @@ const QUITO: [number, number] = [-78.47, -0.18]
 interface Coords { lat: number; lng: number }
 interface Props {
   initialCoords?: Coords | null
+  initialAddress?: string
   onConfirm: (address: string, coords: Coords) => void
   onClose: () => void
 }
@@ -25,13 +26,13 @@ async function reverseGeocode(lng: number, lat: number): Promise<string> {
   }
 }
 
-export function MapPickerModal({ initialCoords, onConfirm, onClose }: Props) {
+export function MapPickerModal({ initialCoords, initialAddress, onConfirm, onClose }: Props) {
   const mapContainerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<mapboxgl.Map | null>(null)
   const markerRef = useRef<mapboxgl.Marker | null>(null)
-  const [address, setAddress] = useState('')
+  const [address, setAddress] = useState(initialAddress ?? '')
   const [coords, setCoords] = useState<Coords | null>(initialCoords ?? null)
-  const [query, setQuery] = useState('')
+  const [query, setQuery] = useState(initialAddress ?? '')
   const [suggestions, setSuggestions] = useState<{ id: string; place_name: string; center: [number, number] }[]>([])
   const [openSug, setOpenSug] = useState(false)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -56,6 +57,25 @@ export function MapPickerModal({ initialCoords, onConfirm, onClose }: Props) {
       if (initialCoords) {
         placeMarker(map, initialCoords.lng, initialCoords.lat)
         reverseGeocode(initialCoords.lng, initialCoords.lat).then(setAddress)
+      } else if (initialAddress) {
+        // Geocodificar la dirección existente para centrar el mapa y poner el pin
+        fetch(
+          `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(initialAddress)}.json?access_token=${mapboxgl.accessToken}&limit=1&language=es`
+        )
+          .then((r) => r.json())
+          .then((data) => {
+            const feature = data.features?.[0]
+            if (feature) {
+              const [lng, lat] = feature.center as [number, number]
+              const addr = feature.place_name as string
+              setCoords({ lat, lng })
+              setAddress(addr)
+              setQuery(addr)
+              placeMarker(map, lng, lat)
+              map.flyTo({ center: [lng, lat], zoom: 15, duration: 0 })
+            }
+          })
+          .catch(() => {})
       }
     })
 
