@@ -4,7 +4,6 @@ import { SeguimientoChoferStepper } from '../../components/cliente/SeguimientoCh
 import { api } from '../../services/api'
 import { RouteMap } from '../../components/map/RouteMap'
 import type { Stop } from '../../types/models'
-import { useSimulatedRoute } from '../../utils/mapSimulation'
 import { useToastStore } from '../../store/toastStore'
 
 interface GuiaLista {
@@ -53,6 +52,8 @@ export function ClienteRutaTiempoRealPage() {
   const [loadingRuta, setLoadingRuta] = useState(false)
   const [rutaError, setRutaError] = useState(false)
   const [seguimientoActualizadoAt, setSeguimientoActualizadoAt] = useState<string | null>(null)
+  const [choferPosicion, setChoferPosicion] = useState<{ lat: number; lng: number } | null>(null)
+  const [choferGpsAt, setChoferGpsAt] = useState<string | null>(null)
 
   const fetchActivos = useCallback(async () => {
     setLoadingList(true)
@@ -84,6 +85,8 @@ export function ClienteRutaTiempoRealPage() {
     if (!guiaActiva?.rutaId) {
       setRuta(null)
       setRutaError(false)
+      setChoferPosicion(null)
+      setChoferGpsAt(null)
       return
     }
     let cancel = false
@@ -128,6 +131,10 @@ export function ClienteRutaTiempoRealPage() {
       )
       setSeguimientoActualizadoAt(new Date().toISOString())
     })
+    socket.on('posicion_chofer', (p: { lat: number; lng: number; timestamp?: number }) => {
+      setChoferPosicion({ lat: p.lat, lng: p.lng })
+      setChoferGpsAt(p.timestamp ? new Date(p.timestamp).toISOString() : new Date().toISOString())
+    })
     return () => {
       socket.disconnect()
     }
@@ -155,8 +162,8 @@ export function ClienteRutaTiempoRealPage() {
     [stopsRuta, guiaActiva?.stopId],
   )
 
-  const coordinates = useMemo(() => stopsRuta.map((s) => ({ lat: s.lat, lng: s.lng })), [stopsRuta])
-  const { currentPosition } = useSimulatedRoute({ coordinates, intervalMs: 4000 })
+  // Si el chofer no activa GPS, no mostramos el carrito en el mapa del cliente.
+  const currentPosition = choferPosicion
 
   const paradasAnteriores = stopCliente
     ? stopsRuta.filter((s) => s.orden < stopCliente.orden).length
@@ -199,17 +206,24 @@ export function ClienteRutaTiempoRealPage() {
                 <span className="size-2 animate-pulse rounded-full bg-emerald-500" />
                 <span className="text-sm font-semibold text-slate-700">Vista ruta</span>
               </div>
-              <span className="text-xs text-slate-400">Actualización posición demo · 4s</span>
+              <span className="text-xs text-slate-400">
+                {choferGpsAt
+                  ? `GPS chofer · ${new Date(choferGpsAt).toLocaleTimeString('es-ES')}`
+                  : 'GPS del chofer pendiente'}
+              </span>
             </div>
             <div className="h-72 sm:h-96 lg:h-[460px]">
               <RouteMap
                 stops={stopsRuta}
                 currentPosition={currentPosition}
                 highlightedStopId={guiaActiva.stopId}
+                trazarRutaDesdeMiPosicion={!!currentPosition}
               />
             </div>
             <p className="border-t border-slate-100 bg-slate-50 px-3 py-2 text-[10px] text-slate-400">
-              Mapbox · Posición del vehículo simulada en la ruta (WebSocket pendiente)
+              {currentPosition
+                ? 'Mapbox · Ubicación GPS del chofer en tiempo real.'
+                : 'Mapbox · El carrito aparecerá cuando el chofer active su GPS.'}
             </p>
           </div>
 
