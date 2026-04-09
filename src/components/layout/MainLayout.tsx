@@ -161,7 +161,7 @@ export function MainLayout() {
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: -8, scale: 0.97 }}
                     transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] as const }}
-                    className="absolute right-0 top-full z-50 mt-2 w-96 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
+                    className="absolute right-0 top-full z-50 mt-2 w-96 max-w-[calc(100vw-1rem)] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl"
                   >
                     {/* Header */}
                     <div className="flex items-center justify-between px-5 py-4">
