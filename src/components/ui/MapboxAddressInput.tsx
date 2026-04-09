@@ -5,16 +5,15 @@ interface Coords { lat: number; lng: number }
 
 interface Props {
   value: string
+  coords?: Coords | null
   onChange: (value: string, coords?: Coords) => void
   placeholder?: string
 }
 
-export function MapboxAddressInput({ value, onChange, placeholder = 'Seleccionar ubicacion...' }: Props) {
+export function MapboxAddressInput({ value, coords, onChange, placeholder = 'Seleccionar ubicacion...' }: Props) {
   const [open, setOpen] = useState(false)
-  const [coords, setCoords] = useState<Coords | null>(null)
 
   const handleConfirm = (address: string, c: Coords) => {
-    setCoords(c)
     onChange(address, c)
     setOpen(false)
   }
@@ -37,7 +36,8 @@ export function MapboxAddressInput({ value, onChange, placeholder = 'Seleccionar
 
       {open && (
         <MapPickerModal
-          initialCoords={coords}
+          initialCoords={coords ?? null}
+          initialAddress={value || undefined}
           onConfirm={handleConfirm}
           onClose={() => setOpen(false)}
         />

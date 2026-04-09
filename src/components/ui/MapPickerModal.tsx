@@ -56,7 +56,15 @@ export function MapPickerModal({ initialCoords, initialAddress, onConfirm, onClo
     map.on('load', () => {
       if (initialCoords) {
         placeMarker(map, initialCoords.lng, initialCoords.lat)
-        reverseGeocode(initialCoords.lng, initialCoords.lat).then(setAddress)
+        if (initialAddress) {
+          setAddress(initialAddress)
+          setQuery(initialAddress)
+        } else {
+          reverseGeocode(initialCoords.lng, initialCoords.lat).then((addr) => {
+            setAddress(addr)
+            setQuery(addr)
+          })
+        }
       } else if (initialAddress) {
         // Geocodificar la dirección existente para centrar el mapa y poner el pin
         fetch(

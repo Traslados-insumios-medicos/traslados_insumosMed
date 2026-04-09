@@ -51,7 +51,7 @@ interface PaginatedRutas {
   limit: number
 }
 
-interface ClienteOption { id: string; nombre: string; tipo: string; clientePrincipalId?: string | null; clientesSecundarios?: { id: string; nombre: string; direccion?: string; ruc?: string; activo?: boolean }[] }
+interface ClienteOption { id: string; nombre: string; tipo: string; clientePrincipalId?: string | null; clientesSecundarios?: { id: string; nombre: string; direccion?: string; lat?: number | null; lng?: number | null; ruc?: string; activo?: boolean }[] }
 interface ChoferOption { id: string; nombre: string }
 
 interface StopForm {
@@ -138,7 +138,9 @@ export function AdminRutasPage() {
     const principal = clientes.find((c) => c.id === stop.clienteId)
     const sub = principal?.clientesSecundarios?.find((s) => s.id === subClienteId)
     const direccion = sub?.direccion ?? ''
-    setStopsForm((p) => p.map((s, idx) => idx === i ? { ...s, subClienteId, direccion, lat: null, lng: null } : s))
+    const lat = sub?.lat ?? null
+    const lng = sub?.lng ?? null
+    setStopsForm((p) => p.map((s, idx) => idx === i ? { ...s, subClienteId, direccion, lat, lng } : s))
   }
 
   const handleDireccionChange = (i: number, direccion: string, coords?: { lat: number; lng: number }) => {
@@ -333,8 +335,9 @@ export function AdminRutasPage() {
                         })()}
                         {/* Dirección con autocomplete Mapbox */}
                         <MapboxAddressInput
-                          key={s.direccion || `stop-${i}`}
+                          key={`stop-${i}`}
                           value={s.direccion}
+                          coords={s.lat !== null && s.lng !== null ? { lat: s.lat, lng: s.lng } : null}
                           onChange={(dir, coords) => handleDireccionChange(i, dir, coords)}
                         />
                         {s.lat !== null && (
