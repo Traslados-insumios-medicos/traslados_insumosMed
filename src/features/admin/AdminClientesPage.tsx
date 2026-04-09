@@ -179,10 +179,15 @@ export function AdminClientesPage() {
     setDeleteClienteSubmitting(true)
     try {
       await api.delete(`/clientes/${c.id}`)
-      setClientes((prev) => prev.filter((x) => x.id !== c.id))
+      setExpandedPrincipales((prev) => {
+        const next = new Set(prev)
+        next.delete(c.id)
+        return next
+      })
       if (detailId === c.id) closeDetail()
-      addToast('Cliente eliminado', 'success')
+      addToast(c.tipo === 'PRINCIPAL' ? 'Cliente y datos vinculados eliminados' : 'Cliente eliminado', 'success')
       setDeleteConfirmCliente(null)
+      await fetchClientes(page)
     } catch (err: unknown) {
       const status = (err as { response?: { status?: number; data?: { message?: string } } })?.response?.status
       const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
@@ -447,8 +452,13 @@ export function AdminClientesPage() {
             </div>
             <div className="space-y-4 p-6">
               <p className="text-sm text-slate-600">
-                ¿Eliminar definitivamente a <span className="font-semibold text-slate-900">{deleteConfirmCliente.nombre}</span>? Se borrará de la base de datos.
+                ¿Eliminar definitivamente a <span className="font-semibold text-slate-900">{deleteConfirmCliente.nombre}</span>? Se eliminan también guías, paradas y usuarios de panel cliente asociados a este registro.
               </p>
+              {deleteConfirmCliente.tipo === 'PRINCIPAL' && (deleteConfirmCliente.clientesSecundarios?.length ?? 0) > 0 && (
+                <p className="text-xs font-medium text-amber-700">
+                  Es principal: también se eliminarán todos sus clientes secundarios ({deleteConfirmCliente.clientesSecundarios!.length}) y sus datos vinculados.
+                </p>
+              )}
               <p className="text-xs text-slate-500">
                 Para solo desactivar el acceso, use el interruptor en la columna Estado.
               </p>
