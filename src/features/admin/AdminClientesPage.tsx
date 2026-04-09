@@ -57,6 +57,8 @@ export function AdminClientesPage() {
   const [detailId, setDetailId] = useState<string | null>(null)
   const [detailCliente, setDetailCliente] = useState<Cliente | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
+  const [deleteConfirmCliente, setDeleteConfirmCliente] = useState<Cliente | null>(null)
+  const [deleteClienteSubmitting, setDeleteClienteSubmitting] = useState(false)
 
   // Errores de validación
   const [nombreError, setNombreError] = useState('')
@@ -169,18 +171,30 @@ export function AdminClientesPage() {
     setDetailCliente(null)
   }
 
-  const handleDeleteCliente = async (c: Cliente) => {
-    if (!window.confirm(`¿Eliminar definitivamente a "${c.nombre}"?`)) return
+  const openDeleteClienteModal = (c: Cliente) => setDeleteConfirmCliente(c)
+
+  const executeDeleteCliente = async () => {
+    const c = deleteConfirmCliente
+    if (!c) return
+    setDeleteClienteSubmitting(true)
     try {
       await api.delete(`/clientes/${c.id}`)
-      setClientes((prev) => prev.filter((x) => x.id !== c.id))
+      setExpandedPrincipales((prev) => {
+        const next = new Set(prev)
+        next.delete(c.id)
+        return next
+      })
       if (detailId === c.id) closeDetail()
-      addToast('Cliente eliminado', 'success')
+      addToast(c.tipo === 'PRINCIPAL' ? 'Cliente y datos vinculados eliminados' : 'Cliente eliminado', 'success')
+      setDeleteConfirmCliente(null)
+      await fetchClientes(page)
     } catch (err: unknown) {
       const status = (err as { response?: { status?: number; data?: { message?: string } } })?.response?.status
       const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
       if (status === 409 && message) addToast(message, 'error')
       else addToast('No se pudo eliminar el cliente', 'error')
+    } finally {
+      setDeleteClienteSubmitting(false)
     }
   }
 
@@ -260,7 +274,7 @@ export function AdminClientesPage() {
       <button type="button" onClick={(e) => { e.stopPropagation(); handleEdit(c) }} className={actionIconClass} title="Editar" aria-label="Editar">
         <span className="material-symbols-outlined text-base">edit</span>
       </button>
-      <button type="button" onClick={(e) => { e.stopPropagation(); void handleDeleteCliente(c) }} className={`${actionIconClass} hover:text-red-600 hidden sm:inline-flex`} title="Eliminar de la base de datos" aria-label="Eliminar de la base de datos">
+      <button type="button" onClick={(e) => { e.stopPropagation(); openDeleteClienteModal(c) }} className={`${actionIconClass} hover:text-red-600`} title="Eliminar de la base de datos" aria-label="Eliminar de la base de datos">
         <span className="material-symbols-outlined text-base">delete</span>
       </button>
     </>
@@ -421,6 +435,43 @@ export function AdminClientesPage() {
               <div className="flex justify-end">
                 <button type="button" onClick={() => { setPasswordModal(null); setCopied(false) }}
                   className="rounded-lg bg-primary px-5 py-2.5 text-sm font-bold text-white hover:bg-primary/90">Entendido</button>
+              </div>
+            </div>
+          </>
+        )}
+      </ModalMotion>
+
+      <ModalMotion show={!!deleteConfirmCliente} backdropClassName="bg-black/50" panelClassName="w-full max-w-md rounded-2xl bg-white shadow-2xl">
+        {deleteConfirmCliente && (
+          <>
+            <div className="flex items-center justify-between border-b border-slate-200 p-6">
+              <h3 className="text-lg font-bold text-slate-900">Eliminar cliente</h3>
+              <button type="button" onClick={() => !deleteClienteSubmitting && setDeleteConfirmCliente(null)} className="text-slate-400 hover:text-slate-600 disabled:opacity-40" aria-label="Cerrar">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <div className="space-y-4 p-6">
+              <p className="text-sm text-slate-600">
+                ¿Eliminar definitivamente a <span className="font-semibold text-slate-900">{deleteConfirmCliente.nombre}</span>? Se eliminan en la base todas sus guías y paradas, el usuario de panel cliente si existe y <span className="font-semibold">cualquier ruta que quede vacía</span> (sin paradas) con todo lo vinculado. Rutas compartidas con otros clientes siguen si los demás puntos permanecen.
+              </p>
+              {deleteConfirmCliente.tipo === 'PRINCIPAL' && (deleteConfirmCliente.clientesSecundarios?.length ?? 0) > 0 && (
+                <p className="text-xs font-medium text-amber-700">
+                  Es principal: también se eliminarán todos sus clientes secundarios ({deleteConfirmCliente.clientesSecundarios!.length}) y sus datos vinculados.
+                </p>
+              )}
+              <p className="text-xs text-slate-500">
+                Para solo desactivar el acceso, use el interruptor en la columna Estado.
+              </p>
+              <div className="flex flex-wrap justify-end gap-3 border-t border-slate-200 pt-4">
+                <button type="button" disabled={deleteClienteSubmitting} onClick={() => setDeleteConfirmCliente(null)}
+                  className="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50">
+                  Cancelar
+                </button>
+                <button type="button" disabled={deleteClienteSubmitting} onClick={() => void executeDeleteCliente()}
+                  className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-60">
+                  {deleteClienteSubmitting && <span className="material-symbols-outlined animate-spin text-base">progress_activity</span>}
+                  Eliminar
+                </button>
               </div>
             </div>
           </>

@@ -83,6 +83,8 @@ export function AdminRutasPage() {
   const [submitting, setSubmitting] = useState(false)
 
   const [selectedStop, setSelectedStop] = useState<StopApi | null>(null)
+  const [deleteConfirmRuta, setDeleteConfirmRuta] = useState<RutaApi | null>(null)
+  const [deleteRutaSubmitting, setDeleteRutaSubmitting] = useState(false)
 
   // form
   const [choferId, setChoferId] = useState('')
@@ -172,6 +174,26 @@ export function AdminRutasPage() {
     }
   }
 
+  const openDeleteRutaModal = (r: RutaApi) => setDeleteConfirmRuta(r)
+
+  const executeDeleteRuta = async () => {
+    const r = deleteConfirmRuta
+    if (!r) return
+    setDeleteRutaSubmitting(true)
+    try {
+      await api.delete(`/rutas/${r.id}`)
+      addToast('Ruta eliminada', 'success')
+      setDeleteConfirmRuta(null)
+      if (rutaExpandidaId === r.id) setRutaExpandidaId(null)
+      setSelectedStop((prev) => (prev && r.stops.some((s) => s.id === prev.id) ? null : prev))
+      await fetchRutas(page)
+    } catch {
+      addToast('No se pudo eliminar la ruta', 'error')
+    } finally {
+      setDeleteRutaSubmitting(false)
+    }
+  }
+
   const estadoBadge = (estado: string) => {
     const base = 'rounded-full px-2.5 py-1 text-xs font-semibold'
     if (estado === 'EN_CURSO') return `${base} bg-emerald-100 text-emerald-700`
@@ -198,6 +220,35 @@ export function AdminRutasPage() {
           Nueva Ruta
         </button>
       </div>
+
+      <ModalMotion show={!!deleteConfirmRuta} backdropClassName="bg-black/50" panelClassName="w-full max-w-md rounded-2xl bg-white shadow-2xl">
+        {deleteConfirmRuta && (
+          <>
+            <div className="flex items-center justify-between border-b border-slate-200 p-6">
+              <h3 className="text-lg font-bold text-slate-900">Eliminar ruta</h3>
+              <button type="button" onClick={() => !deleteRutaSubmitting && setDeleteConfirmRuta(null)} className="text-slate-400 hover:text-slate-600 disabled:opacity-40" aria-label="Cerrar">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <div className="space-y-4 p-6">
+              <p className="text-sm text-slate-600">
+                ¿Eliminar la ruta <span className="font-semibold text-slate-900">#{deleteConfirmRuta.id.slice(-6)}</span> de <span className="font-semibold">{deleteConfirmRuta.chofer.nombre}</span>? Se borran en la base todas las paradas, guías, fotos y el seguimiento asociado. El chofer no se elimina.
+              </p>
+              <div className="flex flex-wrap justify-end gap-3 border-t border-slate-200 pt-4">
+                <button type="button" disabled={deleteRutaSubmitting} onClick={() => setDeleteConfirmRuta(null)}
+                  className="rounded-lg border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-50">
+                  Cancelar
+                </button>
+                <button type="button" disabled={deleteRutaSubmitting} onClick={() => void executeDeleteRuta()}
+                  className="flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-red-700 disabled:opacity-60">
+                  {deleteRutaSubmitting && <span className="material-symbols-outlined animate-spin text-base">progress_activity</span>}
+                  Eliminar
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+      </ModalMotion>
 
       {/* Modal nueva ruta */}
       <ModalMotion
@@ -344,28 +395,39 @@ export function AdminRutasPage() {
             const expandida = rutaExpandidaId === ruta.id
             return (
               <div key={ruta.id} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                <button
-                  type="button"
-                  onClick={() => setRutaExpandidaId(expandida ? null : ruta.id)}
-                  className="flex w-full items-center justify-between gap-4 p-4 text-left hover:bg-slate-50"
-                >
-                  <div className="flex min-w-0 flex-wrap items-center gap-3">
-                    <span className="material-symbols-outlined text-primary">route</span>
-                    <div>
-                      <p className="font-bold text-slate-900">Ruta #{ruta.id.slice(-6)}</p>
-                      <p className="text-sm text-slate-500">
-                        {ruta.chofer.nombre} · {ruta.stops.length} paradas · {ruta.stops.reduce((acc, s) => acc + s.guias.length, 0)} guías
-                      </p>
+                <div className="flex w-full items-stretch gap-1 p-4 hover:bg-slate-50">
+                  <button
+                    type="button"
+                    onClick={() => setRutaExpandidaId(expandida ? null : ruta.id)}
+                    className="flex min-w-0 flex-1 items-center justify-between gap-4 text-left"
+                  >
+                    <div className="flex min-w-0 flex-wrap items-center gap-3">
+                      <span className="material-symbols-outlined text-primary">route</span>
+                      <div>
+                        <p className="font-bold text-slate-900">Ruta #{ruta.id.slice(-6)}</p>
+                        <p className="text-sm text-slate-500">
+                          {ruta.chofer.nombre} · {ruta.stops.length} paradas · {ruta.stops.reduce((acc, s) => acc + s.guias.length, 0)} guías
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex flex-shrink-0 items-center gap-3">
-                    <span className="text-sm text-slate-500">
-                      {new Date(ruta.fecha).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}
-                    </span>
-                    <span className={estadoBadge(ruta.estado)}>{ruta.estado}</span>
-                    <span className={`material-symbols-outlined text-slate-400 transition-transform ${expandida ? 'rotate-180' : ''}`}>expand_more</span>
-                  </div>
-                </button>
+                    <div className="flex shrink-0 items-center gap-3">
+                      <span className="text-sm text-slate-500">
+                        {new Date(ruta.fecha).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </span>
+                      <span className={estadoBadge(ruta.estado)}>{ruta.estado}</span>
+                      <span className={`material-symbols-outlined text-slate-400 transition-transform ${expandida ? 'rotate-180' : ''}`}>expand_more</span>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); openDeleteRutaModal(ruta) }}
+                    className="flex shrink-0 items-center justify-center rounded-lg px-2 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
+                    title="Eliminar ruta"
+                    aria-label="Eliminar ruta de la base de datos"
+                  >
+                    <span className="material-symbols-outlined text-xl">delete</span>
+                  </button>
+                </div>
 
                 {expandida && (
                   <div className="border-t border-slate-200 p-4">
