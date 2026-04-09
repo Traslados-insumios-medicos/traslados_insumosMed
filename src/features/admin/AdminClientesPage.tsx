@@ -8,6 +8,7 @@ type TipoCliente = 'PRINCIPAL' | 'SECUNDARIO'
 interface ClientePrincipalRef { id: string; nombre: string }
 interface Cliente {
   id: string; nombre: string; ruc: string; direccion: string
+  lat?: number | null; lng?: number | null
   telefonoContacto?: string | null; emailContacto?: string | null
   activo: boolean; tipo: TipoCliente; clientePrincipalId?: string | null
   clientePrincipal?: ClientePrincipalRef | null
@@ -43,7 +44,7 @@ export function AdminClientesPage() {
   const [nombre, setNombre] = useState('')
   const [ruc, setRuc] = useState('')
   const [direccion, setDireccion] = useState('')
-  const [, setCoordsDireccion] = useState<{ lat: number; lng: number } | null>(null)
+  const [coordsDireccion, setCoordsDireccion] = useState<{ lat: number; lng: number } | null>(null)
   const [telefono, setTelefono] = useState('')
   const [emailContacto, setEmailContacto] = useState('')
   const [tipo, setTipo] = useState<TipoCliente>('SECUNDARIO')
@@ -137,7 +138,9 @@ export function AdminClientesPage() {
 
   const handleEdit = (c: Cliente) => {
     setEditingId(c.id); setNombre(c.nombre); setRuc(c.ruc)
-    setDireccion(c.direccion); setCoordsDireccion(null); setTelefono(c.telefonoContacto ?? '')
+    setDireccion(c.direccion)
+    setCoordsDireccion(c.lat && c.lng ? { lat: c.lat, lng: c.lng } : null)
+    setTelefono(c.telefonoContacto ?? '')
     setEmailContacto(c.emailContacto ?? ''); setTipo(c.tipo)
     setClientePrincipalId(c.clientePrincipalId ?? '')
     setCrearUsuario(false); setUsuarioNombre(''); setUsuarioEmail('')
@@ -208,7 +211,10 @@ export function AdminClientesPage() {
     try {
       if (editingId) {
         const res = await api.put<Cliente>(`/clientes/${editingId}`, {
-          nombre, direccion, telefonoContacto: telefono || undefined,
+          nombre, direccion,
+          lat: coordsDireccion?.lat ?? undefined,
+          lng: coordsDireccion?.lng ?? undefined,
+          telefonoContacto: telefono || undefined,
           emailContacto: emailContacto || undefined, tipo,
           clientePrincipalId: tipo === 'SECUNDARIO' ? (clientePrincipalId || undefined) : undefined,
         })
@@ -218,7 +224,10 @@ export function AdminClientesPage() {
         resetForm()
       } else {
         const clienteRes = await api.post<Cliente>('/clientes', {
-          nombre, ruc, direccion, telefonoContacto: telefono || undefined,
+          nombre, ruc, direccion,
+          lat: coordsDireccion?.lat ?? undefined,
+          lng: coordsDireccion?.lng ?? undefined,
+          telefonoContacto: telefono || undefined,
           emailContacto: emailContacto || undefined, tipo,
           clientePrincipalId: tipo === 'SECUNDARIO' ? (clientePrincipalId || undefined) : undefined,
         })
@@ -358,6 +367,7 @@ export function AdminClientesPage() {
             <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Dirección *</label>
             <MapboxAddressInput
               value={direccion}
+              coords={coordsDireccion}
               onChange={(val, coords) => { setDireccion(val); if (coords) setCoordsDireccion(coords) }}
             />
           </div>
