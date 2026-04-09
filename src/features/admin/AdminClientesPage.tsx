@@ -20,7 +20,7 @@ function ToggleActivo({ activo, onToggle }: { activo: boolean; onToggle: () => v
   const base = 'relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2'
   const thumb = 'pointer-events-none inline-block size-3.5 rounded-full bg-white shadow-sm transition-transform duration-200'
   return (
-    <button type="button" role="switch" aria-checked={activo} onClick={onToggle}
+    <button type="button" role="switch" aria-checked={activo} onClick={(e) => { e.stopPropagation(); onToggle() }}
       className={`${base} ${activo ? 'bg-emerald-500' : 'bg-slate-200'}`}>
       <span className={`${thumb} ${activo ? 'translate-x-4' : 'translate-x-0'}`} />
     </button>
@@ -254,13 +254,13 @@ export function AdminClientesPage() {
   const actionIconClass = 'rounded p-1 text-slate-400 transition-colors hover:text-primary'
   const rowActions = (c: Cliente) => (
     <>
-      <button type="button" onClick={() => openDetail(c.id)} className={actionIconClass} title="Ver detalle" aria-label="Ver detalle">
+      <button type="button" onClick={(e) => { e.stopPropagation(); openDetail(c.id) }} className={actionIconClass} title="Ver detalle" aria-label="Ver detalle">
         <span className="material-symbols-outlined text-base">visibility</span>
       </button>
-      <button type="button" onClick={() => handleEdit(c)} className={actionIconClass} title="Editar" aria-label="Editar">
+      <button type="button" onClick={(e) => { e.stopPropagation(); handleEdit(c) }} className={actionIconClass} title="Editar" aria-label="Editar">
         <span className="material-symbols-outlined text-base">edit</span>
       </button>
-      <button type="button" onClick={() => void handleDeleteCliente(c)} className={`${actionIconClass} hover:text-red-600`} title="Eliminar" aria-label="Eliminar">
+      <button type="button" onClick={(e) => { e.stopPropagation(); void handleDeleteCliente(c) }} className={`${actionIconClass} hover:text-red-600`} title="Eliminar de la base de datos" aria-label="Eliminar de la base de datos">
         <span className="material-symbols-outlined text-base">delete</span>
       </button>
     </>

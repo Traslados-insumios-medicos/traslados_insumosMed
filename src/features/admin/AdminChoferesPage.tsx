@@ -10,7 +10,7 @@ interface PasswordModalData { choferNombre: string; password: string }
 
 function ToggleActivo({ activo, onToggle }: { activo: boolean; onToggle: () => void }) {
   return (
-    <button type="button" role="switch" aria-checked={activo} onClick={onToggle}
+    <button type="button" role="switch" aria-checked={activo} onClick={(e) => { e.stopPropagation(); onToggle() }}
       className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${activo ? 'bg-emerald-500' : 'bg-slate-200'}`}>
       <span className={`pointer-events-none inline-block size-3.5 rounded-full bg-white shadow-sm transition-transform duration-200 ${activo ? 'translate-x-4' : 'translate-x-0'}`} />
     </button>
@@ -106,9 +106,18 @@ export function AdminChoferesPage() {
   }
 
   const handleEliminarChofer = async (ch: Chofer) => {
-    if (!ch.activo) return
-    if (!window.confirm(`¿Dar de baja al chofer "${ch.nombre}"?`)) return
-    await handleToggleActivo(ch.id)
+    if (!window.confirm(`¿Eliminar definitivamente a "${ch.nombre}"? Se borrará de la base de datos. Para solo desactivar el acceso, use el interruptor en Estado.`)) return
+    try {
+      await api.delete(`/usuarios/${ch.id}`)
+      addToast('Chofer eliminado', 'success')
+      if (detailId === ch.id) closeDetail()
+      await fetchChoferes(page)
+    } catch (err: unknown) {
+      const status = (err as { response?: { status?: number; data?: { message?: string } } })?.response?.status
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      if (status === 409 && message) addToast(message, 'error')
+      else addToast('No se pudo eliminar el chofer', 'error')
+    }
   }
 
   const handleSubmit = async (e: FormEvent) => {
@@ -314,20 +323,19 @@ export function AdminChoferesPage() {
                   </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-1">
-                      <button type="button" onClick={() => openDetail(ch.id)}
+                      <button type="button" onClick={(e) => { e.stopPropagation(); openDetail(ch.id) }}
                         className="rounded p-1 text-slate-400 transition-colors hover:text-primary"
                         title="Ver detalle" aria-label="Ver detalle">
                         <span className="material-symbols-outlined text-base">visibility</span>
                       </button>
-                      <button type="button" onClick={() => handleEdit(ch)}
+                      <button type="button" onClick={(e) => { e.stopPropagation(); handleEdit(ch) }}
                         className="rounded p-1 text-slate-400 transition-colors hover:text-primary"
                         title="Editar" aria-label="Editar">
                         <span className="material-symbols-outlined text-base">edit</span>
                       </button>
-                      <button type="button" onClick={() => void handleEliminarChofer(ch)}
-                        disabled={!ch.activo}
-                        className="rounded p-1 text-slate-400 transition-colors hover:text-red-600 disabled:opacity-30 disabled:hover:text-slate-400"
-                        title={ch.activo ? 'Eliminar / dar de baja' : 'Ya inactivo'} aria-label="Eliminar / dar de baja">
+                      <button type="button" onClick={(e) => { e.stopPropagation(); void handleEliminarChofer(ch) }}
+                        className="rounded p-1 text-slate-400 transition-colors hover:text-red-600"
+                        title="Eliminar de la base de datos" aria-label="Eliminar de la base de datos">
                         <span className="material-symbols-outlined text-base">delete</span>
                       </button>
                     </div>
