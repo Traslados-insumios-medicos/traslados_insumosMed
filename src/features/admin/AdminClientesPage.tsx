@@ -54,6 +54,9 @@ export function AdminClientesPage() {
   const [passwordModal, setPasswordModal] = useState<PasswordModalData | null>(null)
   const [copied, setCopied] = useState(false)
   const [expandedPrincipales, setExpandedPrincipales] = useState<Set<string>>(new Set())
+  const [detailId, setDetailId] = useState<string | null>(null)
+  const [detailCliente, setDetailCliente] = useState<Cliente | null>(null)
+  const [detailLoading, setDetailLoading] = useState(false)
 
   // Errores de validación
   const [nombreError, setNombreError] = useState('')
@@ -150,6 +153,36 @@ export function AdminClientesPage() {
     }
   }
 
+  const openDetail = (id: string) => {
+    setDetailId(id)
+    setDetailCliente(null)
+    setDetailLoading(true)
+    api.get<Cliente>(`/clientes/${id}`)
+      .then((r) => setDetailCliente(r.data))
+      .catch(() => { addToast('Error al cargar detalle', 'error'); setDetailId(null) })
+      .finally(() => setDetailLoading(false))
+  }
+
+  const closeDetail = () => {
+    setDetailId(null)
+    setDetailCliente(null)
+  }
+
+  const handleDeleteCliente = async (c: Cliente) => {
+    if (!window.confirm(`¿Eliminar definitivamente a "${c.nombre}"?`)) return
+    try {
+      await api.delete(`/clientes/${c.id}`)
+      setClientes((prev) => prev.filter((x) => x.id !== c.id))
+      if (detailId === c.id) closeDetail()
+      addToast('Cliente eliminado', 'success')
+    } catch (err: unknown) {
+      const status = (err as { response?: { status?: number; data?: { message?: string } } })?.response?.status
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      if (status === 409 && message) addToast(message, 'error')
+      else addToast('No se pudo eliminar el cliente', 'error')
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!nombre || !ruc || !direccion) return
@@ -214,6 +247,21 @@ export function AdminClientesPage() {
     }
     return Array.from(grupos.values())
   }
+
+  const actionIconClass = 'rounded p-1 text-slate-400 transition-colors hover:text-primary'
+  const rowActions = (c: Cliente) => (
+    <>
+      <button type="button" onClick={() => openDetail(c.id)} className={actionIconClass} title="Ver detalle" aria-label="Ver detalle">
+        <span className="material-symbols-outlined text-base">visibility</span>
+      </button>
+      <button type="button" onClick={() => handleEdit(c)} className={actionIconClass} title="Editar" aria-label="Editar">
+        <span className="material-symbols-outlined text-base">edit</span>
+      </button>
+      <button type="button" onClick={() => void handleDeleteCliente(c)} className={`${actionIconClass} hover:text-red-600`} title="Eliminar" aria-label="Eliminar">
+        <span className="material-symbols-outlined text-base">delete</span>
+      </button>
+    </>
+  )
 
 
   return (
@@ -376,6 +424,40 @@ export function AdminClientesPage() {
         )}
       </ModalMotion>
 
+      <ModalMotion show={!!detailId} backdropClassName="bg-black/50" panelClassName="w-full max-w-lg rounded-2xl bg-white shadow-2xl">
+        <div className="flex items-center justify-between border-b border-slate-200 p-6">
+          <h3 className="text-lg font-bold text-slate-900">Detalle del cliente</h3>
+          <button type="button" onClick={closeDetail} className="text-slate-400 hover:text-slate-600" aria-label="Cerrar detalle">
+            <span className="material-symbols-outlined">close</span>
+          </button>
+        </div>
+        <div className="space-y-4 p-6">
+          {detailLoading && (
+            <div className="flex items-center justify-center py-8">
+              <span className="material-symbols-outlined animate-spin text-3xl text-primary">progress_activity</span>
+            </div>
+          )}
+          {!detailLoading && detailCliente && (
+            <>
+              <dl className="grid gap-3 sm:grid-cols-2">
+                <div><dt className="text-xs font-semibold text-slate-400">Nombre</dt><dd className="text-sm text-slate-900">{detailCliente.nombre}</dd></div>
+                <div><dt className="text-xs font-semibold text-slate-400">RUC</dt><dd className="text-sm text-slate-900">{detailCliente.ruc}</dd></div>
+                <div><dt className="text-xs font-semibold text-slate-400">Tipo</dt><dd className="text-sm text-slate-900">{detailCliente.tipo}</dd></div>
+                <div><dt className="text-xs font-semibold text-slate-400">Estado</dt><dd className="text-sm text-slate-900">{detailCliente.activo ? 'Activo' : 'Inactivo'}</dd></div>
+                <div className="sm:col-span-2"><dt className="text-xs font-semibold text-slate-400">Dirección</dt><dd className="text-sm text-slate-900">{detailCliente.direccion}</dd></div>
+                <div><dt className="text-xs font-semibold text-slate-400">Teléfono</dt><dd className="text-sm text-slate-900">{detailCliente.telefonoContacto ?? '—'}</dd></div>
+                <div><dt className="text-xs font-semibold text-slate-400">Email</dt><dd className="text-sm text-slate-900">{detailCliente.emailContacto ?? '—'}</dd></div>
+              </dl>
+              <div className="flex justify-end">
+                <button type="button" onClick={closeDetail} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50">
+                  Cerrar
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </ModalMotion>
+
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
         {loading ? (
           <div className="flex items-center justify-center py-20">
@@ -397,7 +479,9 @@ export function AdminClientesPage() {
                   </div>
                   <div className="flex shrink-0 items-center gap-3">
                     <ToggleActivo activo={c.activo} onToggle={() => handleToggleActivo(c.id)} />
-                    <button type="button" onClick={() => handleEdit(c)} className="rounded p-1 text-slate-400 transition-colors hover:text-primary"><span className="material-symbols-outlined text-base">edit</span></button>
+                    <div className="flex items-center gap-1">
+                      {rowActions(c)}
+                    </div>
                   </div>
                 </div>
               ))}
@@ -426,7 +510,9 @@ export function AdminClientesPage() {
                     <td className="px-6 py-4 text-slate-500">{c.ruc}</td>
                     <td className="px-6 py-4"><ToggleActivo activo={c.activo} onToggle={() => handleToggleActivo(c.id)} /></td>
                     <td className="px-6 py-4">
-                      <button type="button" onClick={() => handleEdit(c)} className="rounded p-1 text-slate-400 transition-colors hover:text-primary"><span className="material-symbols-outlined text-base">edit</span></button>
+                      <div className="flex items-center gap-1">
+                        {rowActions(c)}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -453,7 +539,9 @@ export function AdminClientesPage() {
                       </div>
                       <div className="flex shrink-0 items-center gap-3">
                         <ToggleActivo activo={c.activo} onToggle={() => handleToggleActivo(c.id)} />
-                        <button type="button" onClick={() => handleEdit(c)} className="rounded p-1 text-slate-400 transition-colors hover:text-primary"><span className="material-symbols-outlined text-base">edit</span></button>
+                        <div className="flex items-center gap-1">
+                          {rowActions(c)}
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -497,7 +585,9 @@ export function AdminClientesPage() {
                         <td className="px-6 py-4 text-slate-500">{c.ruc}</td>
                         <td className="px-6 py-4"><ToggleActivo activo={c.activo} onToggle={() => handleToggleActivo(c.id)} /></td>
                         <td className="px-6 py-4">
-                          <button type="button" onClick={() => handleEdit(c)} className="rounded p-1 text-slate-400 transition-colors hover:text-primary"><span className="material-symbols-outlined text-base">edit</span></button>
+                          <div className="flex items-center gap-1">
+                            {rowActions(c)}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -524,7 +614,9 @@ export function AdminClientesPage() {
                       </div>
                       <div className="flex shrink-0 items-center gap-2">
                         <ToggleActivo activo={c.activo} onToggle={() => handleToggleActivo(c.id)} />
-                        <button type="button" onClick={() => handleEdit(c)} className="rounded p-1 text-slate-400 transition-colors hover:text-primary"><span className="material-symbols-outlined text-base">edit</span></button>
+                        <div className="flex items-center gap-1">
+                          {rowActions(c)}
+                        </div>
                         {secundarios.length > 0 && (
                           <button type="button" onClick={() => toggleExpand(c.id)} className="text-slate-400">
                             <span className="material-symbols-outlined text-base transition-transform duration-200"
@@ -581,7 +673,7 @@ export function AdminClientesPage() {
                         <td className="px-6 py-4"><ToggleActivo activo={c.activo} onToggle={() => handleToggleActivo(c.id)} /></td>
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-3">
-                            <button type="button" onClick={() => handleEdit(c)} className="rounded p-1 text-slate-400 transition-colors hover:text-primary"><span className="material-symbols-outlined text-base">edit</span></button>
+                            {rowActions(c)}
                             {secundarios.length > 0 && (
                               <button type="button" onClick={() => toggleExpand(c.id)} className="text-slate-400 hover:text-slate-600 transition-colors">
                                 <span className="material-symbols-outlined text-base transition-transform duration-200"
