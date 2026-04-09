@@ -198,7 +198,9 @@ export function AdminClientesPage() {
           clientePrincipalId: tipo === 'SECUNDARIO' ? (clientePrincipalId || undefined) : undefined,
         })
         setClientes((prev) => prev.map((c) => (c.id === editingId ? res.data : c)))
-        addToast('Cliente actualizado', 'success'); resetForm()
+        addToast('Cliente actualizado', 'success')
+        await fetchClientes(page)
+        resetForm()
       } else {
         const clienteRes = await api.post<Cliente>('/clientes', {
           nombre, ruc, direccion, telefonoContacto: telefono || undefined,
@@ -444,7 +446,20 @@ export function AdminClientesPage() {
                 <div><dt className="text-xs font-semibold text-slate-400">RUC</dt><dd className="text-sm text-slate-900">{detailCliente.ruc}</dd></div>
                 <div><dt className="text-xs font-semibold text-slate-400">Tipo</dt><dd className="text-sm text-slate-900">{detailCliente.tipo}</dd></div>
                 <div><dt className="text-xs font-semibold text-slate-400">Estado</dt><dd className="text-sm text-slate-900">{detailCliente.activo ? 'Activo' : 'Inactivo'}</dd></div>
-                <div className="sm:col-span-2"><dt className="text-xs font-semibold text-slate-400">Dirección</dt><dd className="text-sm text-slate-900">{detailCliente.direccion}</dd></div>
+                <div className="sm:col-span-2">
+                  <dt className="text-xs font-semibold text-slate-400">Dirección</dt>
+                  <dd className="mt-1 text-sm text-slate-900">{detailCliente.direccion}</dd>
+                  {detailCliente.direccion && (
+                    <div className="mt-2 overflow-hidden rounded-lg border border-slate-200">
+                      <img
+                        src={`https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/pin-s+0f172a(${encodeURIComponent(detailCliente.direccion)})/auto/400x180@2x?access_token=${import.meta.env.VITE_MAPBOX_TOKEN}`}
+                        alt="Mapa de ubicación"
+                        className="w-full object-cover"
+                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                      />
+                    </div>
+                  )}
+                </div>
                 <div><dt className="text-xs font-semibold text-slate-400">Teléfono</dt><dd className="text-sm text-slate-900">{detailCliente.telefonoContacto ?? '—'}</dd></div>
                 <div><dt className="text-xs font-semibold text-slate-400">Email</dt><dd className="text-sm text-slate-900">{detailCliente.emailContacto ?? '—'}</dd></div>
               </dl>
