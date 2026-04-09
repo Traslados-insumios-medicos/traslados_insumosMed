@@ -17,7 +17,14 @@ api.interceptors.response.use(
   (error) => {
     const isLoginEndpoint = error.config?.url?.includes('/auth/login')
     const hadToken = !!localStorage.getItem('token')
+    const backendMessage = String(error?.response?.data?.message ?? '')
+    const isInactive = backendMessage.toLowerCase().includes('inactivo')
     if (error.response?.status === 401 && !isLoginEndpoint && hadToken) {
+      localStorage.clear()
+      window.location.href = '/login'
+    }
+    if (error.response?.status === 403 && hadToken && isInactive) {
+      sessionStorage.setItem('inactive_access_notice', backendMessage || 'Su acceso está inactivo. Contacte al administrador de la empresa.')
       localStorage.clear()
       window.location.href = '/login'
     }
