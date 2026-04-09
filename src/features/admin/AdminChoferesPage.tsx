@@ -4,6 +4,7 @@ import { api } from '../../services/api'
 import { useToastStore } from '../../store/toastStore'
 
 interface Chofer { id: string; nombre: string; email: string; cedula?: string | null; activo: boolean }
+interface ChoferDetalle extends Chofer { rol: string; clienteId?: string | null }
 interface PaginatedResponse { data: Chofer[]; total: number; page: number; limit: number }
 interface PasswordModalData { choferNombre: string; password: string }
 
@@ -35,6 +36,9 @@ export function AdminChoferesPage() {
   const [emailError, setEmailError] = useState('')
   const [passwordModal, setPasswordModal] = useState<PasswordModalData | null>(null)
   const [copied, setCopied] = useState(false)
+  const [detailId, setDetailId] = useState<string | null>(null)
+  const [detailChofer, setDetailChofer] = useState<ChoferDetalle | null>(null)
+  const [detailLoading, setDetailLoading] = useState(false)
 
   const NOMBRE_REGEX = /^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]*$/
   const CEDULA_REGEX = /^\d{0,10}$/
@@ -78,6 +82,17 @@ export function AdminChoferesPage() {
 
   const handleEdit = (ch: Chofer) => { setEditingId(ch.id); setNombre(ch.nombre); setCedula(ch.cedula ?? ''); setEmail(ch.email); setShowModal(true) }
 
+  const openDetail = (id: string) => {
+    setDetailId(id)
+    setDetailChofer(null)
+    setDetailLoading(true)
+    api.get<ChoferDetalle>(`/usuarios/${id}`)
+      .then((r) => setDetailChofer(r.data))
+      .catch(() => { addToast('No se pudo cargar detalle', 'error'); setDetailId(null) })
+      .finally(() => setDetailLoading(false))
+  }
+  const closeDetail = () => { setDetailId(null); setDetailChofer(null) }
+
   const handleToggleActivo = async (id: string) => {
     setChoferes((prev) => prev.map((ch) => ch.id === id ? { ...ch, activo: !ch.activo } : ch))
     try {
@@ -87,6 +102,12 @@ export function AdminChoferesPage() {
       setChoferes((prev) => prev.map((ch) => ch.id === id ? { ...ch, activo: !ch.activo } : ch))
       addToast('Error al cambiar estado', 'error')
     }
+  }
+
+  const handleEliminarChofer = async (ch: Chofer) => {
+    if (!ch.activo) return
+    if (!window.confirm(`¿Dar de baja al chofer "${ch.nombre}"?`)) return
+    await handleToggleActivo(ch.id)
   }
 
   const handleSubmit = async (e: FormEvent) => {
@@ -212,6 +233,46 @@ export function AdminChoferesPage() {
         )}
       </ModalMotion>
 
+      {/* Detalle chofer */}
+      <ModalMotion
+        show={!!detailId}
+        backdropClassName="bg-slate-900/40"
+        panelClassName="w-full max-w-md rounded-2xl bg-white shadow-modal"
+      >
+        <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+          <h3 className="font-display text-base font-semibold text-slate-900">Detalle del chofer</h3>
+          <button type="button" onClick={closeDetail} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100">
+            <span className="material-symbols-outlined text-lg">close</span>
+          </button>
+        </div>
+        <div className="space-y-4 p-6">
+          {detailLoading && (
+            <div className="flex justify-center py-6">
+              <span className="material-symbols-outlined animate-spin text-3xl text-primary">progress_activity</span>
+            </div>
+          )}
+          {!detailLoading && detailChofer && (
+            <>
+              <dl className="space-y-3 text-sm">
+                <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Nombre</dt><dd className="text-slate-900">{detailChofer.nombre}</dd></div>
+                <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Email</dt><dd className="text-slate-900">{detailChofer.email}</dd></div>
+                <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Cédula</dt><dd className="text-slate-900">{detailChofer.cedula ?? '—'}</dd></div>
+                <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Rol</dt><dd className="text-slate-900">{detailChofer.rol}</dd></div>
+                <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Estado</dt><dd className="text-slate-900">{detailChofer.activo ? 'Activo' : 'Inactivo'}</dd></div>
+              </dl>
+              <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
+                <button type="button" onClick={closeDetail} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">Cerrar</button>
+                <button type="button" onClick={() => { closeDetail(); handleEdit(detailChofer) }}
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-dark">
+                  <span className="material-symbols-outlined text-base">edit</span>
+                  Editar
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </ModalMotion>
+
       {/* Tabla */}
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-card">
         {loading ? (
@@ -249,7 +310,24 @@ export function AdminChoferesPage() {
                     <ToggleActivo activo={ch.activo} onToggle={() => handleToggleActivo(ch.id)} />
                   </td>
                   <td className="px-4 py-3">
-                    <button type="button" onClick={() => handleEdit(ch)} className="rounded p-1 text-slate-400 transition-colors hover:text-primary"><span className="material-symbols-outlined text-base">edit</span></button>
+                    <div className="flex items-center gap-1">
+                      <button type="button" onClick={() => openDetail(ch.id)}
+                        className="rounded p-1 text-slate-400 transition-colors hover:text-primary"
+                        title="Ver detalle" aria-label="Ver detalle">
+                        <span className="material-symbols-outlined text-base">visibility</span>
+                      </button>
+                      <button type="button" onClick={() => handleEdit(ch)}
+                        className="rounded p-1 text-slate-400 transition-colors hover:text-primary"
+                        title="Editar" aria-label="Editar">
+                        <span className="material-symbols-outlined text-base">edit</span>
+                      </button>
+                      <button type="button" onClick={() => void handleEliminarChofer(ch)}
+                        disabled={!ch.activo}
+                        className="rounded p-1 text-slate-400 transition-colors hover:text-red-600 disabled:opacity-30 disabled:hover:text-slate-400"
+                        title={ch.activo ? 'Eliminar / dar de baja' : 'Ya inactivo'} aria-label="Eliminar / dar de baja">
+                        <span className="material-symbols-outlined text-base">delete</span>
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
