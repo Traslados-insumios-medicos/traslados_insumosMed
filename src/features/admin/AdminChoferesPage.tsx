@@ -98,6 +98,7 @@ export function AdminChoferesPage() {
     try {
       const res = await api.patch<Chofer>(`/usuarios/${id}/toggle-activo`)
       setChoferes((prev) => prev.map((ch) => ch.id === id ? { ...ch, activo: res.data.activo } : ch))
+      await fetchChoferes(page)
     } catch {
       setChoferes((prev) => prev.map((ch) => ch.id === id ? { ...ch, activo: !ch.activo } : ch))
       addToast('Error al cambiar estado', 'error')
@@ -121,7 +122,9 @@ export function AdminChoferesPage() {
       if (editingId) {
         const res = await api.put<Chofer>(`/usuarios/${editingId}`, { nombre, cedula: cedula || undefined, email })
         setChoferes((prev) => prev.map((ch) => ch.id === editingId ? res.data : ch))
-        addToast('Chofer actualizado', 'success'); resetForm()
+        addToast('Chofer actualizado', 'success')
+        await fetchChoferes(page)
+        resetForm()
       } else {
         const res = await api.post<{ usuario: Chofer; passwordTemporal: string }>('/auth/register', { nombre, email, cedula: cedula || undefined, rol: 'CHOFER' })
         setPasswordModal({ choferNombre: nombre, password: res.data.passwordTemporal })

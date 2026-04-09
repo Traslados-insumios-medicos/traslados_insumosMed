@@ -56,6 +56,12 @@ export function ClienteRutaTiempoRealPage() {
 
   useEffect(() => { fetchActivos() }, [fetchActivos])
 
+  // Auto-refresh cada 30s para mantener datos actualizados
+  useEffect(() => {
+    const interval = setInterval(() => { fetchActivos() }, 30_000)
+    return () => clearInterval(interval)
+  }, [fetchActivos])
+
   const guiaActiva = useMemo(() => {
     const enCurso = candidates.find(
       (g) => (g.estado === 'PENDIENTE' || g.estado === 'INCIDENCIA') && g.ruta?.estado === 'EN_CURSO',

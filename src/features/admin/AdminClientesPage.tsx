@@ -147,6 +147,7 @@ export function AdminClientesPage() {
     try {
       const res = await api.patch<Cliente>(`/clientes/${id}/toggle-activo`)
       setClientes((prev) => prev.map((c) => (c.id === id ? res.data : c)))
+      await fetchClientes(page)
     } catch {
       setClientes((prev) => prev.map((c) => c.id === id ? { ...c, activo: !c.activo } : c))
       addToast('Error al cambiar estado', 'error')
