@@ -1,20 +1,15 @@
-/**
- * FEATURE: user-profile
- * LAYER: model (state management del slice)
- *
- * Feature-Sliced Design: cada feature tiene su propio store local.
- * No mezcla estado de otros slices.
- */
 import { create } from 'zustand'
 import { apiClient } from '../../../shared/api/client'
 
 export interface UserProfile {
   id: string
   nombre: string
+  cedula: string | null
   email: string
   rol: string
   clienteId: string | null
   activo: boolean
+  createdAt: string
 }
 
 interface UserProfileState {
@@ -22,6 +17,7 @@ interface UserProfileState {
   loading: boolean
   error: string | null
   fetchProfile: () => Promise<void>
+  updateProfile: (data: { nombre: string; cedula?: string }) => Promise<void>
 }
 
 export const useUserProfileStore = create<UserProfileState>((set) => ({
@@ -37,5 +33,10 @@ export const useUserProfileStore = create<UserProfileState>((set) => ({
     } catch (err) {
       set({ error: (err as Error).message, loading: false })
     }
+  },
+
+  updateProfile: async (data) => {
+    const updated = await apiClient.patch<UserProfile>('/auth/me', data)
+    set({ profile: updated })
   },
 }))
