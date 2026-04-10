@@ -5,21 +5,27 @@ const TOAST_TTL_MS = 3500
 
 const config = {
   success: {
+    border: 'border-emerald-200',
     bar: 'bg-emerald-400',
     icon: 'check_circle',
-    iconColor: 'text-emerald-400',
+    iconColor: 'text-emerald-500',
+    titleColor: 'text-emerald-700',
     title: 'Éxito',
   },
   error: {
+    border: 'border-red-200',
     bar: 'bg-red-400',
     icon: 'error',
-    iconColor: 'text-red-400',
+    iconColor: 'text-red-500',
+    titleColor: 'text-red-700',
     title: 'Error',
   },
   info: {
+    border: 'border-blue-200',
     bar: 'bg-blue-400',
     icon: 'info',
-    iconColor: 'text-blue-400',
+    iconColor: 'text-blue-500',
+    titleColor: 'text-blue-700',
     title: 'Info',
   },
 }
@@ -29,19 +35,16 @@ function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: () => void }) 
   const [leaving, setLeaving] = useState(false)
   const c = config[toast.type]
 
-  // Entrada
   useEffect(() => {
     const t = setTimeout(() => setVisible(true), 10)
     return () => clearTimeout(t)
   }, [])
 
-  // Salida animada antes de remover
   const handleClose = () => {
     setLeaving(true)
     setTimeout(onRemove, 300)
   }
 
-  // Auto-close
   useEffect(() => {
     const t = setTimeout(handleClose, TOAST_TTL_MS)
     return () => clearTimeout(t)
@@ -50,42 +53,31 @@ function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: () => void }) 
   return (
     <div
       role="alert"
-      className={`relative w-full overflow-hidden rounded-xl border border-white/10 bg-slate-900 shadow-2xl shadow-black/40 transition-all duration-300 ${
-        visible && !leaving
-          ? 'translate-y-0 opacity-100'
-          : 'translate-y-4 opacity-0'
+      className={`relative w-full overflow-hidden rounded-xl border bg-white shadow-lg shadow-slate-200/60 transition-all duration-300 ${c.border} ${
+        visible && !leaving ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-0'
       }`}
     >
       <div className="flex items-start gap-3 px-4 py-3.5">
-        {/* Icono */}
         <span className={`material-symbols-outlined mt-0.5 shrink-0 text-xl ${c.iconColor}`}>
           {c.icon}
         </span>
-
-        {/* Contenido */}
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">{c.title}</p>
-          <p className="mt-0.5 text-sm font-medium text-white">{toast.message}</p>
+          <p className={`text-xs font-bold uppercase tracking-wider ${c.titleColor}`}>{c.title}</p>
+          <p className="mt-0.5 text-sm text-slate-700">{toast.message}</p>
         </div>
-
-        {/* Cerrar */}
         <button
           type="button"
           onClick={handleClose}
-          className="shrink-0 rounded-lg p-1 text-slate-500 transition-colors hover:bg-white/10 hover:text-white"
+          className="shrink-0 rounded-lg p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
           aria-label="Cerrar"
         >
           <span className="material-symbols-outlined text-base">close</span>
         </button>
       </div>
-
-      {/* Barra de progreso */}
-      <div className="h-0.5 w-full bg-white/5">
+      <div className="h-0.5 w-full bg-slate-100">
         <div
           className={`h-full ${c.bar} origin-left`}
-          style={{
-            animation: `toast-progress ${TOAST_TTL_MS}ms linear forwards`,
-          }}
+          style={{ animation: `toast-progress ${TOAST_TTL_MS}ms linear forwards` }}
         />
       </div>
     </div>
@@ -103,10 +95,7 @@ export function ToastContainer() {
           to   { transform: scaleX(0); }
         }
       `}</style>
-      <div
-        className="fixed bottom-5 right-5 z-[200] flex w-80 flex-col gap-2"
-        aria-live="polite"
-      >
+      <div className="fixed bottom-5 right-5 z-[200] flex w-80 flex-col gap-2" aria-live="polite">
         {toasts.map((t) => (
           <ToastItem key={t.id} toast={t} onRemove={() => removeToast(t.id)} />
         ))}
