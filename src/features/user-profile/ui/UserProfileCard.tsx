@@ -4,12 +4,14 @@
  *
  * Usa átomos/moléculas de shared/ui. No importa de otros features.
  */
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Card, Badge } from '../../../shared/ui'
 import { useUserProfileStore } from '../model/userProfile.store'
+import { ChangePasswordModal } from './ChangePasswordModal'
 
 export function UserProfileCard() {
   const { profile, loading, error, fetchProfile } = useUserProfileStore()
+  const [showPasswordModal, setShowPasswordModal] = useState(false)
 
   useEffect(() => {
     fetchProfile()
@@ -38,22 +40,40 @@ export function UserProfileCard() {
   if (!profile) return null
 
   return (
-    <Card title="Mi Perfil">
-      <div className="flex items-center gap-4">
-        <div className="flex size-14 items-center justify-center rounded-full bg-primary/10 text-2xl font-bold text-primary">
-          {profile.nombre.charAt(0).toUpperCase()}
-        </div>
-        <div className="min-w-0 flex-1 space-y-1">
-          <p className="truncate text-base font-semibold text-slate-900 dark:text-white">
-            {profile.nombre}
-          </p>
-          <p className="truncate text-sm text-slate-500 dark:text-slate-400">{profile.email}</p>
-          <div className="flex items-center gap-2">
-            <Badge tone="info">{profile.rol}</Badge>
-            {!profile.activo && <Badge tone="warning">Inactivo</Badge>}
+    <>
+      <Card title="Mi Perfil">
+        <div className="space-y-4">
+          <div className="flex items-center gap-4">
+            <div className="flex size-14 items-center justify-center rounded-full bg-primary/10 text-2xl font-bold text-primary">
+              {profile.nombre.charAt(0).toUpperCase()}
+            </div>
+            <div className="min-w-0 flex-1 space-y-1">
+              <p className="truncate text-base font-semibold text-slate-900 dark:text-white">
+                {profile.nombre}
+              </p>
+              <p className="truncate text-sm text-slate-500 dark:text-slate-400">{profile.email}</p>
+              <div className="flex items-center gap-2">
+                <Badge tone="info">{profile.rol}</Badge>
+                {!profile.activo && <Badge tone="warning">Inactivo</Badge>}
+              </div>
+            </div>
           </div>
+
+          <button
+            type="button"
+            onClick={() => setShowPasswordModal(true)}
+            className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:bg-slate-50 active:scale-[0.98] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+          >
+            <span className="material-symbols-outlined text-base">lock_reset</span>
+            Cambiar contraseña
+          </button>
         </div>
-      </div>
-    </Card>
+      </Card>
+
+      <ChangePasswordModal
+        show={showPasswordModal}
+        onClose={() => setShowPasswordModal(false)}
+      />
+    </>
   )
 }
