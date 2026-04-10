@@ -480,12 +480,14 @@ export function AdminRutasPage() {
                         ) : (
                           <div className="flex flex-wrap gap-3">
                             {ruta.fotos.map((f) => (
-                              <div key={f.id} className="overflow-hidden rounded-lg border border-slate-200">
-                                <img src={f.urlPreview} alt="Hoja de ruta" className="h-40 w-auto max-w-full object-cover" />
-                                <p className="border-t border-slate-100 bg-slate-50 px-2 py-1.5 text-[10px] text-slate-500">
+                              <a key={f.id} href={f.urlPreview} target="_blank" rel="noopener noreferrer"
+                                className="group overflow-hidden rounded-lg border border-slate-200 transition-all hover:border-primary hover:shadow-md">
+                                <img src={f.urlPreview} alt="Hoja de ruta" className="h-40 w-auto max-w-full object-cover transition-transform duration-200 group-hover:scale-105" />
+                                <p className="border-t border-slate-100 bg-slate-50 px-2 py-1.5 text-[10px] text-slate-500 flex items-center gap-1">
+                                  <span className="material-symbols-outlined text-[11px] text-slate-400">open_in_new</span>
                                   {new Date(f.createdAt).toLocaleString('es-ES')}
                                 </p>
-                              </div>
+                              </a>
                             ))}
                           </div>
                         )}
