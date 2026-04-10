@@ -499,7 +499,8 @@ export function ChoferRutaDetallePage() {
               <SeguimientoChoferStepper
                 rutaEstado={ruta.estado}
                 seguimiento={ruta.seguimientoChofer ?? 'NINGUNO'}
-                title="Seguimiento visible al cliente"
+                title="Toca un paso para actualizar tu estado"
+                onStepClick={(v) => { if (v !== 'NINGUNO') void handleSeguimientoCliente(v) }}
               />
             </div>
           )}
