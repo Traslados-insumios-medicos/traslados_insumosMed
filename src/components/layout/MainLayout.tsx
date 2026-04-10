@@ -101,6 +101,11 @@ export function MainLayout() {
             <NavItem to="/cliente/envios" icon="inventory_2" label="Envíos" onClick={close} />
             <NavItem to="/cliente/ruta" icon="location_on" label="Ruta en vivo" onClick={close} />
           </>)}
+          
+          {/* Perfil - disponible para todos los roles */}
+          <div className="pt-2 mt-2 border-t border-slate-100">
+            <NavItem to="/perfil" icon="person" label="Mi Perfil" onClick={close} />
+          </div>
         </nav>
 
         {/* User */}

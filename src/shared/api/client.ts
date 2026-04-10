@@ -7,11 +7,8 @@ const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api'
 
 function getToken(): string | null {
   try {
-    // El token se guarda en authStore (Zustand persisted)
-    const raw = localStorage.getItem('auth-storage')
-    if (!raw) return null
-    const parsed = JSON.parse(raw)
-    return parsed?.state?.token ?? null
+    // El token se guarda directamente en localStorage con la clave 'token'
+    return localStorage.getItem('token')
   } catch {
     return null
   }

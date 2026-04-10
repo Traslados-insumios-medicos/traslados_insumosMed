@@ -3,5 +3,6 @@
  * Solo se exporta lo que otros slices/páginas pueden consumir.
  */
 export { UserProfileCard } from './ui/UserProfileCard'
+export { ChangePasswordModal } from './ui/ChangePasswordModal'
 export { useUserProfileStore } from './model/userProfile.store'
 export type { UserProfile } from './model/userProfile.store'

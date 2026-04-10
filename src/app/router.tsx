@@ -1,6 +1,9 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { LoginPage } from '../pages/LoginPage'
 import { CambiarPasswordPage } from '../pages/CambiarPasswordPage'
+import { ForgotPasswordPage } from '../pages/ForgotPasswordPage'
+import { ResetPasswordPage } from '../pages/ResetPasswordPage'
+import { UserProfilePage } from '../pages/UserProfilePage'
 import { MainLayout } from '../components/layout/MainLayout'
 import { RoleGuard } from './RoleGuard'
 import { AuthGuard } from './AuthGuard'
@@ -20,6 +23,8 @@ import { ClienteRutaTiempoRealPage } from '../features/cliente/ClienteRutaTiempo
 export const router = createBrowserRouter([
   { path: '/', element: <Navigate to="/login" replace /> },
   { path: '/login', element: <LoginPage /> },
+  { path: '/forgot-password', element: <ForgotPasswordPage /> },
+  { path: '/reset-password', element: <ResetPasswordPage /> },
   {
     path: '/cambiar-password',
     element: (
@@ -35,6 +40,7 @@ export const router = createBrowserRouter([
       </RoleGuard>
     ),
     children: [
+      { path: '/perfil', element: <UserProfilePage /> },
       { path: '/admin/dashboard', element: <AdminDashboardPage /> },
       { path: '/admin/clientes', element: <AdminClientesPage /> },
       { path: '/admin/choferes', element: <AdminChoferesPage /> },

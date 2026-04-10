@@ -187,6 +187,16 @@ export function LoginPage() {
               </div>
             )}
 
+            <div className="flex items-center justify-end">
+              <button
+                type="button"
+                onClick={() => navigate('/forgot-password')}
+                className="text-sm font-medium text-primary hover:text-primary-hover transition-colors"
+              >
+                ¿Olvidaste tu contraseña?
+              </button>
+            </div>
+
             <button type="submit" disabled={loading}
               className="flex w-full items-center justify-center gap-2 rounded-lg bg-primary py-3 font-display text-sm font-semibold text-white shadow-sm transition-all hover:bg-primary-hover active:scale-[0.98] disabled:opacity-60">
               {loading
