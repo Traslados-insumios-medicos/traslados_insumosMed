@@ -41,24 +41,23 @@ export function ClienteRutaTiempoRealPage() {
   const [choferGpsAt, setChoferGpsAt] = useState<string | null>(null)
   const [etaReal, setEtaReal] = useState<number | null>(null)
 
-  const fetchActivos = useCallback(async () => {
-    setLoadingList(true)
+  const fetchActivos = useCallback(async (silent = false) => {
+    if (!silent) setLoadingList(true)
     try {
       const res = await api.get<MisEnviosPayload>('/guias/mis-envios?vista=activos&limit=50&page=1')
       setCandidates(res.data.data)
     } catch {
-      addToast('No se pudieron cargar envíos activos', 'error')
-      setCandidates([])
+      if (!silent) addToast('No se pudieron cargar envíos activos', 'error')
     } finally {
-      setLoadingList(false)
+      if (!silent) setLoadingList(false)
     }
   }, [addToast])
 
   useEffect(() => { fetchActivos() }, [fetchActivos])
 
-  // Auto-refresh cada 30s para mantener datos actualizados
+  // Refresh silencioso cada 30s — sin spinner, sin parpadeo
   useEffect(() => {
-    const interval = setInterval(() => { fetchActivos() }, 30_000)
+    const interval = setInterval(() => { void fetchActivos(true) }, 30_000)
     return () => clearInterval(interval)
   }, [fetchActivos])
 
