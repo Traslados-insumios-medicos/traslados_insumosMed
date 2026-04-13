@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useToastStore, type Toast } from '../../store/toastStore'
 
 const TOAST_TTL_MS = 3500
@@ -87,7 +88,7 @@ function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: () => void }) 
 export function ToastContainer() {
   const { toasts, removeToast } = useToastStore()
 
-  return (
+  return createPortal(
     <>
       <style>{`
         @keyframes toast-progress {
@@ -95,11 +96,15 @@ export function ToastContainer() {
           to   { transform: scaleX(0); }
         }
       `}</style>
-      <div className="fixed bottom-5 right-5 z-[200] flex w-80 flex-col gap-2" aria-live="polite">
+      <div
+        className="fixed bottom-4 left-4 right-4 z-[99999] flex flex-col gap-2 sm:left-auto sm:right-5 sm:w-80"
+        aria-live="polite"
+      >
         {toasts.map((t) => (
           <ToastItem key={t.id} toast={t} onRemove={() => removeToast(t.id)} />
         ))}
       </div>
-    </>
+    </>,
+    document.body
   )
 }
