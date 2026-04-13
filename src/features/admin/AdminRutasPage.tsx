@@ -206,20 +206,19 @@ export function AdminRutasPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold text-slate-900">Rutas</h2>
-          <p className="text-sm text-slate-500">
-            Detalle de rutas de los conductores asignados.
-          </p>
+          <h2 className="font-display text-2xl font-bold text-slate-900">Rutas</h2>
+          <p className="mt-0.5 text-sm text-slate-500">Detalle de rutas de los conductores asignados.</p>
         </div>
         <button
           type="button"
           onClick={() => setShowModal(true)}
-          className="flex shrink-0 items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white shadow hover:bg-primary/90"
+          className="flex shrink-0 items-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-bold text-white shadow-sm hover:bg-primary-hover active:scale-[0.98] transition-all"
         >
           <span className="material-symbols-outlined text-base">add</span>
-          Nueva Ruta
+          <span className="hidden sm:inline">Nueva Ruta</span>
+          <span className="sm:hidden">Nueva</span>
         </button>
       </div>
 
@@ -398,38 +397,55 @@ export function AdminRutasPage() {
             const expandida = rutaExpandidaId === ruta.id
             return (
               <div key={ruta.id} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                <div className="flex w-full items-stretch gap-1 p-4 hover:bg-slate-50">
-                  <button
-                    type="button"
-                    onClick={() => setRutaExpandidaId(expandida ? null : ruta.id)}
-                    className="flex min-w-0 flex-1 items-center justify-between gap-4 text-left"
-                  >
-                    <div className="flex min-w-0 flex-wrap items-center gap-3">
-                      <span className="material-symbols-outlined text-primary">route</span>
-                      <div>
-                        <p className="font-bold text-slate-900">Ruta #{ruta.id.slice(-6)}</p>
-                        <p className="text-sm text-slate-500">
-                          {ruta.chofer.nombre} · {ruta.stops.length} paradas · {ruta.stops.reduce((acc, s) => acc + s.guias.length, 0)} guías
-                        </p>
+                <div className="p-4">
+                  {/* Fila principal */}
+                  <div className="flex items-start gap-3">
+                    <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                      <span className="material-symbols-outlined text-[20px] text-primary">route</span>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="font-display text-sm font-bold text-slate-900">Ruta #{ruta.id.slice(-6)}</p>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); openDeleteRutaModal(ruta) }}
+                            className="rounded-lg p-1 text-slate-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                            aria-label="Eliminar ruta"
+                          >
+                            <span className="material-symbols-outlined text-[18px]">delete</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setRutaExpandidaId(expandida ? null : ruta.id)}
+                            className="rounded-lg p-1 text-slate-400 hover:text-primary transition-colors"
+                          >
+                            <span className={`material-symbols-outlined text-[20px] transition-transform duration-200 ${expandida ? 'rotate-180' : ''}`}>expand_more</span>
+                          </button>
+                        </div>
+                      </div>
+                      <p className="mt-0.5 text-xs text-slate-400">
+                        {new Date(ruta.fecha).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <span className={estadoBadge(ruta.estado)}>{ruta.estado.replace('_', ' ')}</span>
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
+                        <span className="flex items-center gap-1 text-xs text-slate-500">
+                          <span className="material-symbols-outlined text-[13px] text-slate-400">person</span>
+                          {ruta.chofer.nombre}
+                        </span>
+                        <span className="flex items-center gap-1 text-xs text-slate-500">
+                          <span className="material-symbols-outlined text-[13px] text-slate-400">location_on</span>
+                          {ruta.stops.length} paradas
+                        </span>
+                        <span className="flex items-center gap-1 text-xs text-slate-500">
+                          <span className="material-symbols-outlined text-[13px] text-slate-400">inventory_2</span>
+                          {ruta.stops.reduce((acc, s) => acc + s.guias.length, 0)} guías
+                        </span>
                       </div>
                     </div>
-                    <div className="flex shrink-0 items-center gap-3">
-                      <span className="text-sm text-slate-500">
-                        {new Date(ruta.fecha).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}
-                      </span>
-                      <span className={estadoBadge(ruta.estado)}>{ruta.estado}</span>
-                      <span className={`material-symbols-outlined text-slate-400 transition-transform ${expandida ? 'rotate-180' : ''}`}>expand_more</span>
-                    </div>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); openDeleteRutaModal(ruta) }}
-                    className="flex shrink-0 items-center justify-center rounded-lg px-2 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600"
-                    title="Eliminar ruta"
-                    aria-label="Eliminar ruta de la base de datos"
-                  >
-                    <span className="material-symbols-outlined text-xl">delete</span>
-                  </button>
+                  </div>
                 </div>
 
                 {expandida && (

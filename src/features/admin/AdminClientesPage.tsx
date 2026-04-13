@@ -277,7 +277,7 @@ export function AdminClientesPage() {
   const actionIconClass = 'rounded p-1 text-slate-400 transition-colors hover:text-primary'
   const rowActions = (c: Cliente) => (
     <>
-      <button type="button" onClick={(e) => { e.stopPropagation(); openDetail(c.id) }} className={`${actionIconClass} hidden sm:inline-flex`} title="Ver detalle" aria-label="Ver detalle">
+      <button type="button" onClick={(e) => { e.stopPropagation(); openDetail(c.id) }} className={actionIconClass} title="Ver detalle" aria-label="Ver detalle">
         <span className="material-symbols-outlined text-base">visibility</span>
       </button>
       <button type="button" onClick={(e) => { e.stopPropagation(); handleEdit(c) }} className={actionIconClass} title="Editar" aria-label="Editar">
@@ -314,7 +314,7 @@ export function AdminClientesPage() {
         </div>
       </div>
 
-      <ModalMotion show={showModal} backdropClassName="bg-black/50" panelClassName="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl bg-white shadow-2xl">
+      <ModalMotion show={showModal} backdropClassName="bg-black/50" panelClassName="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-slate-200 p-6">
           <h3 className="text-lg font-bold text-slate-900">{editingId ? 'Editar cliente' : 'Nuevo cliente'}</h3>
           <button type="button" onClick={resetForm} className="text-slate-400 hover:text-slate-600">
@@ -324,17 +324,26 @@ export function AdminClientesPage() {
         <form onSubmit={handleSubmit} className="space-y-5 p-6">
           <div className="space-y-2">
             <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Tipo *</label>
-            <div className="flex gap-3">
+            <div className="flex flex-col gap-2">
               {(['PRINCIPAL', 'SECUNDARIO'] as TipoCliente[]).map((t) => (
-                <label key={t} className={['flex flex-1 cursor-pointer items-center gap-3 rounded-xl border-2 p-4 transition-all', tipo === t ? 'border-primary bg-primary/5' : 'border-slate-200'].join(' ')}>
+                <label key={t} className={['flex cursor-pointer items-center gap-3 rounded-xl border-2 px-4 py-3 transition-all', tipo === t ? 'border-primary bg-primary/5' : 'border-slate-200 hover:border-slate-300'].join(' ')}>
                   <input type="radio" name="tipo" value={t} checked={tipo === t} onChange={() => setTipo(t)} className="sr-only" />
-                  <span className={['material-symbols-outlined text-xl', tipo === t ? 'text-primary' : 'text-slate-400'].join(' ')}>
-                    {t === 'PRINCIPAL' ? 'corporate_fare' : 'location_on'}
-                  </span>
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900">{t === 'PRINCIPAL' ? 'Principal' : 'Secundario'}</p>
-                    <p className="text-[11px] text-slate-400">{t === 'PRINCIPAL' ? 'Empresa contratante' : 'Punto de entrega'}</p>
+                  <div className={['flex size-9 shrink-0 items-center justify-center rounded-lg', tipo === t ? 'bg-primary/10' : 'bg-slate-100'].join(' ')}>
+                    <span className={['material-symbols-outlined text-[18px]', tipo === t ? 'text-primary' : 'text-slate-400'].join(' ')}>
+                      {t === 'PRINCIPAL' ? 'corporate_fare' : 'location_on'}
+                    </span>
                   </div>
+                  <div>
+                    <p className={['text-sm font-semibold', tipo === t ? 'text-primary' : 'text-slate-800'].join(' ')}>
+                      {t === 'PRINCIPAL' ? 'Principal' : 'Secundario'}
+                    </p>
+                    <p className="text-xs text-slate-400">
+                      {t === 'PRINCIPAL' ? 'Empresa contratante' : 'Punto de entrega'}
+                    </p>
+                  </div>
+                  {tipo === t && (
+                    <span className="ml-auto material-symbols-outlined text-base text-primary">check_circle</span>
+                  )}
                 </label>
               ))}
             </div>
@@ -546,19 +555,19 @@ export function AdminClientesPage() {
           <>
             <div className="divide-y divide-slate-100 sm:hidden">
               {clientes.filter((c) => c.tipo === 'PRINCIPAL').map((c) => (
-                <div key={c.id} className="flex items-center justify-between gap-2 px-4 py-3">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <span className="material-symbols-outlined shrink-0 text-sm text-primary">corporate_fare</span>
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-slate-900">{c.nombre}</p>
-                      <p className="mt-0.5 text-xs text-slate-400">{c.ruc}</p>
+                <div key={c.id} className="px-4 py-3.5">
+                  <div className="flex items-center gap-3 mb-2.5">
+                    <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                      <span className="material-symbols-outlined text-[17px] text-primary">corporate_fare</span>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-bold text-slate-900">{c.nombre}</p>
+                      <p className="text-xs text-slate-500 font-mono">{c.ruc}</p>
                     </div>
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
+                  <div className="flex items-center justify-between pl-12">
                     <ToggleActivo activo={c.activo} onToggle={() => handleToggleActivo(c.id)} />
-                    <div className="flex items-center gap-0.5">
-                      {rowActions(c)}
-                    </div>
+                    <div className="flex items-center gap-0.5">{rowActions(c)}</div>
                   </div>
                 </div>
               ))}
@@ -601,22 +610,24 @@ export function AdminClientesPage() {
             <div className="divide-y divide-slate-100 sm:hidden">
               {buildGrupos(clientes).map((grupo) => (
                 <div key={grupo.label}>
-                  <div className="flex items-center gap-2 bg-slate-50 px-4 py-2.5">
-                    <span className="material-symbols-outlined text-sm text-primary">corporate_fare</span>
-                    <span className="text-xs font-semibold text-slate-600">{grupo.label}</span>
+                  <div className="flex items-center gap-2 bg-slate-50 px-4 py-2.5 border-b border-slate-100">
+                    <span className="material-symbols-outlined text-[15px] text-primary">corporate_fare</span>
+                    <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">{grupo.label}</span>
                   </div>
                   {grupo.items.map((c) => (
-                    <div key={c.id} className="flex items-center justify-between gap-2 border-t border-slate-100 py-2.5 pl-8 pr-4">
-                      <div className="flex min-w-0 items-center gap-2">
-                        <div className="size-1.5 shrink-0 rounded-full bg-slate-300" />
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-medium text-slate-900">{c.nombre}</p>
-                          <p className="text-xs text-slate-400">{c.ruc}</p>
+                    <div key={c.id} className="px-4 py-3.5 pl-6">
+                      <div className="flex items-center gap-3 mb-2.5">
+                        <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-slate-100">
+                          <span className="material-symbols-outlined text-[15px] text-slate-400">location_on</span>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-bold text-slate-900">{c.nombre}</p>
+                          <p className="text-xs text-slate-500 font-mono">{c.ruc}</p>
                         </div>
                       </div>
-                      <div className="flex shrink-0 items-center gap-1.5">
+                      <div className="flex items-center justify-between pl-11">
                         <ToggleActivo activo={c.activo} onToggle={() => handleToggleActivo(c.id)} />
-                        {rowActions(c)}
+                        <div className="flex items-center gap-0.5">{rowActions(c)}</div>
                       </div>
                     </div>
                   ))}
@@ -679,32 +690,35 @@ export function AdminClientesPage() {
                 const secundarios = c.clientesSecundarios ?? []
                 return (
                   <div key={c.id}>
-                    <div className="flex items-center justify-between gap-2 px-4 py-3">
-                      <div className="flex min-w-0 items-center gap-2">
-                        <span className="material-symbols-outlined shrink-0 text-sm text-primary">corporate_fare</span>
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-medium text-slate-900">{c.nombre}</p>
-                          <p className="text-xs text-slate-400">{c.ruc}</p>
+                    <div className="px-4 py-3.5">
+                      <div className="flex items-center gap-3 mb-2.5">
+                        <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                          <span className="material-symbols-outlined text-[17px] text-primary">corporate_fare</span>
                         </div>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-1.5">
-                        <ToggleActivo activo={c.activo} onToggle={() => handleToggleActivo(c.id)} />
-                        {rowActions(c)}
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-bold text-slate-900">{c.nombre}</p>
+                          <p className="text-xs text-slate-500 font-mono">{c.ruc}</p>
+                        </div>
                         {secundarios.length > 0 && (
-                          <button type="button" onClick={() => toggleExpand(c.id)} className="text-slate-400">
+                          <button type="button" onClick={() => toggleExpand(c.id)} className="shrink-0 rounded p-1 text-slate-400 hover:text-primary">
                             <span className="material-symbols-outlined text-base transition-transform duration-200"
                               style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>expand_more</span>
                           </button>
                         )}
                       </div>
+                      <div className="flex items-center justify-between pl-12">
+                        <ToggleActivo activo={c.activo} onToggle={() => handleToggleActivo(c.id)} />
+                        <div className="flex items-center gap-0.5">{rowActions(c)}</div>
+                      </div>
                     </div>
                     {isOpen && secundarios.map((s) => (
-                      <div key={s.id} className="flex items-center justify-between gap-2 border-t border-slate-100 bg-slate-50/60 py-2.5 pl-8 pr-4">
-                        <div className="flex min-w-0 items-center gap-2">
-                          <div className="size-1.5 shrink-0 rounded-full bg-slate-300" />
-                          <p className="truncate text-sm text-slate-600">{s.nombre}</p>
+                      <div key={s.id} className="flex items-center gap-3 border-t border-slate-100 bg-slate-50/60 px-4 py-3 pl-10">
+                        <div className="size-1.5 shrink-0 rounded-full bg-slate-300" />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-slate-700">{s.nombre}</p>
+                          <p className="text-xs text-slate-400 font-mono">{s.ruc}</p>
                         </div>
-                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${s.activo ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${s.activo ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500'}`}>
                           {s.activo ? 'Activo' : 'Inactivo'}
                         </span>
                       </div>
