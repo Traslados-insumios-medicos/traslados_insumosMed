@@ -144,7 +144,7 @@ export function AdminDashboardPage() {
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-base font-semibold text-slate-800">Rutas recientes</h3>
           </div>
-          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="overflow-x-auto overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
             {ultimasRutas.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <span className="material-symbols-outlined text-4xl text-slate-300">route</span>
@@ -161,8 +161,12 @@ export function AdminDashboardPage() {
                           {ruta.chofer.nombre.charAt(0)}
                         </div>
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-medium text-slate-800">{ruta.chofer.nombre}</p>
-                          <p className="truncate text-xs text-slate-500">{ruta.primerDestino}</p>
+                          <p className="truncate text-sm font-medium text-slate-800">
+                            {ruta.chofer.nombre.length > 50 ? ruta.chofer.nombre.slice(0, 50) + '...' : ruta.chofer.nombre}
+                          </p>
+                          <p className="truncate text-xs text-slate-500">
+                            {ruta.primerDestino.length > 50 ? ruta.primerDestino.slice(0, 50) + '...' : ruta.primerDestino}
+                          </p>
                         </div>
                       </div>
                       <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${estadoBadge(ruta.estado)}`}>
@@ -172,36 +176,43 @@ export function AdminDashboardPage() {
                   ))}
                 </div>
                 {/* Desktop: table */}
-                <table className="hidden w-full text-left text-sm sm:table">
-                  <thead className="border-b border-slate-100 bg-slate-50">
-                    <tr>
-                      <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Chofer</th>
-                      <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Destino</th>
-                      <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Progreso</th>
-                      <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Estado</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {ultimasRutas.map((ruta) => (
-                      <tr key={ruta.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2.5">
-                            <div className="flex size-7 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-white">
-                              {ruta.chofer.nombre.charAt(0)}
+                <div className="hidden sm:block overflow-x-auto">
+                  <table className="w-full text-left text-sm">
+                    <thead className="border-b border-slate-100 bg-slate-50">
+                      <tr>
+                        <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400 whitespace-nowrap">Chofer</th>
+                        <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400 whitespace-nowrap">Destino</th>
+                        <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400 whitespace-nowrap">Progreso</th>
+                        <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400 whitespace-nowrap">Estado</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {ultimasRutas.map((ruta) => (
+                        <tr key={ruta.id} className="hover:bg-slate-50 transition-colors">
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <div className="flex items-center gap-2.5">
+                              <div className="flex size-7 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-white">
+                                {ruta.chofer.nombre.charAt(0)}
+                              </div>
+                              <span className="font-medium text-slate-800">
+                                {ruta.chofer.nombre.length > 50 ? ruta.chofer.nombre.slice(0, 50) + '...' : ruta.chofer.nombre}
+                              </span>
                             </div>
-                            <span className="font-medium text-slate-800">{ruta.chofer.nombre}</span>
-                          </div>
-                        </td>
-                        <td className="max-w-[160px] truncate px-4 py-3 text-slate-600">{ruta.primerDestino}</td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <div className="h-1.5 w-20 overflow-hidden rounded-full bg-slate-100">
-                              <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${ruta.progreso}%` }} />
+                          </td>
+                          <td className="px-4 py-3 text-slate-600">
+                            <div className="max-w-[300px] truncate">
+                              {ruta.primerDestino.length > 50 ? ruta.primerDestino.slice(0, 50) + '...' : ruta.primerDestino}
                             </div>
-                            <span className="text-xs font-semibold text-slate-600">{ruta.progreso}%</span>
-                          </div>
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <div className="flex items-center gap-2">
+                              <div className="h-1.5 w-20 overflow-hidden rounded-full bg-slate-100">
+                                <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${ruta.progreso}%` }} />
+                              </div>
+                              <span className="text-xs font-semibold text-slate-600">{ruta.progreso}%</span>
+                            </div>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3 whitespace-nowrap">
                           <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${estadoBadge(ruta.estado)}`}>
                             {ruta.estado === 'EN_CURSO' ? 'En Curso' : ruta.estado === 'COMPLETADA' ? 'Completada' : ruta.estado === 'PENDIENTE' ? 'Pendiente' : 'Cancelada'}
                           </span>
@@ -210,6 +221,7 @@ export function AdminDashboardPage() {
                     ))}
                   </tbody>
                 </table>
+                </div>
               </>
             )}
           </div>

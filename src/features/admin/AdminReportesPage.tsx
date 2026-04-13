@@ -35,6 +35,11 @@ const tabs: { id: TabId; label: string }[] = [
   { id: 'chofer', label: 'Por chofer' },
 ]
 
+const trunc = (str: string | undefined | null, max = 50) => {
+  if (!str) return ''
+  return str.length > max ? str.slice(0, max) + '...' : str
+}
+
 export function AdminReportesPage() {
   const addToast = useToastStore((s) => s.addToast)
 
@@ -318,7 +323,7 @@ export function AdminReportesPage() {
                                       </div>
                                       {(g.receptorNombre || g.horaLlegada || g.temperatura) && (
                                         <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500">
-                                          {g.receptorNombre && <span>Receptor: {g.receptorNombre}</span>}
+                                          {g.receptorNombre && <span>Receptor: {trunc(g.receptorNombre)}</span>}
                                           {g.horaLlegada && <span>Llegada: {g.horaLlegada}</span>}
                                           {g.horaSalida && <span>Salida: {g.horaSalida}</span>}
                                           {g.temperatura && <span>Temperatura: {g.temperatura}</span>}

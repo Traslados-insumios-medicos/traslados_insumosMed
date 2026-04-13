@@ -14,6 +14,7 @@ interface RutaApi {
 }
 
 type Filtro = 'activas' | 'todas' | 'completadas'
+type FiltroFecha = 'hoy' | 'ayer' | 'manana' | 'todas'
 
 export function ChoferRutasPage() {
   const { currentUser } = useAuthStore()
@@ -24,25 +25,66 @@ export function ChoferRutasPage() {
   const location = useLocation()
   const isHistorial = location.pathname.includes('historial')
   const [filtro, setFiltro] = useState<Filtro>(isHistorial ? 'todas' : 'activas')
+  const [filtroFecha, setFiltroFecha] = useState<FiltroFecha>('hoy')
+  const [fechaCustom, setFechaCustom] = useState('')
+  const [filtroEstado, setFiltroEstado] = useState<string>('')
+  const [searchTerm, setSearchTerm] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+
+  // Debounce para el buscador
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm)
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [searchTerm])
 
   useEffect(() => {
     setFiltro(isHistorial ? 'todas' : 'activas')
   }, [isHistorial])
 
+  const getFechaFiltro = useCallback(() => {
+    const hoy = new Date()
+    hoy.setHours(0, 0, 0, 0)
+    
+    if (filtroFecha === 'hoy') return hoy.toISOString().slice(0, 10)
+    if (filtroFecha === 'ayer') {
+      const ayer = new Date(hoy)
+      ayer.setDate(ayer.getDate() - 1)
+      return ayer.toISOString().slice(0, 10)
+    }
+    if (filtroFecha === 'manana') {
+      const manana = new Date(hoy)
+      manana.setDate(manana.getDate() + 1)
+      return manana.toISOString().slice(0, 10)
+    }
+    return fechaCustom || undefined
+  }, [filtroFecha, fechaCustom])
+
   const fetchRutas = useCallback(async () => {
     setLoading(true)
     try {
-      // El backend filtra automáticamente por choferId=me cuando el rol es CHOFER
-      const res = await api.get<{ data: RutaApi[] }>('/rutas?limit=100')
+      const fechaParam = getFechaFiltro()
+      const params = new URLSearchParams({ limit: '100' })
+      if (fechaParam) params.append('fecha', fechaParam)
+      if (filtroEstado) params.append('estado', filtroEstado)
+      if (debouncedSearch.trim()) params.append('search', debouncedSearch.trim())
+      
+      const res = await api.get<{ data: RutaApi[] }>(`/rutas?${params.toString()}`)
       setRutas(res.data.data)
     } catch {
       addToast('Error al cargar rutas', 'error')
     } finally {
       setLoading(false)
     }
-  }, [addToast])
+  }, [addToast, getFechaFiltro, filtroEstado, debouncedSearch])
 
   useEffect(() => { fetchRutas() }, [fetchRutas])
+
+  useEffect(() => {
+    // Recargar cuando cambie el filtro de fecha
+    fetchRutas()
+  }, [filtroFecha, fechaCustom, filtroEstado, debouncedSearch, fetchRutas])
 
   const rutasFiltradas = rutas.filter((r) => {
     if (filtro === 'activas') return r.estado === 'PENDIENTE' || r.estado === 'EN_CURSO'
@@ -110,7 +152,84 @@ export function ChoferRutasPage() {
         </div>
       </div>
 
-      {/* Filtros */}
+      {/* Buscador */}
+      <div className="relative">
+        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
+        <input
+          type="text"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Buscar por cliente o receptor..."
+          className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-10 text-sm placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+        />
+        {searchTerm && (
+          <button
+            type="button"
+            onClick={() => setSearchTerm('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+          >
+            <span className="material-symbols-outlined text-[18px]">close</span>
+          </button>
+        )}
+      </div>
+
+      {/* Filtros de fecha */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-semibold text-slate-500">Fecha:</span>
+        {(['hoy', 'ayer', 'manana', 'todas'] as const).map((f) => (
+          <button
+            key={f}
+            type="button"
+            onClick={() => {
+              setFiltroFecha(f)
+              setFechaCustom('')
+            }}
+            className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+              filtroFecha === f && !fechaCustom
+                ? 'bg-primary text-white'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            {f === 'hoy' ? 'Hoy' : f === 'ayer' ? 'Ayer' : f === 'manana' ? 'Mañana' : 'Todas'}
+          </button>
+        ))}
+        <input
+          type="date"
+          value={fechaCustom}
+          onChange={(e) => {
+            setFechaCustom(e.target.value)
+            setFiltroFecha('todas')
+          }}
+          placeholder="Fecha específica"
+          className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs"
+        />
+      </div>
+
+      {/* Filtros de estado */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-semibold text-slate-500">Estado:</span>
+        {[
+          { value: '', label: 'Todos' },
+          { value: 'PENDIENTE', label: 'Pendiente' },
+          { value: 'EN_CURSO', label: 'En Curso' },
+          { value: 'COMPLETADA', label: 'Completada' },
+        ].map((e) => (
+          <button
+            key={e.value}
+            type="button"
+            onClick={() => setFiltroEstado(e.value)}
+            className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+              filtroEstado === e.value
+                ? 'bg-primary text-white'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            {e.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Filtros de tipo (legacy - mantener compatibilidad) */}
       <div className="flex flex-wrap gap-2">
         {(['activas', 'todas', 'completadas'] as Filtro[]).map((f) => (
           <button key={f} type="button" onClick={() => setFiltro(f)}
@@ -128,10 +247,30 @@ export function ChoferRutasPage() {
         </div>
       ) : rutasFiltradas.length === 0 ? (
         <div className="rounded-xl border border-slate-200 bg-white p-8 text-center">
-          <span className="material-symbols-outlined text-4xl text-slate-300">route</span>
+          <span className="material-symbols-outlined text-4xl text-slate-300">
+            {debouncedSearch || filtroEstado || fechaCustom ? 'search_off' : 'route'}
+          </span>
           <p className="mt-2 text-sm text-slate-500">
-            {filtro === 'activas' ? 'No tenés rutas activas.' : 'No hay rutas en esta categoría.'}
+            {debouncedSearch || filtroEstado || fechaCustom
+              ? 'No se encontraron rutas con los filtros aplicados.'
+              : filtro === 'activas' 
+                ? 'No tenés rutas activas.' 
+                : 'No hay rutas en esta categoría.'}
           </p>
+          {(debouncedSearch || filtroEstado || fechaCustom) && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearchTerm('')
+                setFiltroEstado('')
+                setFechaCustom('')
+                setFiltroFecha('hoy')
+              }}
+              className="mt-3 text-xs font-semibold text-primary hover:underline"
+            >
+              Limpiar filtros
+            </button>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

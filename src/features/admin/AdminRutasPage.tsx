@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useDbRefresh } from '../../hooks/useDbRefresh'
 import { MapboxAddressInput } from '../../components/ui/MapboxAddressInput'
 import { ModalMotion } from '../../components/ui/ModalMotion'
 import { api } from '../../services/api'
@@ -86,6 +87,21 @@ export function AdminRutasPage() {
   const [deleteConfirmRuta, setDeleteConfirmRuta] = useState<RutaApi | null>(null)
   const [deleteRutaSubmitting, setDeleteRutaSubmitting] = useState(false)
 
+  // Filtros de fecha
+  const [filtroFecha, setFiltroFecha] = useState<'hoy' | 'ayer' | 'manana' | 'todas'>('hoy')
+  const [fechaCustom, setFechaCustom] = useState('')
+  const [filtroEstado, setFiltroEstado] = useState<string>('')
+  const [searchTerm, setSearchTerm] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
+
+  // Debounce para el buscador
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchTerm)
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [searchTerm])
+
   // form
   const [choferId, setChoferId] = useState('')
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10))
@@ -93,22 +109,57 @@ export function AdminRutasPage() {
 
   const totalPages = Math.max(1, Math.ceil(total / LIMIT))
 
-  const fetchRutas = useCallback(async (p: number) => {
-    setLoading(true)
+  const getFechaFiltro = useCallback(() => {
+    const hoy = new Date()
+    hoy.setHours(0, 0, 0, 0)
+    
+    if (filtroFecha === 'hoy') return hoy.toISOString().slice(0, 10)
+    if (filtroFecha === 'ayer') {
+      const ayer = new Date(hoy)
+      ayer.setDate(ayer.getDate() - 1)
+      return ayer.toISOString().slice(0, 10)
+    }
+    if (filtroFecha === 'manana') {
+      const manana = new Date(hoy)
+      manana.setDate(manana.getDate() + 1)
+      return manana.toISOString().slice(0, 10)
+    }
+    return fechaCustom || undefined
+  }, [filtroFecha, fechaCustom])
+
+  const fetchRutas = useCallback(async (p: number, silent = false) => {
+    if (!silent) setLoading(true)
     try {
-      const res = await api.get<PaginatedRutas>(`/rutas?page=${p}&limit=${LIMIT}`)
+      const fechaParam = getFechaFiltro()
+      const params = new URLSearchParams({
+        page: p.toString(),
+        limit: LIMIT.toString(),
+      })
+      if (fechaParam) params.append('fecha', fechaParam)
+      if (filtroEstado) params.append('estado', filtroEstado)
+      if (debouncedSearch.trim()) params.append('search', debouncedSearch.trim())
+      
+      const res = await api.get<PaginatedRutas>(`/rutas?${params.toString()}`)
       setRutas(res.data.data)
       setTotal(res.data.total)
       setPage(p)
     } catch {
       addToast('Error al cargar rutas', 'error')
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
-  }, [addToast])
+  }, [addToast, getFechaFiltro, filtroEstado, debouncedSearch])
 
   useEffect(() => {
     fetchRutas(1)
+  }, [fetchRutas])
+
+  useEffect(() => {
+    // Recargar cuando cambie el filtro de fecha
+    fetchRutas(1)
+  }, [filtroFecha, fechaCustom, filtroEstado, debouncedSearch, fetchRutas])
+
+  useEffect(() => {
     // Load choferes and clientes for the form
     api.get<{ data: ChoferOption[] }>('/usuarios?rol=CHOFER&limit=100')
       .then((r) => setChoferes(r.data.data))
@@ -116,7 +167,9 @@ export function AdminRutasPage() {
     api.get<{ data: ClienteOption[] }>('/clientes?limit=100&tipo=PRINCIPAL&includeSecundarios=true')
       .then((r) => setClientes(r.data.data))
       .catch(() => {})
-  }, [fetchRutas])
+  }, [])
+
+  useDbRefresh('rutas', () => fetchRutas(page, true))
 
   const resetForm = () => {
     setChoferId('')
@@ -204,6 +257,8 @@ export function AdminRutasPage() {
     return `${base} bg-red-100 text-red-600`
   }
 
+  const trunc = (str: string, max = 50) => str.length > max ? str.slice(0, max) + '...' : str
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-3">
@@ -220,6 +275,88 @@ export function AdminRutasPage() {
           <span className="hidden sm:inline">Nueva Ruta</span>
           <span className="sm:hidden">Nueva</span>
         </button>
+      </div>
+
+      {/* Buscador */}
+      <div className="relative">
+        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
+        <input
+          type="text"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Buscar por cliente, receptor o chofer..."
+          className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-10 text-sm placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+        />
+        {searchTerm && (
+          <button
+            type="button"
+            onClick={() => setSearchTerm('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+          >
+            <span className="material-symbols-outlined text-[18px]">close</span>
+          </button>
+        )}
+      </div>
+
+      {/* Filtros de fecha */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-semibold text-slate-500">Filtrar por fecha:</span>
+        {(['hoy', 'ayer', 'manana', 'todas'] as const).map((f) => (
+          <button
+            key={f}
+            type="button"
+            onClick={() => {
+              setFiltroFecha(f)
+              setPage(1)
+            }}
+            className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+              filtroFecha === f
+                ? 'bg-primary text-white'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            {f === 'hoy' ? 'Hoy' : f === 'ayer' ? 'Ayer' : f === 'manana' ? 'Mañana' : 'Todas'}
+          </button>
+        ))}
+        <input
+          type="date"
+          value={fechaCustom}
+          onChange={(e) => {
+            setFechaCustom(e.target.value)
+            setFiltroFecha('todas')
+            setPage(1)
+          }}
+          placeholder="Fecha específica"
+          className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs"
+        />
+      </div>
+
+      {/* Filtros de estado */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-semibold text-slate-500">Estado:</span>
+        {[
+          { value: '', label: 'Todos' },
+          { value: 'PENDIENTE', label: 'Pendiente' },
+          { value: 'EN_CURSO', label: 'En Curso' },
+          { value: 'COMPLETADA', label: 'Completada' },
+          { value: 'CANCELADA', label: 'Cancelada' },
+        ].map((e) => (
+          <button
+            key={e.value}
+            type="button"
+            onClick={() => {
+              setFiltroEstado(e.value)
+              setPage(1)
+            }}
+            className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+              filtroEstado === e.value
+                ? 'bg-primary text-white'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            {e.label}
+          </button>
+        ))}
       </div>
 
       <ModalMotion show={!!deleteConfirmRuta} backdropClassName="bg-black/50" panelClassName="w-full max-w-md rounded-2xl bg-white shadow-2xl">
@@ -389,7 +526,26 @@ export function AdminRutasPage() {
         </div>
       ) : rutas.length === 0 ? (
         <div className="rounded-xl border border-slate-200 bg-white p-8 text-center">
-          <p className="text-slate-600">No hay rutas registradas.</p>
+          <span className="material-symbols-outlined text-4xl text-slate-300">search_off</span>
+          <p className="mt-2 text-sm text-slate-600">
+            {debouncedSearch || filtroEstado || fechaCustom 
+              ? 'No se encontraron rutas con los filtros aplicados.'
+              : 'No hay rutas registradas.'}
+          </p>
+          {(debouncedSearch || filtroEstado || fechaCustom) && (
+            <button
+              type="button"
+              onClick={() => {
+                setSearchTerm('')
+                setFiltroEstado('')
+                setFechaCustom('')
+                setFiltroFecha('hoy')
+              }}
+              className="mt-3 text-xs font-semibold text-primary hover:underline"
+            >
+              Limpiar filtros
+            </button>
+          )}
         </div>
       ) : (
         <div className="space-y-4">
@@ -424,16 +580,15 @@ export function AdminRutasPage() {
                           </button>
                         </div>
                       </div>
-                      <p className="mt-0.5 text-xs text-slate-400">
-                        {new Date(ruta.fecha).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}
-                      </p>
-                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                      {/* Fecha + badge + stats en una sola línea */}
+                      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                        <span className="text-xs text-slate-400">
+                          {new Date(ruta.fecha).toLocaleDateString('es-ES', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </span>
                         <span className={estadoBadge(ruta.estado)}>{ruta.estado.replace('_', ' ')}</span>
-                      </div>
-                      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1">
                         <span className="flex items-center gap-1 text-xs text-slate-500">
                           <span className="material-symbols-outlined text-[13px] text-slate-400">person</span>
-                          {ruta.chofer.nombre}
+                          {trunc(ruta.chofer.nombre)}
                         </span>
                         <span className="flex items-center gap-1 text-xs text-slate-500">
                           <span className="material-symbols-outlined text-[13px] text-slate-400">location_on</span>
@@ -465,9 +620,9 @@ export function AdminRutasPage() {
                                 className="w-full rounded-lg border border-slate-200 bg-slate-50 p-3 text-left transition-all hover:border-primary hover:bg-primary/5"
                               >
                                 <p className="text-xs font-semibold uppercase tracking-wider text-primary">Parada #{stop.orden}</p>
-                                <p className="mt-1 text-sm font-medium text-slate-900">{stop.direccion}</p>
-                                <p className="text-xs text-slate-500">{stop.cliente.nombre}</p>
-                                {stop.notas && <p className="mt-0.5 text-xs text-slate-500">{stop.notas}</p>}
+                                <p className="mt-1 text-sm font-medium text-slate-900">{trunc(stop.direccion)}</p>
+                                <p className="text-xs text-slate-500">{trunc(stop.cliente.nombre)}</p>
+                                {stop.notas && <p className="mt-0.5 text-xs text-slate-500">{trunc(stop.notas)}</p>}
                                 <div className="mt-2 flex flex-wrap gap-1.5">
                                   {stop.guias.map((g) => (
                                     <span key={g.id} className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
@@ -545,10 +700,10 @@ export function AdminRutasPage() {
             <div className="flex items-start justify-between border-b border-slate-200 p-5">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wider text-primary">Parada #{selectedStop.orden}</p>
-                <h3 className="mt-0.5 text-lg font-bold text-slate-900">{selectedStop.direccion}</h3>
-                <p className="text-sm text-slate-500">{selectedStop.cliente.nombre}</p>
+                <h3 className="mt-0.5 text-lg font-bold text-slate-900">{trunc(selectedStop.direccion, 80)}</h3>
+                <p className="text-sm text-slate-500">{trunc(selectedStop.cliente.nombre)}</p>
                 {selectedStop.notas && (
-                  <p className="mt-1 text-xs text-slate-400">{selectedStop.notas}</p>
+                  <p className="mt-1 text-xs text-slate-400">{trunc(selectedStop.notas, 100)}</p>
                 )}
               </div>
               <button type="button" onClick={() => setSelectedStop(null)} className="text-slate-400 hover:text-slate-600">
@@ -580,7 +735,7 @@ export function AdminRutasPage() {
                         {g.receptorNombre && (
                           <div>
                             <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Recibido por</p>
-                            <p className="text-xs text-slate-700">{g.receptorNombre}</p>
+                            <p className="text-xs text-slate-700">{trunc(g.receptorNombre)}</p>
                           </div>
                         )}
                         {g.temperatura && (

@@ -76,15 +76,15 @@ export function MainLayout() {
       <aside style={{ height: '100dvh' }} className={`fixed top-0 left-0 z-50 flex w-60 flex-col bg-white shadow-[1px_0_0_0_#e2e8f0] transition-transform duration-200 md:relative md:h-full md:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
 
         {/* Brand */}
-        <div className="flex h-16 items-center justify-between border-b border-slate-100 px-5">
-          <img src={logo} alt="LOGISTRANS" className="h-8 w-auto object-contain" />
-          <button type="button" onClick={close} className="rounded-md p-1 text-slate-400 hover:text-slate-600 md:hidden">
+        <div className="relative flex flex-col items-center border-b border-slate-100 px-5 py-4">
+          <button type="button" onClick={close} className="absolute right-3 top-3 rounded-md p-1 text-slate-400 hover:text-slate-600 md:hidden">
             <span className="material-symbols-outlined text-lg">close</span>
           </button>
+          <img src={logo} alt="LOGISTRANS" className="h-20 w-auto object-contain" />
         </div>
 
         {/* Nav */}
-        <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-4">
+        <nav className="flex-1 space-y-0.5 overflow-y-auto px-3 py-6">
           {role === 'ADMIN' && (<>
             <NavItem to="/admin/dashboard" icon="dashboard" label="Dashboard" onClick={close} />
             <NavItem to="/admin/clientes" icon="groups" label="Clientes" onClick={close} />
