@@ -63,7 +63,7 @@ export function MainLayout() {
   const close = () => setSidebarOpen(false)
 
   return (
-    <div className="flex h-screen overflow-hidden bg-bg font-body text-slate-800 antialiased">
+    <div className="flex overflow-hidden bg-bg font-body text-slate-800 antialiased" style={{ height: '100dvh' }}>
 
       {/* Mobile overlay */}
       {sidebarOpen && (
@@ -73,7 +73,7 @@ export function MainLayout() {
       )}
 
       {/* ── Sidebar ── */}
-      <aside className={`fixed inset-y-0 left-0 z-50 flex w-60 flex-col bg-white shadow-[1px_0_0_0_#e2e8f0] transition-transform duration-200 md:relative md:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside style={{ height: '100dvh' }} className={`fixed top-0 left-0 z-50 flex w-60 flex-col bg-white shadow-[1px_0_0_0_#e2e8f0] transition-transform duration-200 md:relative md:h-full md:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
 
         {/* Brand */}
         <div className="flex h-16 items-center justify-between border-b border-slate-100 px-5">
