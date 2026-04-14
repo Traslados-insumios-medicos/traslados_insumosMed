@@ -50,7 +50,6 @@ export function AdminClientesPage() {
   const [emailContacto, setEmailContacto] = useState('')
   const [tipo, setTipo] = useState<TipoCliente>('SECUNDARIO')
   const [clientePrincipalId, setClientePrincipalId] = useState('')
-  const [crearUsuario, setCrearUsuario] = useState(false)
   const [usarMismoEmail, setUsarMismoEmail] = useState(false)
   const [tipoOriginal, setTipoOriginal] = useState<TipoCliente | null>(null)
   const [showTipoChangeModal, setShowTipoChangeModal] = useState(false)
@@ -58,7 +57,6 @@ export function AdminClientesPage() {
   const [usuarioEmail, setUsuarioEmail] = useState('')
   const [passwordModal, setPasswordModal] = useState<PasswordModalData | null>(null)
   const [copied, setCopied] = useState(false)
-  const [expandedPrincipales, setExpandedPrincipales] = useState<Set<string>>(new Set())
   const [filtroPrincipal, setFiltroPrincipal] = useState('Cliente Principal')
   const [detailId, setDetailId] = useState<string | null>(null)
   const [detailCliente, setDetailCliente] = useState<Cliente | null>(null)
@@ -153,7 +151,7 @@ export function AdminClientesPage() {
   const resetForm = () => {
     setEditingId(null); setNombre(''); setRuc(''); setDireccion(''); setCoordsDireccion(null)
     setTelefono(''); setEmailContacto(''); setTipo('SECUNDARIO'); setTipoOriginal(null)
-    setClientePrincipalId(''); setCrearUsuario(false); setUsarMismoEmail(false)
+    setClientePrincipalId(''); setUsarMismoEmail(false)
     setUsuarioNombre(''); setUsuarioEmail(''); setShowModal(false)
     setNombreError(''); setRucError(''); setTelefonoError('')
     setEmailContactoError(''); setUsuarioNombreError(''); setUsuarioEmailError('')
@@ -167,7 +165,7 @@ export function AdminClientesPage() {
     setEmailContacto(c.emailContacto ?? ''); setTipo(c.tipo)
     setTipoOriginal(c.tipo)
     setClientePrincipalId(c.clientePrincipalId ?? '')
-    setCrearUsuario(false); setUsuarioNombre(''); setUsuarioEmail('')
+    setUsuarioNombre(''); setUsuarioEmail('')
     setShowModal(true)
   }
 
