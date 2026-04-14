@@ -647,15 +647,46 @@ export function ChoferRutaDetallePage() {
                                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                                   <div>
                                     <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Recibido por</label>
-                                    <input type="text" placeholder="Nombre de quien recibe" value={detalleFormPorGuia[g.id]?.receptorNombre ?? ''}
-                                      onChange={(e) => setCampoDetalle(g.id, 'receptorNombre', e.target.value)}
-                                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15" />
+                                    <div className="relative">
+                                      <input
+                                        type="text"
+                                        placeholder="Nombre de quien recibe"
+                                        value={detalleFormPorGuia[g.id]?.receptorNombre ?? ''}
+                                        onChange={(e) => {
+                                          const value = e.target.value
+                                          // Solo permitir letras, espacios y caracteres especiales comunes en nombres
+                                          if (value === '' || /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'-]+$/.test(value)) {
+                                            setCampoDetalle(g.id, 'receptorNombre', value)
+                                          }
+                                        }}
+                                        maxLength={50}
+                                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15"
+                                      />
+                                      <span className={`absolute -bottom-4 right-0 text-[10px] ${(detalleFormPorGuia[g.id]?.receptorNombre?.length || 0) > 45 ? 'text-amber-600' : 'text-slate-400'}`}>
+                                        {detalleFormPorGuia[g.id]?.receptorNombre?.length || 0}/50
+                                      </span>
+                                    </div>
                                   </div>
                                   <div>
                                     <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Temperatura (°C)</label>
-                                    <input type="text" placeholder="Ej: 18°C" value={detalleFormPorGuia[g.id]?.temperatura ?? ''}
-                                      onChange={(e) => setCampoDetalle(g.id, 'temperatura', e.target.value)}
-                                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15" />
+                                    <div className="relative">
+                                      <input
+                                        type="text"
+                                        inputMode="decimal"
+                                        placeholder="Ej: 18"
+                                        value={detalleFormPorGuia[g.id]?.temperatura ?? ''}
+                                        onChange={(e) => {
+                                          const value = e.target.value
+                                          // Solo permitir números, punto decimal y signo negativo
+                                          if (value === '' || /^-?\d*\.?\d*$/.test(value)) {
+                                            setCampoDetalle(g.id, 'temperatura', value)
+                                          }
+                                        }}
+                                        maxLength={25}
+                                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 pr-10 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15"
+                                      />
+                                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-400 pointer-events-none">°C</span>
+                                    </div>
                                   </div>
                                   <div>
                                     <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Hora llegada</label>
@@ -670,10 +701,20 @@ export function ChoferRutaDetallePage() {
                                       className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15" />
                                   </div>
                                   <div className="sm:col-span-2">
-                                    <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Observaciones</label>
-                                    <textarea rows={2} placeholder="Novedades o comentarios (opcional)" value={detalleFormPorGuia[g.id]?.observaciones ?? ''}
-                                      onChange={(e) => setCampoDetalle(g.id, 'observaciones', e.target.value)}
-                                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15" />
+                                    <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Observaciones (máx. 255 caracteres)</label>
+                                    <div className="relative">
+                                      <textarea
+                                        rows={2}
+                                        placeholder="Novedades o comentarios (opcional)"
+                                        value={detalleFormPorGuia[g.id]?.observaciones ?? ''}
+                                        onChange={(e) => setCampoDetalle(g.id, 'observaciones', e.target.value)}
+                                        maxLength={255}
+                                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15"
+                                      />
+                                      <span className={`absolute -bottom-4 right-0 text-[10px] ${(detalleFormPorGuia[g.id]?.observaciones?.length || 0) > 240 ? 'text-amber-600' : 'text-slate-400'}`}>
+                                        {detalleFormPorGuia[g.id]?.observaciones?.length || 0}/255
+                                      </span>
+                                    </div>
                                   </div>
                                 </div>
 
@@ -684,12 +725,26 @@ export function ChoferRutaDetallePage() {
                                     <button
                                       type="button"
                                       onClick={() => handleGuardarDetalleGuia(g.id)}
-                                      disabled={guardandoGuiaId === g.id}
+                                      disabled={
+                                        guardandoGuiaId === g.id ||
+                                        !detalleFormPorGuia[g.id]?.receptorNombre?.trim() ||
+                                        !detalleFormPorGuia[g.id]?.temperatura?.trim() ||
+                                        !detalleFormPorGuia[g.id]?.horaLlegada ||
+                                        !detalleFormPorGuia[g.id]?.horaSalida
+                                      }
                                       className="w-full rounded-lg bg-primary px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-primary/90 disabled:opacity-60 sm:w-auto"
                                     >
                                       {guardandoGuiaId === g.id ? 'Guardando…' : 'Guardar datos de entrega'}
                                     </button>
                                   </div>
+                                  {(!detalleFormPorGuia[g.id]?.receptorNombre?.trim() ||
+                                    !detalleFormPorGuia[g.id]?.temperatura?.trim() ||
+                                    !detalleFormPorGuia[g.id]?.horaLlegada ||
+                                    !detalleFormPorGuia[g.id]?.horaSalida) && (
+                                    <p className="mt-2 text-xs text-amber-600 text-center sm:text-right">
+                                      Completa todos los campos obligatorios para guardar
+                                    </p>
+                                  )}
                                 </div>
                               </div>
                             )}

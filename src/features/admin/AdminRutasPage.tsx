@@ -277,86 +277,89 @@ export function AdminRutasPage() {
         </button>
       </div>
 
-      {/* Buscador */}
-      <div className="relative">
-        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
-        <input
-          type="text"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          placeholder="Buscar por cliente, receptor o chofer..."
-          className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-10 text-sm placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-        />
-        {searchTerm && (
-          <button
-            type="button"
-            onClick={() => setSearchTerm('')}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-          >
-            <span className="material-symbols-outlined text-[18px]">close</span>
-          </button>
-        )}
-      </div>
+      {/* Panel de filtros */}
+      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm space-y-4">
+        {/* Buscador */}
+        <div className="relative">
+          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="Buscar por cliente, receptor o chofer..."
+            className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-10 text-sm placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+          />
+          {searchTerm && (
+            <button
+              type="button"
+              onClick={() => setSearchTerm('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+            >
+              <span className="material-symbols-outlined text-[18px]">close</span>
+            </button>
+          )}
+        </div>
 
-      {/* Filtros de fecha */}
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-[10px] font-semibold text-slate-500">Filtrar por fecha:</span>
-        {(['hoy', 'ayer', 'manana', 'todas'] as const).map((f) => (
-          <button
-            key={f}
-            type="button"
-            onClick={() => {
-              setFiltroFecha(f)
+        {/* Filtros de fecha */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[10px] font-semibold text-slate-500">Fecha:</span>
+          {(['hoy', 'ayer', 'manana', 'todas'] as const).map((f) => (
+            <button
+              key={f}
+              type="button"
+              onClick={() => {
+                setFiltroFecha(f)
+                setPage(1)
+              }}
+              className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                filtroFecha === f
+                  ? 'bg-primary text-white'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              {f === 'hoy' ? 'Hoy' : f === 'ayer' ? 'Ayer' : f === 'manana' ? 'Mañana' : 'Todas'}
+            </button>
+          ))}
+          <input
+            type="date"
+            value={fechaCustom}
+            onChange={(e) => {
+              setFechaCustom(e.target.value)
+              setFiltroFecha('todas')
               setPage(1)
             }}
-            className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold transition-colors ${
-              filtroFecha === f
-                ? 'bg-primary text-white'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            {f === 'hoy' ? 'Hoy' : f === 'ayer' ? 'Ayer' : f === 'manana' ? 'Mañana' : 'Todas'}
-          </button>
-        ))}
-        <input
-          type="date"
-          value={fechaCustom}
-          onChange={(e) => {
-            setFechaCustom(e.target.value)
-            setFiltroFecha('todas')
-            setPage(1)
-          }}
-          placeholder="Fecha específica"
-          className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px]"
-        />
-      </div>
+            placeholder="dd/mm/aaaa"
+            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px]"
+          />
+        </div>
 
-      {/* Filtros de estado */}
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-[10px] font-semibold text-slate-500">Estado:</span>
-        {[
-          { value: '', label: 'Todos' },
-          { value: 'PENDIENTE', label: 'Pendiente' },
-          { value: 'EN_CURSO', label: 'En Curso' },
-          { value: 'COMPLETADA', label: 'Completada' },
-          { value: 'CANCELADA', label: 'Cancelada' },
-        ].map((e) => (
-          <button
-            key={e.value}
-            type="button"
-            onClick={() => {
-              setFiltroEstado(e.value)
-              setPage(1)
-            }}
-            className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold transition-colors ${
-              filtroEstado === e.value
-                ? 'bg-primary text-white'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
-          >
-            {e.label}
-          </button>
-        ))}
+        {/* Filtros de estado */}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-[10px] font-semibold text-slate-500">Estado:</span>
+          {[
+            { value: '', label: 'Todos' },
+            { value: 'PENDIENTE', label: 'Pendiente' },
+            { value: 'EN_CURSO', label: 'En Curso' },
+            { value: 'COMPLETADA', label: 'Completada' },
+            { value: 'CANCELADA', label: 'Cancelada' },
+          ].map((e) => (
+            <button
+              key={e.value}
+              type="button"
+              onClick={() => {
+                setFiltroEstado(e.value)
+                setPage(1)
+              }}
+              className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold transition-colors ${
+                filtroEstado === e.value
+                  ? 'bg-primary text-white'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              {e.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <ModalMotion show={!!deleteConfirmRuta} backdropClassName="bg-black/50" panelClassName="w-full max-w-md rounded-2xl bg-white shadow-2xl">
@@ -731,35 +734,39 @@ export function AdminRutasPage() {
 
                     {/* Detalles de entrega */}
                     {(g.receptorNombre || g.horaLlegada || g.horaSalida || g.temperatura || g.observaciones) && (
-                      <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-slate-200 pt-3 sm:grid-cols-3">
-                        {g.receptorNombre && (
-                          <div className="min-w-0">
-                            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Recibido por</p>
-                            <p className="text-xs text-slate-700 break-words overflow-hidden">{trunc(g.receptorNombre)}</p>
-                          </div>
-                        )}
-                        {g.temperatura && (
-                          <div className="min-w-0">
-                            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Temperatura</p>
-                            <p className="text-xs text-slate-700 break-words overflow-hidden">{g.temperatura}</p>
-                          </div>
-                        )}
-                        {g.horaLlegada && (
-                          <div className="min-w-0">
-                            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Llegada</p>
-                            <p className="text-xs text-slate-700">{g.horaLlegada}</p>
-                          </div>
-                        )}
-                        {g.horaSalida && (
-                          <div className="min-w-0">
-                            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Salida</p>
-                            <p className="text-xs text-slate-700">{g.horaSalida}</p>
-                          </div>
-                        )}
+                      <div className="mt-3 space-y-2 border-t border-slate-200 pt-3">
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                          {g.receptorNombre && (
+                            <div className="overflow-hidden">
+                              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Recibido por</p>
+                              <p className="text-xs text-slate-700 break-all overflow-wrap-anywhere">{g.receptorNombre}</p>
+                            </div>
+                          )}
+                          {g.temperatura && (
+                            <div className="overflow-hidden">
+                              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Temperatura</p>
+                              <p className="text-xs text-slate-700 break-all overflow-wrap-anywhere">{g.temperatura}</p>
+                            </div>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          {g.horaLlegada && (
+                            <div className="overflow-hidden">
+                              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Llegada</p>
+                              <p className="text-xs text-slate-700 break-all">{g.horaLlegada}</p>
+                            </div>
+                          )}
+                          {g.horaSalida && (
+                            <div className="overflow-hidden">
+                              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Salida</p>
+                              <p className="text-xs text-slate-700 break-all">{g.horaSalida}</p>
+                            </div>
+                          )}
+                        </div>
                         {g.observaciones && (
-                          <div className="col-span-2 sm:col-span-3 min-w-0">
+                          <div className="overflow-hidden">
                             <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Observaciones</p>
-                            <p className="text-xs text-slate-700 break-words overflow-hidden">{g.observaciones}</p>
+                            <p className="text-xs text-slate-700 break-all overflow-wrap-anywhere">{g.observaciones}</p>
                           </div>
                         )}
                       </div>
