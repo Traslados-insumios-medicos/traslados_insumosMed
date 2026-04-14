@@ -7,7 +7,7 @@ import { useToastStore } from '../../store/toastStore'
 interface GuiaApi { id: string; estado: string }
 interface StopApi { id: string; orden: number; direccion: string }
 interface RutaApi {
-  id: string; fecha: string; estado: string
+  id: string; fecha: string; estado: string; createdAt: string
   chofer: { id: string; nombre: string }
   stops: StopApi[]
   guias: GuiaApi[]
@@ -23,7 +23,7 @@ interface PaginatedRutas {
 type Filtro = 'activas' | 'todas' | 'completadas'
 type FiltroFecha = 'hoy' | 'ayer' | 'manana' | 'todas'
 
-const LIMIT = 6
+const LIMIT = 10
 
 export function ChoferRutasPage() {
   const { currentUser } = useAuthStore()
@@ -290,6 +290,7 @@ export function ChoferRutasPage() {
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {rutasFiltradas.map((ruta) => {
+            console.log('Ruta data:', { id: ruta.id, createdAt: ruta.createdAt, fecha: ruta.fecha })
             const entregadas = ruta.guias.filter((g) => g.estado === 'ENTREGADO').length
             const incidencias = ruta.guias.filter((g) => g.estado === 'INCIDENCIA').length
             const total = ruta.guias.length
@@ -302,6 +303,9 @@ export function ChoferRutasPage() {
                   <div>
                     <h3 className="text-base font-bold text-slate-900">Ruta #{ruta.id.slice(-6)}</h3>
                     <p className="text-xs text-slate-500">{ruta.fecha} · {ruta.stops.length} paradas</p>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      Creada: {new Date(ruta.createdAt).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </p>
                   </div>
                   <span className={`rounded-full px-2.5 py-1 text-xs font-bold uppercase ${estadoBadge(ruta.estado)}`}>
                     {ruta.estado === 'EN_CURSO' ? 'En Curso' : ruta.estado === 'COMPLETADA' ? 'Completada' : ruta.estado === 'PENDIENTE' ? 'Pendiente' : 'Cancelada'}

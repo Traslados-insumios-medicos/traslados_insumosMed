@@ -66,7 +66,7 @@ interface StopForm {
 }
 
 const stopVacio = (): StopForm => ({ clienteId: '', subClienteId: '', direccion: '', lat: null, lng: null, notas: '', guiaDescripcion: '' })
-const LIMIT = 6
+const LIMIT = 10
 
 export function AdminRutasPage() {
   const addToast = useToastStore((s) => s.addToast)
@@ -161,10 +161,10 @@ export function AdminRutasPage() {
 
   useEffect(() => {
     // Load choferes and clientes for the form
-    api.get<{ data: ChoferOption[] }>('/usuarios?rol=CHOFER&limit=100')
+    api.get<{ data: ChoferOption[] }>('/usuarios?rol=CHOFER&limit=100&activo=true')
       .then((r) => setChoferes(r.data.data))
       .catch(() => {})
-    api.get<{ data: ClienteOption[] }>('/clientes?limit=100&tipo=PRINCIPAL&includeSecundarios=true')
+    api.get<{ data: ClienteOption[] }>('/clientes?limit=100&tipo=PRINCIPAL&includeSecundarios=true&activo=true')
       .then((r) => setClientes(r.data.data))
       .catch(() => {})
   }, [])

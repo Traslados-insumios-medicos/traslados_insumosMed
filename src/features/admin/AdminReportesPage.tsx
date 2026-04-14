@@ -35,7 +35,7 @@ const tabs: { id: TabId; label: string }[] = [
   { id: 'chofer', label: 'Por chofer' },
 ]
 
-const LIMIT = 6
+const LIMIT = 10
 
 const trunc = (str: string | undefined | null, max = 50) => {
   if (!str) return ''

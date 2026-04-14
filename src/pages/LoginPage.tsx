@@ -161,22 +161,40 @@ export function LoginPage() {
               <label className="mb-1.5 block text-sm font-medium text-slate-700">Correo electrónico</label>
               <div className="relative">
                 <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-slate-400">mail</span>
-                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    // Solo permitir caracteres ASCII básicos para emails (sin espacios, tildes, ñ, emojis)
+                    if (value === '' || /^[a-zA-Z0-9@._-]*$/.test(value)) {
+                      setEmail(value)
+                    }
+                  }}
+                  onPaste={(e) => {
+                    e.preventDefault()
+                    const pastedText = e.clipboardData.getData('text')
+                    const cleanText = pastedText.replace(/[^a-zA-Z0-9@._-]/g, '')
+                    setEmail(email + cleanText)
+                  }}
+                  maxLength={150}
+                  required
                   placeholder="Ingresa tu correo electrónico"
-                  className="w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-10 pr-4 text-sm text-slate-900 placeholder-slate-400 shadow-sm transition-shadow focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15" />
+                  className="w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-10 pr-4 text-sm text-slate-900 placeholder-slate-400 shadow-sm transition-shadow focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15"
+                />
               </div>
             </div>
 
             <div>
               <label className="mb-1.5 block text-sm font-medium text-slate-700">Contraseña</label>
               <div className="relative">
-                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-slate-400">lock</span>
+                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[20px] text-slate-400 flex items-center">lock</span>
                 <input type={showPass ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} required
                   placeholder="Ingresa tu contraseña"
                   className="w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-10 pr-10 text-sm text-slate-900 placeholder-slate-400 shadow-sm transition-shadow focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15" />
                 <button type="button" onClick={() => setShowPass((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-                  <span className="material-symbols-outlined text-[18px]">{showPass ? 'visibility_off' : 'visibility'}</span>
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 flex items-center">
+                  <span className="material-symbols-outlined text-[20px]">{showPass ? 'visibility_off' : 'visibility'}</span>
                 </button>
               </div>
             </div>

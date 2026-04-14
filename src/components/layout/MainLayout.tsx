@@ -5,6 +5,7 @@ import { useGsapOutletTransition } from '../../hooks/useGsapOutletTransition'
 import { useAuthStore } from '../../store/authStore'
 import { ToastContainer } from '../ui/ToastContainer'
 import { useAdminNotifications } from '../../hooks/useAdminNotifications'
+import { AccountDeactivatedModal } from '../AccountDeactivatedModal'
 import logo from '../../assets/logo.png'
 
 const tipoLabel: Record<string, string> = {
@@ -51,6 +52,49 @@ export function MainLayout() {
   const [notifOpen, setNotifOpen] = useState(false)
   const notifRef = useRef<HTMLDivElement>(null)
 
+  // Inicializar socket compartido al montar el layout
+  useEffect(() => {
+    const token = localStorage.getItem('token')
+    if (token) {
+      // Importar y conectar el socket
+      import('../../shared/socket').then(({ getSharedSocket }) => {
+        getSharedSocket()
+      })
+    }
+  }, [])
+
+  // Polling para verificar estado del usuario cada 10 segundos
+  useEffect(() => {
+    const checkUserStatus = async () => {
+      console.log('🔍 Verificando estado del usuario...')
+      try {
+        const { api } = await import('../../services/api')
+        const response = await api.get('/auth/me')
+        console.log('✅ Usuario activo:', response.data)
+      } catch (error: any) {
+        const status = error?.response?.status
+        const message = error?.response?.data?.message
+        console.error('❌ Error verificando estado:', status, message)
+        // Si el error es 403 (usuario inactivo), el interceptor ya manejará el logout
+        if (status === 403) {
+          console.log('🚫 Usuario inactivo detectado - el interceptor manejará el logout')
+        }
+      }
+    }
+
+    // Verificar inmediatamente al montar
+    checkUserStatus()
+
+    // Luego verificar cada 10 segundos
+    const interval = setInterval(checkUserStatus, 10000)
+    console.log('⏰ Polling de estado de usuario iniciado (cada 10 segundos)')
+
+    return () => {
+      clearInterval(interval)
+      console.log('🛑 Polling de estado de usuario detenido')
+    }
+  }, [])
+
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (notifRef.current && !notifRef.current.contains(e.target as Node)) setNotifOpen(false)
@@ -77,9 +121,6 @@ export function MainLayout() {
 
         {/* Brand */}
         <div className="relative flex flex-col items-center justify-center border-b border-slate-100 px-5 py-5">
-          <button type="button" onClick={close} className="absolute right-3 top-3 rounded-md p-1 text-slate-400 hover:text-slate-600 md:hidden">
-            <span className="material-symbols-outlined text-lg">close</span>
-          </button>
           <img src={logo} alt="LOGISTRANS" className="h-14 w-auto object-contain mb-2" />
           <div className="text-center">
             <h1 className="text-lg font-bold text-primary leading-tight">LOGISTRANS S.A.</h1>
@@ -256,6 +297,7 @@ export function MainLayout() {
       </div>
 
       <ToastContainer />
+      <AccountDeactivatedModal />
     </div>
   )
 }

@@ -35,7 +35,7 @@ interface StopApi {
 interface FotoApi { id: string; urlPreview: string; createdAt: string; tipo: string }
 
 interface RutaApi {
-  id: string; fecha: string; estado: string
+  id: string; fecha: string; estado: string; createdAt: string
   seguimientoChofer?: string
   chofer: { id: string; nombre: string }
   stops: StopApi[]; guias: GuiaApi[]; fotos: FotoApi[]
@@ -413,6 +413,9 @@ export function ChoferRutaDetallePage() {
               <div>
                 <h3 className="text-sm font-bold text-slate-900">Ruta #{ruta.id.slice(-6)}</h3>
                 <p className="text-xs text-slate-500">Distribución de Insumos Médicos</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  Creada: {new Date(ruta.createdAt).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                </p>
               </div>
               <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
                 ruta.estado === 'EN_CURSO' ? 'bg-emerald-100 text-emerald-700' :
