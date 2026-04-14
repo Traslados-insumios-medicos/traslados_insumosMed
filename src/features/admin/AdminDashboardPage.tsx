@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { api } from '../../services/api'
 
@@ -10,7 +11,19 @@ interface RutaDashboard {
 
 interface NovedadDashboard {
   id: string; tipo: string; descripcion: string; createdAt: string
-  guia: { numeroGuia: string; clienteId: string }
+  guia: { 
+    numeroGuia: string; 
+    clienteId: string;
+    receptorNombre?: string | null;
+    ruta: {
+      id: string;
+      fecha: string;
+      chofer: { nombre: string }
+    };
+    stop: {
+      cliente: { nombre: string }
+    }
+  }
 }
 
 interface DashboardData {
@@ -50,6 +63,7 @@ const novedadItem = {
 }
 
 export function AdminDashboardPage() {
+  const navigate = useNavigate()
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -250,24 +264,57 @@ export function AdminDashboardPage() {
               </motion.div>
             ) : (
               ultimasNovedades.map((n) => (
-                <motion.div
+                <motion.button
                   key={n.id}
+                  type="button"
                   layout
                   variants={novedadItem}
-                  className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+                  onClick={() => navigate(`/admin/rutas?rutaId=${n.guia.ruta.id}`)}
+                  className="w-full rounded-xl border border-slate-200 bg-white p-4 shadow-sm text-left hover:border-primary hover:shadow-md transition-all"
                 >
                   <div className="flex items-start gap-3">
                     <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-red-50">
                       <span className="material-symbols-outlined text-sm text-red-500">warning</span>
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-slate-800">{tipoLabel[n.tipo] ?? n.tipo}</p>
-                      <p className="text-xs text-primary">Guía {n.guia.numeroGuia}</p>
-                      <p className="mt-1 line-clamp-2 text-xs text-slate-500">{n.descripcion}</p>
-                      <p className="mt-1.5 text-[10px] text-slate-400">{new Date(n.createdAt).toLocaleString('es-ES')}</p>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-start justify-between gap-2">
+                        <p className="text-sm font-semibold text-slate-800">{tipoLabel[n.tipo] ?? n.tipo}</p>
+                        <p className="text-xs text-primary font-medium">Guía {n.guia.numeroGuia}</p>
+                      </div>
+                      
+                      <div className="mt-2 space-y-1">
+                        <div className="flex items-center gap-1.5 text-xs text-slate-600">
+                          <span className="material-symbols-outlined text-[14px] text-slate-400">person</span>
+                          <span className="font-medium">Chofer:</span>
+                          <span>{n.guia.ruta.chofer.nombre.length > 25 ? n.guia.ruta.chofer.nombre.slice(0, 22) + '...' : n.guia.ruta.chofer.nombre}</span>
+                        </div>
+                        
+                        <div className="flex items-center gap-1.5 text-xs text-slate-600">
+                          <span className="material-symbols-outlined text-[14px] text-slate-400">store</span>
+                          <span className="font-medium">Cliente:</span>
+                          <span>{n.guia.stop.cliente.nombre.length > 25 ? n.guia.stop.cliente.nombre.slice(0, 22) + '...' : n.guia.stop.cliente.nombre}</span>
+                        </div>
+                        
+                        {n.guia.receptorNombre && (
+                          <div className="flex items-center gap-1.5 text-xs text-slate-600">
+                            <span className="material-symbols-outlined text-[14px] text-slate-400">badge</span>
+                            <span className="font-medium">Receptor:</span>
+                            <span>{n.guia.receptorNombre.length > 25 ? n.guia.receptorNombre.slice(0, 22) + '...' : n.guia.receptorNombre}</span>
+                          </div>
+                        )}
+                        
+                        <div className="flex items-center gap-1.5 text-xs text-slate-600">
+                          <span className="material-symbols-outlined text-[14px] text-slate-400">calendar_today</span>
+                          <span className="font-medium">Fecha ruta:</span>
+                          <span>{n.guia.ruta.fecha}</span>
+                        </div>
+                      </div>
+                      
+                      <p className="mt-2 line-clamp-2 text-xs text-slate-500">{n.descripcion}</p>
+                      <p className="mt-2 text-[10px] text-slate-400">{new Date(n.createdAt).toLocaleString('es-ES')}</p>
                     </div>
                   </div>
-                </motion.div>
+                </motion.button>
               ))
             )}
           </motion.div>

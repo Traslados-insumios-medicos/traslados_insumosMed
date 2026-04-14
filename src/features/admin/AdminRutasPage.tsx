@@ -66,7 +66,7 @@ interface StopForm {
 }
 
 const stopVacio = (): StopForm => ({ clienteId: '', subClienteId: '', direccion: '', lat: null, lng: null, notas: '', guiaDescripcion: '' })
-const LIMIT = 20
+const LIMIT = 6
 
 export function AdminRutasPage() {
   const addToast = useToastStore((s) => s.addToast)
@@ -299,8 +299,8 @@ export function AdminRutasPage() {
       </div>
 
       {/* Filtros de fecha */}
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs font-semibold text-slate-500">Filtrar por fecha:</span>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-[10px] font-semibold text-slate-500">Filtrar por fecha:</span>
         {(['hoy', 'ayer', 'manana', 'todas'] as const).map((f) => (
           <button
             key={f}
@@ -309,7 +309,7 @@ export function AdminRutasPage() {
               setFiltroFecha(f)
               setPage(1)
             }}
-            className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+            className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold transition-colors ${
               filtroFecha === f
                 ? 'bg-primary text-white'
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -327,13 +327,13 @@ export function AdminRutasPage() {
             setPage(1)
           }}
           placeholder="Fecha específica"
-          className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs"
+          className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px]"
         />
       </div>
 
       {/* Filtros de estado */}
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs font-semibold text-slate-500">Estado:</span>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-[10px] font-semibold text-slate-500">Estado:</span>
         {[
           { value: '', label: 'Todos' },
           { value: 'PENDIENTE', label: 'Pendiente' },
@@ -348,7 +348,7 @@ export function AdminRutasPage() {
               setFiltroEstado(e.value)
               setPage(1)
             }}
-            className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+            className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold transition-colors ${
               filtroEstado === e.value
                 ? 'bg-primary text-white'
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -733,33 +733,33 @@ export function AdminRutasPage() {
                     {(g.receptorNombre || g.horaLlegada || g.horaSalida || g.temperatura || g.observaciones) && (
                       <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2 border-t border-slate-200 pt-3 sm:grid-cols-3">
                         {g.receptorNombre && (
-                          <div>
+                          <div className="min-w-0">
                             <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Recibido por</p>
-                            <p className="text-xs text-slate-700">{trunc(g.receptorNombre)}</p>
+                            <p className="text-xs text-slate-700 break-words overflow-hidden">{trunc(g.receptorNombre)}</p>
                           </div>
                         )}
                         {g.temperatura && (
-                          <div>
+                          <div className="min-w-0">
                             <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Temperatura</p>
-                            <p className="text-xs text-slate-700">{g.temperatura}</p>
+                            <p className="text-xs text-slate-700 break-words overflow-hidden">{g.temperatura}</p>
                           </div>
                         )}
                         {g.horaLlegada && (
-                          <div>
+                          <div className="min-w-0">
                             <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Llegada</p>
                             <p className="text-xs text-slate-700">{g.horaLlegada}</p>
                           </div>
                         )}
                         {g.horaSalida && (
-                          <div>
+                          <div className="min-w-0">
                             <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Salida</p>
                             <p className="text-xs text-slate-700">{g.horaSalida}</p>
                           </div>
                         )}
                         {g.observaciones && (
-                          <div className="col-span-2 sm:col-span-3">
+                          <div className="col-span-2 sm:col-span-3 min-w-0">
                             <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Observaciones</p>
-                            <p className="text-xs text-slate-700">{g.observaciones}</p>
+                            <p className="text-xs text-slate-700 break-words overflow-hidden">{g.observaciones}</p>
                           </div>
                         )}
                       </div>

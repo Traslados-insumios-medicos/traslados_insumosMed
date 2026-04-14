@@ -35,9 +35,11 @@ const tabs: { id: TabId; label: string }[] = [
   { id: 'chofer', label: 'Por chofer' },
 ]
 
+const LIMIT = 6
+
 const trunc = (str: string | undefined | null, max = 50) => {
   if (!str) return ''
-  return str.length > max ? str.slice(0, max) + '...' : str
+  return str.length > max ? str.slice(0, max - 3) + '...' : str
 }
 
 export function AdminReportesPage() {
@@ -58,6 +60,19 @@ export function AdminReportesPage() {
 
   const [loading, setLoading] = useState(false)
   const [choferExpandidoId, setChoferExpandidoId] = useState<string | null>(null)
+  
+  // Paginación
+  const [pageCliente, setPageCliente] = useState(1)
+  const [pageFechas, setPageFechas] = useState(1)
+  const [pageChofer, setPageChofer] = useState(1)
+
+  const totalPagesCliente = Math.max(1, Math.ceil(dataCliente.length / LIMIT))
+  const totalPagesFechas = Math.max(1, Math.ceil(dataFechas.length / LIMIT))
+  const totalPagesChofer = Math.max(1, Math.ceil(dataChofer.length / LIMIT))
+
+  const dataClientePaginada = dataCliente.slice((pageCliente - 1) * LIMIT, pageCliente * LIMIT)
+  const dataFechasPaginada = dataFechas.slice((pageFechas - 1) * LIMIT, pageFechas * LIMIT)
+  const dataChoferPaginada = dataChofer.slice((pageChofer - 1) * LIMIT, pageChofer * LIMIT)
 
   // Load filter options
   useEffect(() => {
@@ -69,7 +84,11 @@ export function AdminReportesPage() {
     setLoading(true)
     try {
       if (tab === 'cliente') {
-        const res = await api.get<ResumenCliente[]>('/reportes/clientes')
+        const params = new URLSearchParams()
+        if (clienteId) params.set('clienteId', clienteId)
+        if (fechaDesde) params.set('desde', fechaDesde)
+        if (fechaHasta) params.set('hasta', fechaHasta)
+        const res = await api.get<ResumenCliente[]>(`/reportes/clientes?${params}`)
         setDataCliente(res.data)
       } else if (tab === 'fechas') {
         const params = new URLSearchParams()
@@ -81,6 +100,8 @@ export function AdminReportesPage() {
       } else {
         const params = new URLSearchParams()
         if (choferId) params.set('choferId', choferId)
+        if (fechaDesde) params.set('desde', fechaDesde)
+        if (fechaHasta) params.set('hasta', fechaHasta)
         const res = await api.get<ResumenChofer[]>(`/reportes/choferes?${params}`)
         setDataChofer(res.data)
       }
@@ -91,7 +112,13 @@ export function AdminReportesPage() {
     }
   }, [tab, fechaDesde, fechaHasta, clienteId, choferId, addToast])
 
-  useEffect(() => { fetchData() }, [fetchData])
+  useEffect(() => { 
+    fetchData()
+    // Reset pagination when changing tabs or filters
+    setPageCliente(1)
+    setPageFechas(1)
+    setPageChofer(1)
+  }, [fetchData])
 
   // Export helpers
   const handleExportClienteExcel = () => {
@@ -107,7 +134,7 @@ export function AdminReportesPage() {
 
   const buildChoferRows = () => {
     const rows: Record<string, string | number>[] = []
-    dataChofer.filter((c) => !choferId || c.choferId === choferId).forEach((ch) => {
+    dataChofer.forEach((ch) => {
       ch.rutas.forEach((r) => {
         r.guias.forEach((g) => {
           rows.push({
@@ -138,30 +165,30 @@ export function AdminReportesPage() {
       </div>
 
       {/* Filtros globales */}
-      <div className="rounded-xl border border-slate-200 bg-white px-6 py-5">
-        <div className="flex flex-wrap items-end gap-10">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Cliente</label>
+      <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Cliente</label>
             <select value={clienteId} onChange={(e) => setClienteId(e.target.value)}
-              className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm min-w-[180px] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary">
+              className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs min-w-[140px] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary">
               <option value="">Todos</option>
               {clientes.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
             </select>
           </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Desde</label>
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Desde</label>
             <input type="date" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)}
-              className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary" />
+              className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary" />
           </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Hasta</label>
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Hasta</label>
             <input type="date" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)}
-              className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary" />
+              className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary" />
           </div>
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Chofer</label>
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Chofer</label>
             <select value={choferId} onChange={(e) => setChoferId(e.target.value)}
-              className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm min-w-[180px] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary">
+              className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs min-w-[140px] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary">
               <option value="">Todos</option>
               {choferes.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
             </select>
@@ -170,7 +197,7 @@ export function AdminReportesPage() {
       </div>
 
       {/* Tabs */}
-      <div className="border-b border-slate-200">
+      <div className="flex items-center justify-between border-b border-slate-200">
         <div className="flex gap-1">
           {tabs.map((t) => (
             <button key={t.id} type="button" onClick={() => setTab(t.id)}
@@ -180,6 +207,30 @@ export function AdminReportesPage() {
               {t.label}
             </button>
           ))}
+        </div>
+        
+        {/* Botones de exportación */}
+        <div className="flex gap-2 pb-2">
+          {tab === 'cliente' && (
+            <>
+              <button type="button" onClick={handleExportClienteExcel} className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100">
+                <span className="material-symbols-outlined text-sm">table_view</span>Excel
+              </button>
+              <button type="button" onClick={handleExportClientePDF} className="flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100">
+                <span className="material-symbols-outlined text-sm">picture_as_pdf</span>PDF
+              </button>
+            </>
+          )}
+          {tab === 'chofer' && (
+            <>
+              <button type="button" onClick={handleExportChoferExcel} className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100">
+                <span className="material-symbols-outlined text-sm">table_view</span>Excel
+              </button>
+              <button type="button" onClick={handleExportChoferPDF} className="flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100">
+                <span className="material-symbols-outlined text-sm">picture_as_pdf</span>PDF
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -192,14 +243,6 @@ export function AdminReportesPage() {
           <>
             {tab === 'cliente' && (
               <div>
-                <div className="flex justify-end gap-2 border-b border-slate-100 p-3">
-                  <button type="button" onClick={handleExportClienteExcel} className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100">
-                    <span className="material-symbols-outlined text-sm">table_view</span>Excel
-                  </button>
-                  <button type="button" onClick={handleExportClientePDF} className="flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100">
-                    <span className="material-symbols-outlined text-sm">picture_as_pdf</span>PDF
-                  </button>
-                </div>
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[440px] text-left text-sm">
                     <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wider text-slate-500">
@@ -212,9 +255,9 @@ export function AdminReportesPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {dataCliente.map((r) => (
+                      {dataClientePaginada.map((r) => (
                         <tr key={r.clienteId} className="hover:bg-slate-50">
-                          <td className="px-4 py-3 font-medium text-slate-900">{r.nombre}</td>
+                          <td className="px-4 py-3 font-medium text-slate-900 max-w-xs break-words overflow-hidden">{trunc(r.nombre)}</td>
                           <td className="px-4 py-3 text-right">{r.total}</td>
                           <td className="px-4 py-3 text-right text-emerald-600">{r.entregados}</td>
                           <td className="px-4 py-3 text-right">{r.pendientes}</td>
@@ -224,6 +267,22 @@ export function AdminReportesPage() {
                     </tbody>
                   </table>
                 </div>
+                {totalPagesCliente > 1 && (
+                  <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3 text-sm">
+                    <p className="text-slate-500">{dataCliente.length} cliente{dataCliente.length !== 1 ? 's' : ''}</p>
+                    <div className="flex items-center gap-2">
+                      <button type="button" onClick={() => setPageCliente(p => p - 1)} disabled={pageCliente <= 1}
+                        className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40">
+                        Anterior
+                      </button>
+                      <span className="text-slate-500">{pageCliente} / {totalPagesCliente}</span>
+                      <button type="button" onClick={() => setPageCliente(p => p + 1)} disabled={pageCliente >= totalPagesCliente}
+                        className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40">
+                        Siguiente
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -231,6 +290,11 @@ export function AdminReportesPage() {
               <div className="p-4">
                 <p className="mb-4 text-sm text-slate-500">
                   Guías en el rango: <strong className="text-slate-900">{dataFechas.length}</strong>
+                  {(fechaDesde || fechaHasta) && (
+                    <span className="ml-2 text-xs">
+                      ({fechaDesde && `desde ${fechaDesde}`} {fechaHasta && `hasta ${fechaHasta}`})
+                    </span>
+                  )}
                 </p>
                 <div className="overflow-x-auto">
                   <table className="w-full min-w-[480px] text-left text-sm">
@@ -244,40 +308,47 @@ export function AdminReportesPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {dataFechas.slice(0, 50).map((g) => (
+                      {dataFechasPaginada.map((g) => (
                         <tr key={g.id} className="hover:bg-slate-50">
-                          <td className="px-4 py-3 font-medium text-primary">{g.numeroGuia}</td>
-                          <td className="px-4 py-3 text-slate-600">{g.cliente.nombre}</td>
-                          <td className="px-4 py-3 text-slate-500">{g.ruta.chofer.nombre}</td>
+                          <td className="px-4 py-3 font-medium text-primary max-w-[120px] break-words overflow-hidden">{trunc(g.numeroGuia)}</td>
+                          <td className="px-4 py-3 text-slate-600 max-w-[150px] break-words overflow-hidden">{trunc(g.cliente.nombre)}</td>
+                          <td className="px-4 py-3 text-slate-500 max-w-[150px] break-words overflow-hidden">{trunc(g.ruta.chofer.nombre)}</td>
                           <td className="px-4 py-3">
-                            <span className={`rounded-full px-2 py-0.5 text-xs ${
+                            <span className={`rounded-full px-2 py-0.5 text-xs whitespace-nowrap ${
                               g.estado === 'ENTREGADO' ? 'bg-emerald-100 text-emerald-700' :
                               g.estado === 'INCIDENCIA' ? 'bg-amber-100 text-amber-700' :
                               'bg-slate-100 text-slate-600'
                             }`}>{g.estado}</span>
                           </td>
-                          <td className="px-4 py-3 text-slate-500">{new Date(g.createdAt).toLocaleDateString('es-ES')}</td>
+                          <td className="px-4 py-3 text-slate-500 whitespace-nowrap">{new Date(g.createdAt).toLocaleDateString('es-ES')}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
-                {dataFechas.length > 50 && <p className="mt-2 text-xs text-slate-500">Mostrando 50 de {dataFechas.length}</p>}
+                {totalPagesFechas > 1 && (
+                  <div className="flex items-center justify-between border-t border-slate-100 mt-4 pt-3 text-sm">
+                    <p className="text-slate-500">{dataFechas.length} guía{dataFechas.length !== 1 ? 's' : ''}</p>
+                    <div className="flex items-center gap-2">
+                      <button type="button" onClick={() => setPageFechas(p => p - 1)} disabled={pageFechas <= 1}
+                        className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40">
+                        Anterior
+                      </button>
+                      <span className="text-slate-500">{pageFechas} / {totalPagesFechas}</span>
+                      <button type="button" onClick={() => setPageFechas(p => p + 1)} disabled={pageFechas >= totalPagesFechas}
+                        className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40">
+                        Siguiente
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
             {tab === 'chofer' && (
               <div>
-                <div className="flex justify-end gap-2 border-b border-slate-100 p-3">
-                  <button type="button" onClick={handleExportChoferExcel} className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100">
-                    <span className="material-symbols-outlined text-sm">table_view</span>Excel
-                  </button>
-                  <button type="button" onClick={handleExportChoferPDF} className="flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100">
-                    <span className="material-symbols-outlined text-sm">picture_as_pdf</span>PDF
-                  </button>
-                </div>
                 <div className="divide-y divide-slate-100">
-                  {dataChofer.filter((c) => !choferId || c.choferId === choferId).map((ch) => {
+                  {dataChoferPaginada.map((ch) => {
                     const expandido = choferExpandidoId === ch.choferId
                     const totalGuias = ch.rutas.reduce((a, r) => a + r.guias.length, 0)
                     const entregadas = ch.rutas.reduce((a, r) => a + r.guias.filter((g) => g.estado === 'ENTREGADO').length, 0)
@@ -287,11 +358,11 @@ export function AdminReportesPage() {
                           className="flex w-full items-center justify-between px-4 py-3 text-left hover:bg-slate-50">
                           <div className="flex items-center gap-3">
                             <span className={`material-symbols-outlined text-slate-400 transition-transform ${expandido ? 'rotate-90' : ''}`}>chevron_right</span>
-                            <div className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-primary">
+                            <div className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-primary flex-shrink-0">
                               <span className="material-symbols-outlined text-sm">person</span>
                             </div>
-                            <div>
-                              <p className="text-sm font-bold text-slate-900">{ch.nombre}</p>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-bold text-slate-900 break-words overflow-hidden">{trunc(ch.nombre)}</p>
                               <p className="text-xs text-slate-500">{ch.rutas.length} rutas · {entregadas}/{totalGuias} guías entregadas</p>
                             </div>
                           </div>
@@ -310,12 +381,12 @@ export function AdminReportesPage() {
                                 <div className="space-y-2">
                                   {ruta.guias.map((g) => (
                                     <div key={g.guiaId} className="rounded-lg border border-slate-200 bg-white p-3">
-                                      <div className="flex flex-wrap items-start justify-between gap-2">
-                                        <div>
-                                          <p className="text-xs font-semibold text-slate-900">{g.cliente} · <span className="text-primary">{g.numeroGuia}</span></p>
-                                          <p className="text-xs text-slate-500">{g.descripcion}</p>
+                                      <div className="flex items-start justify-between gap-2">
+                                        <div className="min-w-0 flex-1">
+                                          <p className="text-xs font-semibold text-slate-900 break-words overflow-hidden">{trunc(g.cliente)} · <span className="text-primary">{trunc(g.numeroGuia)}</span></p>
+                                          <p className="text-xs text-slate-500 break-words overflow-hidden">{trunc(g.descripcion)}</p>
                                         </div>
-                                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+                                        <span className={`whitespace-nowrap flex-shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
                                           g.estado === 'ENTREGADO' ? 'bg-emerald-100 text-emerald-700' :
                                           g.estado === 'INCIDENCIA' ? 'bg-amber-100 text-amber-700' :
                                           'bg-slate-100 text-slate-600'
@@ -323,14 +394,14 @@ export function AdminReportesPage() {
                                       </div>
                                       {(g.receptorNombre || g.horaLlegada || g.temperatura) && (
                                         <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500">
-                                          {g.receptorNombre && <span>Receptor: {trunc(g.receptorNombre)}</span>}
-                                          {g.horaLlegada && <span>Llegada: {g.horaLlegada}</span>}
-                                          {g.horaSalida && <span>Salida: {g.horaSalida}</span>}
-                                          {g.temperatura && <span>Temperatura: {g.temperatura}</span>}
+                                          {g.receptorNombre && <span className="break-words overflow-hidden">Receptor: {trunc(g.receptorNombre)}</span>}
+                                          {g.horaLlegada && <span className="whitespace-nowrap">Llegada: {g.horaLlegada}</span>}
+                                          {g.horaSalida && <span className="whitespace-nowrap">Salida: {g.horaSalida}</span>}
+                                          {g.temperatura && <span className="whitespace-nowrap">Temperatura: {g.temperatura}</span>}
                                         </div>
                                       )}
                                       {g.novedades.length > 0 && (
-                                        <div className="mt-1.5 text-xs text-amber-600">Novedades: {g.novedades.join(' · ')}</div>
+                                        <div className="mt-1.5 text-xs text-amber-600 break-words overflow-hidden">Novedades: {g.novedades.map(n => trunc(n)).join(' · ')}</div>
                                       )}
                                     </div>
                                   ))}
@@ -343,6 +414,22 @@ export function AdminReportesPage() {
                     )
                   })}
                 </div>
+                {totalPagesChofer > 1 && (
+                  <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3 text-sm">
+                    <p className="text-slate-500">{dataChofer.length} chofer{dataChofer.length !== 1 ? 'es' : ''}</p>
+                    <div className="flex items-center gap-2">
+                      <button type="button" onClick={() => setPageChofer(p => p - 1)} disabled={pageChofer <= 1}
+                        className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40">
+                        Anterior
+                      </button>
+                      <span className="text-slate-500">{pageChofer} / {totalPagesChofer}</span>
+                      <button type="button" onClick={() => setPageChofer(p => p + 1)} disabled={pageChofer >= totalPagesChofer}
+                        className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40">
+                        Siguiente
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </>

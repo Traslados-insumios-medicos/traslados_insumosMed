@@ -13,14 +13,25 @@ interface RutaApi {
   guias: GuiaApi[]
 }
 
+interface PaginatedRutas {
+  data: RutaApi[]
+  total: number
+  page: number
+  limit: number
+}
+
 type Filtro = 'activas' | 'todas' | 'completadas'
 type FiltroFecha = 'hoy' | 'ayer' | 'manana' | 'todas'
+
+const LIMIT = 6
 
 export function ChoferRutasPage() {
   const { currentUser } = useAuthStore()
   const addToast = useToastStore((s) => s.addToast)
 
   const [rutas, setRutas] = useState<RutaApi[]>([])
+  const [total, setTotal] = useState(0)
+  const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(false)
   const location = useLocation()
   const isHistorial = location.pathname.includes('historial')
@@ -30,6 +41,8 @@ export function ChoferRutasPage() {
   const [filtroEstado, setFiltroEstado] = useState<string>('')
   const [searchTerm, setSearchTerm] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
+
+  const totalPages = Math.max(1, Math.ceil(total / LIMIT))
 
   // Debounce para el buscador
   useEffect(() => {
@@ -61,17 +74,19 @@ export function ChoferRutasPage() {
     return fechaCustom || undefined
   }, [filtroFecha, fechaCustom])
 
-  const fetchRutas = useCallback(async () => {
+  const fetchRutas = useCallback(async (p: number = 1) => {
     setLoading(true)
     try {
       const fechaParam = getFechaFiltro()
-      const params = new URLSearchParams({ limit: '100' })
+      const params = new URLSearchParams({ page: p.toString(), limit: LIMIT.toString() })
       if (fechaParam) params.append('fecha', fechaParam)
       if (filtroEstado) params.append('estado', filtroEstado)
       if (debouncedSearch.trim()) params.append('search', debouncedSearch.trim())
       
-      const res = await api.get<{ data: RutaApi[] }>(`/rutas?${params.toString()}`)
+      const res = await api.get<PaginatedRutas>(`/rutas?${params.toString()}`)
       setRutas(res.data.data)
+      setTotal(res.data.total)
+      setPage(p)
     } catch {
       addToast('Error al cargar rutas', 'error')
     } finally {
@@ -79,11 +94,11 @@ export function ChoferRutasPage() {
     }
   }, [addToast, getFechaFiltro, filtroEstado, debouncedSearch])
 
-  useEffect(() => { fetchRutas() }, [fetchRutas])
+  useEffect(() => { fetchRutas(1) }, [fetchRutas])
 
   useEffect(() => {
     // Recargar cuando cambie el filtro de fecha
-    fetchRutas()
+    fetchRutas(1)
   }, [filtroFecha, fechaCustom, filtroEstado, debouncedSearch, fetchRutas])
 
   const rutasFiltradas = rutas.filter((r) => {
@@ -174,8 +189,8 @@ export function ChoferRutasPage() {
       </div>
 
       {/* Filtros de fecha */}
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs font-semibold text-slate-500">Fecha:</span>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-[10px] font-semibold text-slate-500">Fecha:</span>
         {(['hoy', 'ayer', 'manana', 'todas'] as const).map((f) => (
           <button
             key={f}
@@ -184,7 +199,7 @@ export function ChoferRutasPage() {
               setFiltroFecha(f)
               setFechaCustom('')
             }}
-            className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+            className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold transition-colors ${
               filtroFecha === f && !fechaCustom
                 ? 'bg-primary text-white'
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -201,13 +216,13 @@ export function ChoferRutasPage() {
             setFiltroFecha('todas')
           }}
           placeholder="Fecha específica"
-          className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs"
+          className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px]"
         />
       </div>
 
       {/* Filtros de estado */}
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs font-semibold text-slate-500">Estado:</span>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="text-[10px] font-semibold text-slate-500">Estado:</span>
         {[
           { value: '', label: 'Todos' },
           { value: 'PENDIENTE', label: 'Pendiente' },
@@ -218,7 +233,7 @@ export function ChoferRutasPage() {
             key={e.value}
             type="button"
             onClick={() => setFiltroEstado(e.value)}
-            className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+            className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold transition-colors ${
               filtroEstado === e.value
                 ? 'bg-primary text-white'
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -230,10 +245,10 @@ export function ChoferRutasPage() {
       </div>
 
       {/* Filtros de tipo (legacy - mantener compatibilidad) */}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-1.5">
         {(['activas', 'todas', 'completadas'] as Filtro[]).map((f) => (
           <button key={f} type="button" onClick={() => setFiltro(f)}
-            className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+            className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold transition-colors ${
               filtro === f ? 'bg-primary text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}>
             {f === 'activas' ? 'Activas' : f === 'todas' ? 'Todas' : 'Completadas'}
@@ -312,6 +327,24 @@ export function ChoferRutasPage() {
               </Link>
             )
           })}
+        </div>
+      )}
+
+      {/* Paginación */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between text-sm">
+          <p className="text-slate-500">{total} ruta{total !== 1 ? 's' : ''} en total</p>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => fetchRutas(page - 1)} disabled={page <= 1 || loading}
+              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40">
+              Anterior
+            </button>
+            <span className="text-slate-500">{page} / {totalPages}</span>
+            <button type="button" onClick={() => fetchRutas(page + 1)} disabled={page >= totalPages || loading}
+              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40">
+              Siguiente
+            </button>
+          </div>
         </div>
       )}
     </div>

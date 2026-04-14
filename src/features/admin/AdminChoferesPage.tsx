@@ -18,7 +18,7 @@ function ToggleActivo({ activo, onToggle }: { activo: boolean; onToggle: () => v
   )
 }
 
-const LIMIT = 20
+const LIMIT = 6
 
 export function AdminChoferesPage() {
   const addToast = useToastStore((s) => s.addToast)
@@ -323,11 +323,30 @@ export function AdminChoferesPage() {
           {!detailLoading && detailChofer && (
             <>
               <dl className="space-y-3 text-sm">
-                <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Nombre</dt><dd className="text-slate-900">{detailChofer.nombre}</dd></div>
-                <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Email</dt><dd className="text-slate-900">{detailChofer.email}</dd></div>
-                <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Cédula</dt><dd className="text-slate-900">{detailChofer.cedula ?? '—'}</dd></div>
-                <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Rol</dt><dd className="text-slate-900">{detailChofer.rol}</dd></div>
-                <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Estado</dt><dd className="text-slate-900">{detailChofer.activo ? 'Activo' : 'Inactivo'}</dd></div>
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Nombre</dt>
+                  <dd className="break-words text-slate-900">
+                    {detailChofer.nombre.length > 50 ? detailChofer.nombre.slice(0, 47) + '...' : detailChofer.nombre}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Email</dt>
+                  <dd className="break-words text-slate-900">
+                    {detailChofer.email.length > 50 ? detailChofer.email.slice(0, 47) + '...' : detailChofer.email}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Cédula</dt>
+                  <dd className="text-slate-900">{detailChofer.cedula ?? '—'}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Rol</dt>
+                  <dd className="text-slate-900">{detailChofer.rol}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Estado</dt>
+                  <dd className="text-slate-900">{detailChofer.activo ? 'Activo' : 'Inactivo'}</dd>
+                </div>
               </dl>
               <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
                 <button type="button" onClick={closeDetail} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">Cerrar</button>
