@@ -76,11 +76,15 @@ export function MainLayout() {
       <aside style={{ height: '100dvh' }} className={`fixed top-0 left-0 z-50 flex w-60 flex-col bg-white shadow-[1px_0_0_0_#e2e8f0] transition-transform duration-200 md:relative md:h-full md:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
 
         {/* Brand */}
-        <div className="relative flex flex-col items-center border-b border-slate-100 px-5 py-4">
+        <div className="relative flex flex-col items-center justify-center border-b border-slate-100 px-5 py-5">
           <button type="button" onClick={close} className="absolute right-3 top-3 rounded-md p-1 text-slate-400 hover:text-slate-600 md:hidden">
             <span className="material-symbols-outlined text-lg">close</span>
           </button>
-          <img src={logo} alt="LOGISTRANS" className="h-20 w-auto object-contain" />
+          <img src={logo} alt="LOGISTRANS" className="h-14 w-auto object-contain mb-2" />
+          <div className="text-center">
+            <h1 className="text-lg font-bold text-primary leading-tight">LOGISTRANS S.A.</h1>
+            <p className="text-[10px] text-slate-500 uppercase tracking-wider">Servicio de Transporte</p>
+          </div>
         </div>
 
         {/* Nav */}
