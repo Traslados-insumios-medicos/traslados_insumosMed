@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { api } from '../../services/api'
 
@@ -63,7 +62,6 @@ const novedadItem = {
 }
 
 export function AdminDashboardPage() {
-  const navigate = useNavigate()
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
 
