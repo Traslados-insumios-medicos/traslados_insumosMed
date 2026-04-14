@@ -80,7 +80,7 @@ export function ClienteEnviosPage() {
       const params = new URLSearchParams({
         vista,
         page: String(page),
-        limit: '15',
+        limit: '10',
       })
       if (debouncedSearch) params.set('search', debouncedSearch)
       const res = await api.get<MisEnviosResponse>(`/guias/mis-envios?${params}`)
@@ -102,7 +102,7 @@ export function ClienteEnviosPage() {
   const resumen = payload?.resumen
   const guiasFiltradas = payload?.data ?? []
   const total = payload?.total ?? 0
-  const limit = payload?.limit ?? 15
+  const limit = payload?.limit ?? 10
   const totalPages = Math.max(1, Math.ceil(total / limit))
 
   return (

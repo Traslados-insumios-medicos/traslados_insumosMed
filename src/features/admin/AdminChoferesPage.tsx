@@ -18,7 +18,7 @@ function ToggleActivo({ activo, onToggle }: { activo: boolean; onToggle: () => v
   )
 }
 
-const LIMIT = 6
+const LIMIT = 10
 
 export function AdminChoferesPage() {
   const addToast = useToastStore((s) => s.addToast)
@@ -248,10 +248,10 @@ export function AdminChoferesPage() {
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Email *</label>
-                  <span className={`text-[10px] ${email.length > 80 ? 'text-amber-500' : 'text-slate-400'}`}>{email.length}/100</span>
+                  <span className={`text-[10px] ${email.length > 120 ? 'text-amber-500' : 'text-slate-400'}`}>{email.length}/150</span>
                 </div>
                 <input type="email" className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20 ${emailError ? 'border-red-400 focus:border-red-400' : 'border-slate-300 focus:border-primary'}`}
-                  value={email} onChange={(e) => handleEmailChange(e.target.value)} required maxLength={100} />
+                  value={email} onChange={(e) => handleEmailChange(e.target.value)} required maxLength={150} />
                 {emailError && <p className="mt-1 text-xs text-red-500">{emailError}</p>}
               </div>
               <div className="flex justify-end gap-3 border-t border-slate-100 pt-4">

@@ -29,7 +29,7 @@ function ToggleActivo({ activo, onToggle }: { activo: boolean; onToggle: () => v
   )
 }
 
-const LIMIT = 20
+const LIMIT = 10
 
 export function AdminClientesPage() {
   const addToast = useToastStore((s) => s.addToast)
@@ -50,12 +50,14 @@ export function AdminClientesPage() {
   const [emailContacto, setEmailContacto] = useState('')
   const [tipo, setTipo] = useState<TipoCliente>('SECUNDARIO')
   const [clientePrincipalId, setClientePrincipalId] = useState('')
-  const [crearUsuario, setCrearUsuario] = useState(false)
+  const [usarMismoEmail, setUsarMismoEmail] = useState(false)
+  const [tipoOriginal, setTipoOriginal] = useState<TipoCliente | null>(null)
+  const [showTipoChangeModal, setShowTipoChangeModal] = useState(false)
   const [usuarioNombre, setUsuarioNombre] = useState('')
   const [usuarioEmail, setUsuarioEmail] = useState('')
   const [passwordModal, setPasswordModal] = useState<PasswordModalData | null>(null)
   const [copied, setCopied] = useState(false)
-  const [expandedPrincipales, setExpandedPrincipales] = useState<Set<string>>(new Set())
+  const [filtroPrincipal, setFiltroPrincipal] = useState('Cliente Principal')
   const [detailId, setDetailId] = useState<string | null>(null)
   const [detailCliente, setDetailCliente] = useState<Cliente | null>(null)
   const [detailLoading, setDetailLoading] = useState(false)
@@ -96,7 +98,13 @@ export function AdminClientesPage() {
 
   const handleEmailContactoChange = (val: string) => {
     setEmailContacto(val)
-    setEmailContactoError(val && !EMAIL_REGEX.test(val) ? 'El email debe contener @, dominio y extensión válida (ej. usuario@empresa.com)' : '')
+    if (!val) {
+      setEmailContactoError('El email es obligatorio')
+    } else if (!EMAIL_REGEX.test(val)) {
+      setEmailContactoError('El email debe contener @, dominio y extensión válida (ej. usuario@empresa.com)')
+    } else {
+      setEmailContactoError('')
+    }
   }
 
   const handleUsuarioNombreChange = (val: string) => {
@@ -130,10 +138,20 @@ export function AdminClientesPage() {
       .catch(() => {})
   }, [])
 
+  // Sincronizar email de usuario con email de contacto cuando está marcado "usar mismo correo"
+  useEffect(() => {
+    if (usarMismoEmail) {
+      setUsuarioEmail(emailContacto)
+      if (emailContacto && EMAIL_REGEX.test(emailContacto)) {
+        setUsuarioEmailError('')
+      }
+    }
+  }, [emailContacto, usarMismoEmail])
+
   const resetForm = () => {
     setEditingId(null); setNombre(''); setRuc(''); setDireccion(''); setCoordsDireccion(null)
-    setTelefono(''); setEmailContacto(''); setTipo('SECUNDARIO')
-    setClientePrincipalId(''); setCrearUsuario(false)
+    setTelefono(''); setEmailContacto(''); setTipo('SECUNDARIO'); setTipoOriginal(null)
+    setClientePrincipalId(''); setUsarMismoEmail(false)
     setUsuarioNombre(''); setUsuarioEmail(''); setShowModal(false)
     setNombreError(''); setRucError(''); setTelefonoError('')
     setEmailContactoError(''); setUsuarioNombreError(''); setUsuarioEmailError('')
@@ -145,8 +163,9 @@ export function AdminClientesPage() {
     setCoordsDireccion(c.lat && c.lng ? { lat: c.lat, lng: c.lng } : null)
     setTelefono(c.telefonoContacto ?? '')
     setEmailContacto(c.emailContacto ?? ''); setTipo(c.tipo)
+    setTipoOriginal(c.tipo)
     setClientePrincipalId(c.clientePrincipalId ?? '')
-    setCrearUsuario(false); setUsuarioNombre(''); setUsuarioEmail('')
+    setUsuarioNombre(''); setUsuarioEmail('')
     setShowModal(true)
   }
 
@@ -212,23 +231,44 @@ export function AdminClientesPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!nombre || !ruc || !direccion) return
+    if (!nombre || !ruc || !direccion || !telefono || !emailContacto) return
     if (nombreError || rucError || telefonoError || emailContactoError || usuarioNombreError || usuarioEmailError) return
     if (ruc.length !== 13) { setRucError('El RUC debe tener exactamente 13 dígitos numéricos'); return }
-    if (emailContacto && !EMAIL_REGEX.test(emailContacto)) { setEmailContactoError('El email debe contener @, dominio y extensión válida (ej. usuario@empresa.com)'); return }
+    if (!EMAIL_REGEX.test(emailContacto)) { setEmailContactoError('El email debe contener @, dominio y extensión válida (ej. usuario@empresa.com)'); return }
+    
+    // Detectar cambio de tipo PRINCIPAL a SECUNDARIO
+    if (editingId && tipoOriginal === 'PRINCIPAL' && tipo === 'SECUNDARIO') {
+      setShowTipoChangeModal(true)
+      return
+    }
+    
     setSubmitting(true)
     try {
       if (editingId) {
         const res = await api.put<Cliente>(`/clientes/${editingId}`, {
-          nombre, direccion,
+          nombre, ruc, direccion,
           lat: coordsDireccion?.lat ?? undefined,
           lng: coordsDireccion?.lng ?? undefined,
-          telefonoContacto: telefono || undefined,
-          emailContacto: emailContacto || undefined, tipo,
+          telefonoContacto: telefono,
+          emailContacto: emailContacto, tipo,
           clientePrincipalId: tipo === 'SECUNDARIO' ? (clientePrincipalId || undefined) : undefined,
         })
         setClientes((prev) => prev.map((c) => (c.id === editingId ? res.data : c)))
         addToast('Cliente actualizado', 'success')
+        
+        // SOLO crear usuario si cambió de SECUNDARIO a PRINCIPAL (no si ya era PRINCIPAL)
+        if (tipoOriginal === 'SECUNDARIO' && tipo === 'PRINCIPAL' && usuarioNombre && usuarioEmail) {
+          try {
+            const userRes = await api.post<{ usuario: object; passwordTemporal: string }>('/auth/register', {
+              nombre: usuarioNombre, email: usuarioEmail, rol: 'CLIENTE', clienteId: editingId,
+            })
+            setPasswordModal({ clienteNombre: usuarioNombre, password: userRes.data.passwordTemporal })
+          } catch (userErr: unknown) {
+            const userMessage = (userErr as { response?: { data?: { message?: string } } })?.response?.data?.message
+            addToast(userMessage || 'Error al crear usuario de acceso', 'error')
+          }
+        }
+        
         await fetchClientes(page)
         resetForm()
       } else {
@@ -236,12 +276,12 @@ export function AdminClientesPage() {
           nombre, ruc, direccion,
           lat: coordsDireccion?.lat ?? undefined,
           lng: coordsDireccion?.lng ?? undefined,
-          telefonoContacto: telefono || undefined,
-          emailContacto: emailContacto || undefined, tipo,
+          telefonoContacto: telefono,
+          emailContacto: emailContacto, tipo,
           clientePrincipalId: tipo === 'SECUNDARIO' ? (clientePrincipalId || undefined) : undefined,
         })
         addToast('Cliente creado', 'success')
-        if (tipo === 'PRINCIPAL' && crearUsuario && usuarioNombre && usuarioEmail) {
+        if (tipo === 'PRINCIPAL' && usuarioNombre && usuarioEmail) {
           const userRes = await api.post<{ usuario: object; passwordTemporal: string }>('/auth/register', {
             nombre: usuarioNombre, email: usuarioEmail, rol: 'CLIENTE', clienteId: clienteRes.data.id,
           })
@@ -251,8 +291,18 @@ export function AdminClientesPage() {
       }
     } catch (err: unknown) {
       const status = (err as { response?: { status?: number } })?.response?.status
-      if (status === 409) addToast('Ya existe un cliente con ese RUC', 'error')
-      else addToast('Error al guardar cliente', 'error')
+      const responseData = (err as { response?: { data?: any } })?.response?.data
+      const message = responseData?.message
+      const errors = responseData?.errors
+      
+      if (status === 409) {
+        addToast(message || 'Ya existe un cliente con ese RUC', 'error')
+      } else if (errors && Array.isArray(errors) && errors.length > 0) {
+        // Mostrar el primer error de validación de Zod
+        addToast(errors[0].message || 'Datos inválidos', 'error')
+      } else {
+        addToast(message || 'Error al guardar cliente', 'error')
+      }
     } finally { setSubmitting(false) }
   }
 
@@ -270,56 +320,35 @@ export function AdminClientesPage() {
     })
   }
 
-  // Auto-expandir principales cuando la búsqueda coincide con un secundario
-  useEffect(() => {
-    if (!busqueda.trim()) return
-    const q = busqueda.toLowerCase()
-    const idsAExpandir = clientes
-      .filter((c) => (c.clientesSecundarios ?? []).some(
-        (s) => s.nombre.toLowerCase().includes(q) || s.ruc.includes(busqueda)
-      ))
-      .map((c) => c.id)
-    if (idsAExpandir.length > 0) {
-      setExpandedPrincipales((prev) => {
-        const next = new Set(prev)
-        idsAExpandir.forEach((id) => next.add(id))
-        return next
-      })
-    }
-  }, [busqueda, clientes])
-
   const totalActivos = clientes.filter((c) => c.activo).length
 
-  const clientesFiltrados = busqueda.trim()
-    ? clientes.filter((c) => {
-        const q = busqueda.toLowerCase()
-        const matchPrincipal =
-          c.nombre.toLowerCase().includes(q) ||
-          c.ruc.includes(busqueda) ||
-          (c.emailContacto ?? '').toLowerCase().includes(q)
-        // En vista "Todos", también incluir principal si algún secundario coincide
-        const matchSecundario = (c.clientesSecundarios ?? []).some(
-          (s) => s.nombre.toLowerCase().includes(q) || s.ruc.includes(busqueda)
-        )
-        return matchPrincipal || matchSecundario
-      })
-    : clientes
-
-  const buildGrupos = (list: Cliente[]) => {
-    const grupos = new Map<string, { label: string; items: Cliente[] }>()
-    for (const c of list) {
-      const key = c.clientePrincipal?.id ?? '__sin_principal__'
-      const label = c.clientePrincipal?.nombre ?? 'Sin principal asignado'
-      if (!grupos.has(key)) grupos.set(key, { label, items: [] })
-      grupos.get(key)!.items.push(c)
+  // Filtrado combinado: búsqueda general + filtro de tipo + filtro de principal
+  const clientesFiltrados = clientes.filter((c) => {
+    // Filtro de búsqueda general
+    if (busqueda.trim()) {
+      const q = busqueda.toLowerCase()
+      const match = c.nombre.toLowerCase().includes(q) ||
+        c.ruc.includes(busqueda) ||
+        (c.emailContacto ?? '').toLowerCase().includes(q)
+      if (!match) return false
     }
-    return Array.from(grupos.values())
-  }
+    
+    // Filtro de tipo (Principal/Secundario/Todos)
+    if (filtroTipo && c.tipo !== filtroTipo) return false
+    
+    // Filtro de cliente principal (solo para secundarios)
+    if (filtroPrincipal && filtroPrincipal !== 'Cliente Principal' && c.tipo === 'SECUNDARIO') {
+      const principalNombre = c.clientePrincipal?.nombre?.toLowerCase() || ''
+      if (!principalNombre.includes(filtroPrincipal.toLowerCase())) return false
+    }
+    
+    return true
+  })
 
   const trunc = (str: string, max = 47) =>
     str.length > max ? str.slice(0, max) + '...' : str
 
-  const actionIconClass = 'rounded p-1 text-slate-400 transition-colors hover:text-primary'
+  const actionIconClass = 'flex items-center justify-center rounded p-1.5 text-slate-400 transition-colors hover:text-primary'
   const rowActions = (c: Cliente) => (
     <>
       <button type="button" onClick={(e) => { e.stopPropagation(); openDetail(c.id) }} className={actionIconClass} title="Ver detalle" aria-label="Ver detalle">
@@ -433,8 +462,8 @@ export function AdminClientesPage() {
             </div>
             <div className="space-y-2">
               <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">RUC *</label>
-              <input className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm disabled:opacity-50 focus:ring-2 focus:ring-primary ${rucError ? 'border-red-400' : 'border-slate-300'}`}
-                value={ruc} onChange={(e) => handleRucChange(e.target.value)} required disabled={!!editingId} inputMode="numeric" />
+              <input className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary ${rucError ? 'border-red-400' : 'border-slate-300'}`}
+                value={ruc} onChange={(e) => handleRucChange(e.target.value)} required inputMode="numeric" />
               {rucError && <p className="text-xs text-red-500">{rucError}</p>}
             </div>
           </div>
@@ -448,48 +477,62 @@ export function AdminClientesPage() {
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Teléfono</label>
+              <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Teléfono *</label>
               <input className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary ${telefonoError ? 'border-red-400' : 'border-slate-300'}`}
-                value={telefono} onChange={(e) => handleTelefonoChange(e.target.value)} inputMode="numeric" />
+                value={telefono} onChange={(e) => handleTelefonoChange(e.target.value)} inputMode="numeric" required />
               {telefonoError && <p className="text-xs text-red-500">{telefonoError}</p>}
             </div>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Email</label>
-                <span className={`text-[10px] ${emailContacto.length > 80 ? 'text-amber-500' : 'text-slate-400'}`}>{emailContacto.length}/100</span>
+                <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Email *</label>
+                <span className={`text-[10px] ${emailContacto.length > 120 ? 'text-amber-500' : 'text-slate-400'}`}>{emailContacto.length}/150</span>
               </div>
               <input type="email" className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary ${emailContactoError ? 'border-red-400' : 'border-slate-300'}`}
-                value={emailContacto} onChange={(e) => handleEmailContactoChange(e.target.value)} maxLength={100} size={50} />
+                value={emailContacto} onChange={(e) => handleEmailContactoChange(e.target.value)} maxLength={150} size={50} required />
               {emailContactoError && <p className="text-xs text-red-500">{emailContactoError}</p>}
             </div>
           </div>
-          {!editingId && tipo === 'PRINCIPAL' && (
-            <div className="rounded-xl border border-slate-200 p-4">
-              <label className="flex cursor-pointer items-center gap-3">
-                <input type="checkbox" checked={crearUsuario} onChange={(e) => setCrearUsuario(e.target.checked)} className="rounded" />
-                <span className="text-sm font-medium text-slate-700">Crear usuario de acceso</span>
-              </label>
-              {crearUsuario && (
-                  <div className="mt-4 grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Nombre usuario *</label>
-                    <input className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary ${usuarioNombreError ? 'border-red-400' : 'border-slate-300'}`}
-                      value={usuarioNombre} onChange={(e) => handleUsuarioNombreChange(e.target.value)} required={crearUsuario} />
-                    {usuarioNombreError && <p className="text-xs text-red-500">{usuarioNombreError}</p>}
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Email usuario *</label>
-                    <input type="email" className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary ${usuarioEmailError ? 'border-red-400' : 'border-slate-300'}`}
-                      value={usuarioEmail} onChange={(e) => handleUsuarioEmailChange(e.target.value)} required={crearUsuario} />
-                    {usuarioEmailError && <p className="text-xs text-red-500">{usuarioEmailError}</p>}
-                  </div>
+          {((editingId && tipoOriginal === 'SECUNDARIO' && tipo === 'PRINCIPAL') || (!editingId && tipo === 'PRINCIPAL')) && (
+            <div className="rounded-xl border border-slate-200 p-4 space-y-4">
+              <div className="text-sm font-semibold text-slate-700 border-b border-slate-100 pb-2">Usuario de acceso</div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Nombre usuario *</label>
+                  <input className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary ${usuarioNombreError ? 'border-red-400' : 'border-slate-300'}`}
+                    value={usuarioNombre} onChange={(e) => handleUsuarioNombreChange(e.target.value)} required />
+                  {usuarioNombreError && <p className="text-xs text-red-500">{usuarioNombreError}</p>}
                 </div>
-              )}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Email usuario *</label>
+                    <span className={`text-[10px] ${usuarioEmail.length > 120 ? 'text-amber-500' : 'text-slate-400'}`}>{usuarioEmail.length}/150</span>
+                  </div>
+                  <input type="email" className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary ${usuarioEmailError ? 'border-red-400' : 'border-slate-300'}`}
+                    value={usuarioEmail} onChange={(e) => handleUsuarioEmailChange(e.target.value)} required maxLength={150} disabled={usarMismoEmail} />
+                  {usuarioEmailError && <p className="text-xs text-red-500">{usuarioEmailError}</p>}
+                </div>
+              </div>
+              <label className="flex cursor-pointer items-center gap-2">
+                <input type="checkbox" checked={usarMismoEmail} onChange={(e) => {
+                  setUsarMismoEmail(e.target.checked)
+                  if (e.target.checked) {
+                    setUsuarioEmail(emailContacto)
+                    setUsuarioEmailError('')
+                  }
+                }} className="rounded" />
+                <span className="text-xs text-slate-600">Usar el mismo correo del cliente</span>
+              </label>
             </div>
           )}
           <div className="flex justify-end gap-3 border-t border-slate-200 pt-5">
             <button type="button" onClick={resetForm} className="rounded-lg border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancelar</button>
-            <button type="submit" disabled={submitting || !!nombreError || !!rucError || !!telefonoError || !!emailContactoError || !!usuarioNombreError || !!usuarioEmailError}
+            <button type="submit" disabled={
+              submitting || 
+              !nombre || !ruc || !direccion || !telefono || !emailContacto ||
+              !!nombreError || !!rucError || !!telefonoError || !!emailContactoError || 
+              !!usuarioNombreError || !!usuarioEmailError ||
+              (((editingId && tipoOriginal === 'SECUNDARIO' && tipo === 'PRINCIPAL') || (!editingId && tipo === 'PRINCIPAL')) && (!usuarioNombre || !usuarioEmail))
+            }
               className="flex items-center gap-2 rounded-lg bg-primary px-5 py-2.5 text-sm font-bold text-white hover:bg-primary/90 disabled:opacity-60">
               {submitting && <span className="material-symbols-outlined animate-spin text-base">progress_activity</span>}
               {editingId ? 'Guardar cambios' : 'Crear cliente'}
@@ -566,6 +609,72 @@ export function AdminClientesPage() {
         )}
       </ModalMotion>
 
+      <ModalMotion show={showTipoChangeModal} backdropClassName="bg-black/50" panelClassName="w-full max-w-md rounded-2xl bg-white shadow-2xl">
+        <div className="p-6 space-y-4">
+          <div className="flex items-start gap-3">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-amber-100">
+              <span className="material-symbols-outlined text-amber-600">warning</span>
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-bold text-slate-900">Cambio de tipo de cliente</h3>
+              <p className="mt-2 text-sm text-slate-600">
+                Al cambiar este cliente de <span className="font-semibold">Principal</span> a <span className="font-semibold">Secundario</span>, se eliminará el usuario de acceso asociado y perderá acceso al sistema.
+              </p>
+              <p className="mt-2 text-sm font-medium text-slate-700">
+                ¿Desea continuar con este cambio?
+              </p>
+            </div>
+          </div>
+          <div className="flex justify-end gap-3 border-t border-slate-200 pt-4">
+            <button
+              type="button"
+              onClick={() => setShowTipoChangeModal(false)}
+              className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                setShowTipoChangeModal(false)
+                setSubmitting(true)
+                try {
+                  await api.put<Cliente>(`/clientes/${editingId}`, {
+                    nombre, direccion,
+                    lat: coordsDireccion?.lat ?? undefined,
+                    lng: coordsDireccion?.lng ?? undefined,
+                    telefonoContacto: telefono,
+                    emailContacto: emailContacto, tipo,
+                    clientePrincipalId: tipo === 'SECUNDARIO' ? (clientePrincipalId || undefined) : undefined,
+                  })
+                  addToast('Cliente actualizado y usuario de acceso eliminado', 'success')
+                  await fetchClientes(page)
+                  resetForm()
+                } catch (err: unknown) {
+                  const status = (err as { response?: { status?: number } })?.response?.status
+                  const responseData = (err as { response?: { data?: any } })?.response?.data
+                  const message = responseData?.message
+                  const errors = responseData?.errors
+                  
+                  if (status === 409) {
+                    addToast(message || 'Ya existe un cliente con ese RUC', 'error')
+                  } else if (errors && Array.isArray(errors) && errors.length > 0) {
+                    addToast(errors[0].message || 'Datos inválidos', 'error')
+                  } else {
+                    addToast(message || 'Error al guardar cliente', 'error')
+                  }
+                } finally {
+                  setSubmitting(false)
+                }
+              }}
+              className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700"
+            >
+              Sí, cambiar a Secundario
+            </button>
+          </div>
+        </div>
+      </ModalMotion>
+
       <ModalMotion show={!!detailId} backdropClassName="bg-black/50" panelClassName="w-full max-w-lg rounded-2xl bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-slate-200 p-6">
           <h3 className="text-lg font-bold text-slate-900">Detalle del cliente</h3>
@@ -618,252 +727,122 @@ export function AdminClientesPage() {
           <div className="flex items-center justify-center py-20">
             <span className="material-symbols-outlined animate-spin text-3xl text-primary">progress_activity</span>
           </div>
-        ) : clientesFiltrados.length === 0 ? (
-          <div className="py-20 text-center text-sm text-slate-400">
-            {busqueda ? `Sin resultados para "${busqueda}"` : 'No hay clientes registrados.'}
-          </div>
-        ) : filtroTipo === 'PRINCIPAL' ? (
-          <>
-            <div className="divide-y divide-slate-100 sm:hidden">
-              {clientesFiltrados.filter((c) => c.tipo === 'PRINCIPAL').map((c) => (
-                <div key={c.id} className="px-4 py-3.5">
-                  <div className="flex items-center gap-3 mb-2.5">
-                    <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                      <span className="material-symbols-outlined text-[17px] text-primary">corporate_fare</span>
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-bold text-slate-900">{c.nombre}</p>
-                      <p className="text-xs text-slate-500 font-mono">{c.ruc}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between pl-12">
-                    <ToggleActivo activo={c.activo} onToggle={() => handleToggleActivo(c.id)} />
-                    <div className="flex items-center gap-0.5">{rowActions(c)}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <table className="hidden min-w-[640px] w-full text-left text-sm sm:table">
-              <thead className="border-b border-slate-200 bg-slate-50">
-                <tr>
-                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-400">Nombre</th>
-                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-400">RUC</th>
-                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-400">Estado</th>
-                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-400">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {clientesFiltrados.filter((c) => c.tipo === 'PRINCIPAL').map((c) => (
-                  <tr key={c.id} className="border-t border-slate-100 hover:bg-slate-50/60">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-3">
-                        <span className="material-symbols-outlined text-base text-primary">corporate_fare</span>
-                        <div>
-                          <p className="font-medium text-slate-900">{trunc(c.nombre)}</p>
-                          {c.emailContacto && <p className="mt-0.5 text-xs text-slate-400">{trunc(c.emailContacto)}</p>}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-slate-500">{c.ruc}</td>
-                    <td className="px-6 py-4"><ToggleActivo activo={c.activo} onToggle={() => handleToggleActivo(c.id)} /></td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-1">
-                        {rowActions(c)}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </>
-        ) : filtroTipo === 'SECUNDARIO' ? (
-          <>
-            <div className="divide-y divide-slate-100 sm:hidden">
-              {buildGrupos(clientesFiltrados).map((grupo) => (
-                <div key={grupo.label}>
-                  <div className="flex items-center gap-2 bg-slate-50 px-4 py-2.5 border-b border-slate-100">
-                    <span className="material-symbols-outlined text-[15px] text-primary">corporate_fare</span>
-                    <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">{grupo.label}</span>
-                  </div>
-                  {grupo.items.map((c) => (
-                    <div key={c.id} className="px-4 py-3.5 pl-6">
-                      <div className="flex items-center gap-3 mb-2.5">
-                        <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-slate-100">
-                          <span className="material-symbols-outlined text-[15px] text-slate-400">location_on</span>
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-bold text-slate-900">{c.nombre}</p>
-                          <p className="text-xs text-slate-500 font-mono">{c.ruc}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between pl-11">
-                        <ToggleActivo activo={c.activo} onToggle={() => handleToggleActivo(c.id)} />
-                        <div className="flex items-center gap-0.5">{rowActions(c)}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </div>
-            <table className="hidden min-w-[640px] w-full text-left text-sm sm:table">
-              <thead className="border-b border-slate-200 bg-slate-50">
-                <tr>
-                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-400">Nombre</th>
-                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-400">RUC</th>
-                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-400">Estado</th>
-                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-400">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {buildGrupos(clientesFiltrados).map((grupo) => (
-                  <React.Fragment key={grupo.label}>
-                    <tr className="border-t-2 border-slate-200 bg-slate-50">
-                      <td colSpan={4} className="px-6 py-2.5">
-                        <div className="flex items-center gap-2">
-                          <span className="material-symbols-outlined text-sm text-primary">corporate_fare</span>
-                          <span className="text-xs font-semibold text-slate-600">{grupo.label}</span>
-                          <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
-                            {grupo.items.length} punto{grupo.items.length !== 1 ? 's' : ''}
-                          </span>
-                        </div>
-                      </td>
-                    </tr>
-                    {grupo.items.map((c) => (
-                      <tr key={c.id} className="border-t border-slate-100 hover:bg-slate-50/60">
-                        <td className="px-6 py-4 pl-10">
-                          <div className="flex items-center gap-3">
-                            <span className="material-symbols-outlined text-base text-slate-400">location_on</span>
-                            <div>
-                              <p className="font-medium text-slate-900">{trunc(c.nombre)}</p>
-                              {c.emailContacto && <p className="mt-0.5 text-xs text-slate-400">{trunc(c.emailContacto)}</p>}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-slate-500">{c.ruc}</td>
-                        <td className="px-6 py-4"><ToggleActivo activo={c.activo} onToggle={() => handleToggleActivo(c.id)} /></td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-1">
-                            {rowActions(c)}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </React.Fragment>
-                ))}
-              </tbody>
-            </table>
-          </>
         ) : (
           <>
+            {/* Vista móvil */}
             <div className="divide-y divide-slate-100 sm:hidden">
-              {clientesFiltrados.filter((c) => c.tipo === 'PRINCIPAL').map((c) => {
-                const isOpen = expandedPrincipales.has(c.id)
-                const secundarios = c.clientesSecundarios ?? []
-                return (
-                  <div key={c.id}>
-                    <div className="px-4 py-3.5">
-                      <div className="flex items-center gap-3 mb-2.5">
-                        <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
-                          <span className="material-symbols-outlined text-[17px] text-primary">corporate_fare</span>
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-bold text-slate-900">{c.nombre}</p>
-                          <p className="text-xs text-slate-500 font-mono">{c.ruc}</p>
-                        </div>
-                        {secundarios.length > 0 && (
-                          <button type="button" onClick={() => toggleExpand(c.id)} className="shrink-0 rounded p-1 text-slate-400 hover:text-primary">
-                            <span className="material-symbols-outlined text-base transition-transform duration-200"
-                              style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>expand_more</span>
+              {clientesFiltrados.length === 0 ? (
+                <div className="py-20 text-center text-sm text-slate-400">
+                  {busqueda || filtroPrincipal ? 'Sin resultados para los filtros aplicados' : 'No hay clientes registrados.'}
+                </div>
+              ) : (
+                clientesFiltrados.map((c) => (
+                  <div key={c.id} className="px-4 py-3.5">
+                    <div className="flex items-center gap-3 mb-2.5">
+                      <div className={`flex size-9 shrink-0 items-center justify-center rounded-lg ${c.tipo === 'PRINCIPAL' ? 'bg-primary/10' : 'bg-slate-100'}`}>
+                        <span className={`material-symbols-outlined text-[17px] ${c.tipo === 'PRINCIPAL' ? 'text-primary' : 'text-slate-400'}`}>
+                          {c.tipo === 'PRINCIPAL' ? 'corporate_fare' : 'location_on'}
+                        </span>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-bold text-slate-900">{c.nombre}</p>
+                        <p className="text-xs text-slate-500 font-mono">{c.ruc}</p>
+                        {c.tipo === 'SECUNDARIO' && c.clientePrincipal && (
+                          <p className="text-xs text-slate-400 mt-0.5">→ {c.clientePrincipal.nombre}</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between pl-12">
+                      <ToggleActivo activo={c.activo} onToggle={() => handleToggleActivo(c.id)} />
+                      <div className="flex items-center gap-0.5">{rowActions(c)}</div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Vista desktop */}
+            <table className="hidden min-w-[640px] w-full text-left text-sm sm:table">
+              <thead className="border-b border-slate-200 bg-slate-50">
+                <tr>
+                  <th className="px-4 py-2.5">
+                    <div className="text-xs font-semibold uppercase tracking-wider text-slate-400">Nombre</div>
+                  </th>
+                  <th className="px-4 py-2.5">
+                    <div className="text-xs font-semibold uppercase tracking-wider text-slate-400">RUC</div>
+                  </th>
+                  {filtroTipo !== 'PRINCIPAL' && (
+                    <th className="px-4 py-2.5">
+                      <div className="relative overflow-hidden">
+                        <input
+                          type="text"
+                          placeholder="Buscar cliente principal..."
+                          value={filtroPrincipal}
+                          onChange={(e) => setFiltroPrincipal(e.target.value)}
+                          onFocus={(e) => { if (e.target.value === 'Cliente Principal') setFiltroPrincipal('') }}
+                          onBlur={(e) => { if (e.target.value === '') setFiltroPrincipal('Cliente Principal') }}
+                          className="w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 pr-9 text-xs font-medium text-slate-700 placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                        />
+                        {filtroPrincipal && filtroPrincipal !== 'Cliente Principal' && (
+                          <button
+                            type="button"
+                            onClick={() => setFiltroPrincipal('Cliente Principal')}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center justify-center rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                            title="Limpiar filtro"
+                          >
+                            <span className="material-symbols-outlined text-sm">close</span>
                           </button>
                         )}
                       </div>
-                      <div className="flex items-center justify-between pl-12">
-                        <ToggleActivo activo={c.activo} onToggle={() => handleToggleActivo(c.id)} />
-                        <div className="flex items-center gap-0.5">{rowActions(c)}</div>
-                      </div>
-                    </div>
-                    {isOpen && secundarios.map((s) => (
-                      <div key={s.id} className="flex items-center gap-3 border-t border-slate-100 bg-slate-50/60 px-4 py-3 pl-10">
-                        <div className="size-1.5 shrink-0 rounded-full bg-slate-300" />
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-slate-700">{s.nombre}</p>
-                          <p className="text-xs text-slate-400 font-mono">{s.ruc}</p>
-                        </div>
-                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${s.activo ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500'}`}>
-                          {s.activo ? 'Activo' : 'Inactivo'}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )
-              })}
-            </div>
-            <table className="hidden min-w-[640px] w-full text-left text-sm sm:table">
-              <thead className="border-b border-slate-200 bg-slate-50">
-                <tr>
-                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-400">Nombre</th>
-                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-400">RUC</th>
-                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-400">Tipo</th>
-                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-400">Estado</th>
-                  <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-400">Acciones</th>
+                    </th>
+                  )}
+                  <th className="px-4 py-2.5">
+                    <div className="text-xs font-semibold uppercase tracking-wider text-slate-400">Estado</div>
+                  </th>
+                  <th className="px-4 py-2.5">
+                    <div className="text-xs font-semibold uppercase tracking-wider text-slate-400">Acciones</div>
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {clientesFiltrados.filter((c) => c.tipo === 'PRINCIPAL').map((c) => {
-                  const isOpen = expandedPrincipales.has(c.id)
-                  const secundarios = c.clientesSecundarios ?? []
-                  return (
-                    <React.Fragment key={c.id}>
-                      <tr className="hover:bg-slate-50/60">
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            <span className="material-symbols-outlined text-base text-primary">corporate_fare</span>
-                            <div>
-                              <p className="font-medium text-slate-900">{trunc(c.nombre)}</p>
-                              {c.emailContacto && <p className="mt-0.5 text-xs text-slate-400">{trunc(c.emailContacto)}</p>}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 text-slate-500">{c.ruc}</td>
-                        <td className="px-6 py-4">
-                          <span className="rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary">Principal</span>
-                        </td>
-                        <td className="px-6 py-4"><ToggleActivo activo={c.activo} onToggle={() => handleToggleActivo(c.id)} /></td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            {rowActions(c)}
-                            {secundarios.length > 0 && (
-                              <button type="button" onClick={() => toggleExpand(c.id)} className="text-slate-400 hover:text-slate-600 transition-colors">
-                                <span className="material-symbols-outlined text-base transition-transform duration-200"
-                                  style={{ transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)' }}>expand_more</span>
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                      {isOpen && secundarios.map((s) => (
-                        <tr key={s.id} className="bg-slate-50/60">
-                          <td className="py-3.5 pl-14 pr-6">
-                            <div className="flex items-center gap-2">
-                              <div className="size-1.5 shrink-0 rounded-full bg-slate-300" />
-                              <p className="text-sm text-slate-600">{s.nombre}</p>
-                            </div>
-                          </td>
-                          <td className="px-6 py-3.5 text-xs text-slate-400">{s.ruc}</td>
-                          <td className="px-6 py-3.5">
-                            <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold text-slate-500">Secundario</span>
-                          </td>
-                          <td className="px-6 py-3.5">
-                            <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${s.activo ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                              {s.activo ? 'Activo' : 'Inactivo'}
+                {clientesFiltrados.length === 0 ? (
+                  <tr>
+                    <td colSpan={filtroTipo === 'PRINCIPAL' ? 4 : 5} className="py-20 text-center text-sm text-slate-400">
+                      {busqueda || (filtroPrincipal && filtroPrincipal !== 'Cliente Principal') ? 'Sin resultados para los filtros aplicados' : 'No hay clientes registrados.'}
+                    </td>
+                  </tr>
+                ) : (
+                  clientesFiltrados.map((c) => (
+                    <tr key={c.id} className="hover:bg-slate-50/60">
+                      <td className="px-4 py-3">
+                        <div>
+                          <p className="font-medium text-sm text-slate-900">{trunc(c.nombre)}</p>
+                          {c.emailContacto && <p className="mt-0.5 text-xs text-slate-400">{trunc(c.emailContacto)}</p>}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 font-mono text-xs text-slate-500">{c.ruc}</td>
+                      {filtroTipo !== 'PRINCIPAL' && (
+                        <td className="px-4 py-3">
+                          {c.tipo === 'PRINCIPAL' ? (
+                            <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
+                              Principal
                             </span>
-                          </td>
-                          <td className="px-6 py-3.5" />
-                        </tr>
-                      ))}
-                    </React.Fragment>
-                  )
-                })}
+                          ) : (
+                            <span className="text-xs text-slate-700">{c.clientePrincipal?.nombre || 'Sin asignar'}</span>
+                          )}
+                        </td>
+                      )}
+                      <td className="px-4 py-3">
+                        <ToggleActivo activo={c.activo} onToggle={() => handleToggleActivo(c.id)} />
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-0.5">
+                          {rowActions(c)}
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </>

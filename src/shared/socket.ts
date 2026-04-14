@@ -10,10 +10,23 @@ export function getSharedSocketId(): string | undefined {
 export function getSharedSocket(): Socket {
   if (!sharedSocket) {
     const token = localStorage.getItem('token')
+    console.log('🔌 Inicializando socket compartido con token:', token ? 'presente' : 'ausente')
     sharedSocket = io(import.meta.env.VITE_WS_URL ?? 'http://localhost:3000', {
       auth: { token },
       transports: ['websocket'],
       reconnection: true,
+    })
+    
+    sharedSocket.on('connect', () => {
+      console.log('✅ Socket compartido conectado:', sharedSocket?.id)
+    })
+    
+    sharedSocket.on('disconnect', () => {
+      console.log('❌ Socket compartido desconectado')
+    })
+    
+    sharedSocket.on('connect_error', (error) => {
+      console.error('❌ Error de conexión del socket:', error.message)
     })
   }
   return sharedSocket
