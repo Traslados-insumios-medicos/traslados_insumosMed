@@ -1,13 +1,16 @@
 import axios from 'axios'
+import { getSharedSocketId } from '../shared/socket'
 
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api',
 })
 
-// Adjunta el JWT en cada request
+// Adjunta el JWT y socketId en cada request
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token')
   if (token) config.headers.Authorization = `Bearer ${token}`
+  const socketId = getSharedSocketId()
+  if (socketId) config.headers['x-socket-id'] = socketId
   return config
 })
 

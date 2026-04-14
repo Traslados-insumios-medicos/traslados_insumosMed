@@ -3,11 +3,12 @@
  * Wrapper de fetch con base URL y JWT automático.
  * Todos los slices usan este cliente para llamadas al backend.
  */
+import { getSharedSocketId } from '../socket'
+
 const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api'
 
 function getToken(): string | null {
   try {
-    // El token se guarda directamente en localStorage con la clave 'token'
     return localStorage.getItem('token')
   } catch {
     return null
@@ -16,11 +17,13 @@ function getToken(): string | null {
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   const token = getToken()
+  const socketId = getSharedSocketId()
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(init.headers as Record<string, string>),
   }
   if (token) headers['Authorization'] = `Bearer ${token}`
+  if (socketId) headers['x-socket-id'] = socketId
 
   const res = await fetch(`${BASE_URL}${path}`, { ...init, headers })
   if (!res.ok) {

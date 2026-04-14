@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState, type FormEvent } from 'react'
+import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { ModalMotion } from '../../components/ui/ModalMotion'
 import { api } from '../../services/api'
 import { useToastStore } from '../../store/toastStore'
+import { useDbRefresh } from '../../hooks/useDbRefresh'
 
 interface Chofer { id: string; nombre: string; email: string; cedula?: string | null; activo: boolean }
 interface ChoferDetalle extends Chofer { rol: string; clienteId?: string | null }
@@ -17,7 +18,7 @@ function ToggleActivo({ activo, onToggle }: { activo: boolean; onToggle: () => v
   )
 }
 
-const LIMIT = 20
+const LIMIT = 6
 
 export function AdminChoferesPage() {
   const addToast = useToastStore((s) => s.addToast)
@@ -41,6 +42,7 @@ export function AdminChoferesPage() {
   const [detailLoading, setDetailLoading] = useState(false)
   const [deleteConfirmChofer, setDeleteConfirmChofer] = useState<Chofer | null>(null)
   const [deleteChoferSubmitting, setDeleteChoferSubmitting] = useState(false)
+  const [searchTerm, setSearchTerm] = useState('')
 
   const NOMBRE_REGEX = /^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]*$/
   const CEDULA_REGEX = /^\d{0,10}$/
@@ -65,16 +67,17 @@ export function AdminChoferesPage() {
 
   const totalPages = Math.max(1, Math.ceil(total / LIMIT))
 
-  const fetchChoferes = useCallback(async (p: number) => {
-    setLoading(true)
+  const fetchChoferes = useCallback(async (p: number, silent = false) => {
+    if (!silent) setLoading(true)
     try {
       const res = await api.get<PaginatedResponse>(`/usuarios?rol=CHOFER&page=${p}&limit=${LIMIT}`)
       setChoferes(res.data.data); setTotal(res.data.total); setPage(p)
     } catch { addToast('Error al cargar choferes', 'error') }
-    finally { setLoading(false) }
+    finally { if (!silent) setLoading(false) }
   }, [addToast])
 
   useEffect(() => { fetchChoferes(1) }, [fetchChoferes])
+  useDbRefresh('usuarios', () => fetchChoferes(page, true))
 
   const resetForm = () => {
     setEditingId(null); setNombre(''); setCedula(''); setEmail('')
@@ -95,12 +98,18 @@ export function AdminChoferesPage() {
   }
   const closeDetail = () => { setDetailId(null); setDetailChofer(null) }
 
+  const toggleThrottleRef = useRef<Map<string, number>>(new Map())
+
   const handleToggleActivo = async (id: string) => {
+    const now = Date.now()
+    const last = toggleThrottleRef.current.get(id) ?? 0
+    if (now - last < 1000) return
+    toggleThrottleRef.current.set(id, now)
+
     setChoferes((prev) => prev.map((ch) => ch.id === id ? { ...ch, activo: !ch.activo } : ch))
     try {
       const res = await api.patch<Chofer>(`/usuarios/${id}/toggle-activo`)
       setChoferes((prev) => prev.map((ch) => ch.id === id ? { ...ch, activo: res.data.activo } : ch))
-      await fetchChoferes(page)
     } catch {
       setChoferes((prev) => prev.map((ch) => ch.id === id ? { ...ch, activo: !ch.activo } : ch))
       addToast('Error al cambiar estado', 'error')
@@ -155,6 +164,18 @@ export function AdminChoferesPage() {
   }
 
   const totalActivos = choferes.filter((ch) => ch.activo).length
+  const trunc = (str: string, max = 25) => str.length > max ? str.slice(0, max) + '...' : str
+
+  // Filtrar choferes por búsqueda
+  const choferesFiltrados = choferes.filter((ch) => {
+    if (!searchTerm.trim()) return true
+    const search = searchTerm.toLowerCase()
+    return (
+      ch.nombre.toLowerCase().includes(search) ||
+      ch.email.toLowerCase().includes(search) ||
+      ch.cedula?.toLowerCase().includes(search)
+    )
+  })
 
   return (
     <div className="space-y-6">
@@ -173,6 +194,27 @@ export function AdminChoferesPage() {
         </div>
       </div>
 
+      {/* Buscador */}
+      <div className="relative">
+        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
+        <input
+          type="text"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Buscar por nombre, email o cédula..."
+          className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-10 text-sm placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+        />
+        {searchTerm && (
+          <button
+            type="button"
+            onClick={() => setSearchTerm('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+          >
+            <span className="material-symbols-outlined text-[18px]">close</span>
+          </button>
+        )}
+      </div>
+
       {/* Modal */}
       <ModalMotion
         show={showModal}
@@ -188,9 +230,12 @@ export function AdminChoferesPage() {
             <form onSubmit={handleSubmit} className="space-y-4 p-6">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Nombre *</label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Nombre *</label>
+                    <span className={`text-[10px] ${nombre.length > 80 ? 'text-amber-500' : 'text-slate-400'}`}>{nombre.length}/100</span>
+                  </div>
                   <input className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20 ${nombreError ? 'border-red-400 focus:border-red-400' : 'border-slate-300 focus:border-primary'}`}
-                    value={nombre} onChange={(e) => handleNombreChange(e.target.value)} required />
+                    value={nombre} onChange={(e) => handleNombreChange(e.target.value)} required maxLength={100} />
                   {nombreError && <p className="mt-1 text-xs text-red-500">{nombreError}</p>}
                 </div>
                 <div>
@@ -201,9 +246,12 @@ export function AdminChoferesPage() {
                 </div>
               </div>
               <div>
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Email *</label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Email *</label>
+                  <span className={`text-[10px] ${email.length > 80 ? 'text-amber-500' : 'text-slate-400'}`}>{email.length}/100</span>
+                </div>
                 <input type="email" className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20 ${emailError ? 'border-red-400 focus:border-red-400' : 'border-slate-300 focus:border-primary'}`}
-                  value={email} onChange={(e) => handleEmailChange(e.target.value)} required />
+                  value={email} onChange={(e) => handleEmailChange(e.target.value)} required maxLength={100} />
                 {emailError && <p className="mt-1 text-xs text-red-500">{emailError}</p>}
               </div>
               <div className="flex justify-end gap-3 border-t border-slate-100 pt-4">
@@ -275,11 +323,30 @@ export function AdminChoferesPage() {
           {!detailLoading && detailChofer && (
             <>
               <dl className="space-y-3 text-sm">
-                <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Nombre</dt><dd className="text-slate-900">{detailChofer.nombre}</dd></div>
-                <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Email</dt><dd className="text-slate-900">{detailChofer.email}</dd></div>
-                <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Cédula</dt><dd className="text-slate-900">{detailChofer.cedula ?? '—'}</dd></div>
-                <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Rol</dt><dd className="text-slate-900">{detailChofer.rol}</dd></div>
-                <div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Estado</dt><dd className="text-slate-900">{detailChofer.activo ? 'Activo' : 'Inactivo'}</dd></div>
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Nombre</dt>
+                  <dd className="break-words text-slate-900">
+                    {detailChofer.nombre.length > 50 ? detailChofer.nombre.slice(0, 47) + '...' : detailChofer.nombre}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Email</dt>
+                  <dd className="break-words text-slate-900">
+                    {detailChofer.email.length > 50 ? detailChofer.email.slice(0, 47) + '...' : detailChofer.email}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Cédula</dt>
+                  <dd className="text-slate-900">{detailChofer.cedula ?? '—'}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Rol</dt>
+                  <dd className="text-slate-900">{detailChofer.rol}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Estado</dt>
+                  <dd className="text-slate-900">{detailChofer.activo ? 'Activo' : 'Inactivo'}</dd>
+                </div>
               </dl>
               <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
                 <button type="button" onClick={closeDetail} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">Cerrar</button>
@@ -332,59 +399,109 @@ export function AdminChoferesPage() {
           <div className="flex items-center justify-center py-16">
             <span className="material-symbols-outlined animate-spin text-3xl text-primary">progress_activity</span>
           </div>
-        ) : choferes.length === 0 ? (
+        ) : choferesFiltrados.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center">
-            <span className="material-symbols-outlined text-4xl text-slate-300">local_shipping</span>
-            <p className="mt-2 text-sm text-slate-400">No hay choferes registrados</p>
+            <span className="material-symbols-outlined text-4xl text-slate-300">
+              {searchTerm ? 'search_off' : 'local_shipping'}
+            </span>
+            <p className="mt-2 text-sm text-slate-400">
+              {searchTerm ? 'No se encontraron choferes con ese criterio' : 'No hay choferes registrados'}
+            </p>
+            {searchTerm && (
+              <button
+                type="button"
+                onClick={() => setSearchTerm('')}
+                className="mt-3 text-xs font-semibold text-primary hover:underline"
+              >
+                Limpiar búsqueda
+              </button>
+            )}
           </div>
         ) : (
-          <table className="w-full min-w-[600px] text-left text-sm">
-            <thead className="border-b border-slate-100 bg-slate-50">
-              <tr>
-                {['Nombre', 'Cédula', 'Email', 'Estado', 'Acciones'].map((h) => (
-                  <th key={h} className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {choferes.map((ch) => (
-                <tr key={ch.id} className="hover:bg-slate-50 transition-colors">
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-3">
-                      <div className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
-                        {ch.nombre.charAt(0)}
-                      </div>
-                      <span className="font-medium text-slate-800">{ch.nombre}</span>
+          <>
+            {/* Vista móvil */}
+            <div className="divide-y divide-slate-100 sm:hidden">
+              {choferesFiltrados.map((ch) => (
+                <div key={ch.id} className="px-4 py-3.5">
+                  <div className="flex items-center gap-3 mb-2.5">
+                    <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary">
+                      {ch.nombre.charAt(0)}
                     </div>
-                  </td>
-                  <td className="px-4 py-3 text-slate-500">{ch.cedula ?? <span className="text-slate-300">—</span>}</td>
-                  <td className="px-4 py-3 text-slate-500">{ch.email}</td>
-                  <td className="px-4 py-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-bold text-slate-900">{trunc(ch.nombre)}</p>
+                      <p className="text-xs text-slate-500">{trunc(ch.email)}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between pl-12">
                     <ToggleActivo activo={ch.activo} onToggle={() => handleToggleActivo(ch.id)} />
-                  </td>
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-0.5">
                       <button type="button" onClick={(e) => { e.stopPropagation(); openDetail(ch.id) }}
-                        className="rounded p-1 text-slate-400 transition-colors hover:text-primary"
-                        title="Ver detalle" aria-label="Ver detalle">
+                        className="rounded p-1 text-slate-400 hover:text-primary" aria-label="Ver detalle">
                         <span className="material-symbols-outlined text-base">visibility</span>
                       </button>
                       <button type="button" onClick={(e) => { e.stopPropagation(); handleEdit(ch) }}
-                        className="rounded p-1 text-slate-400 transition-colors hover:text-primary"
-                        title="Editar" aria-label="Editar">
+                        className="rounded p-1 text-slate-400 hover:text-primary" aria-label="Editar">
                         <span className="material-symbols-outlined text-base">edit</span>
                       </button>
                       <button type="button" onClick={(e) => { e.stopPropagation(); openDeleteChoferModal(ch) }}
-                        className="rounded p-1 text-slate-400 transition-colors hover:text-red-600"
-                        title="Eliminar de la base de datos" aria-label="Eliminar de la base de datos">
+                        className="rounded p-1 text-slate-400 hover:text-red-600" aria-label="Eliminar">
                         <span className="material-symbols-outlined text-base">delete</span>
                       </button>
                     </div>
-                  </td>
-                </tr>
+                  </div>
+                </div>
               ))}
-            </tbody>
-          </table>
+            </div>
+
+            {/* Vista desktop */}
+            <table className="hidden w-full min-w-[600px] text-left text-sm sm:table">
+              <thead className="border-b border-slate-100 bg-slate-50">
+                <tr>
+                  {['Nombre', 'Cédula', 'Email', 'Estado', 'Acciones'].map((h) => (
+                    <th key={h} className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {choferesFiltrados.map((ch) => (
+                  <tr key={ch.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-3">
+                        <div className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+                          {ch.nombre.charAt(0)}
+                        </div>
+                        <span className="font-medium text-slate-800">{trunc(ch.nombre)}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-slate-500">{ch.cedula ?? <span className="text-slate-300">—</span>}</td>
+                    <td className="px-4 py-3 text-slate-500">{trunc(ch.email)}</td>
+                    <td className="px-4 py-3">
+                      <ToggleActivo activo={ch.activo} onToggle={() => handleToggleActivo(ch.id)} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-1">
+                        <button type="button" onClick={(e) => { e.stopPropagation(); openDetail(ch.id) }}
+                          className="rounded p-1 text-slate-400 transition-colors hover:text-primary"
+                          title="Ver detalle" aria-label="Ver detalle">
+                          <span className="material-symbols-outlined text-base">visibility</span>
+                        </button>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); handleEdit(ch) }}
+                          className="rounded p-1 text-slate-400 transition-colors hover:text-primary"
+                          title="Editar" aria-label="Editar">
+                          <span className="material-symbols-outlined text-base">edit</span>
+                        </button>
+                        <button type="button" onClick={(e) => { e.stopPropagation(); openDeleteChoferModal(ch) }}
+                          className="rounded p-1 text-slate-400 transition-colors hover:text-red-600"
+                          title="Eliminar de la base de datos" aria-label="Eliminar de la base de datos">
+                          <span className="material-symbols-outlined text-base">delete</span>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
         )}
       </div>
 

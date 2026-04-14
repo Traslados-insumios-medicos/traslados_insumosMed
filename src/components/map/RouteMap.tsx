@@ -57,6 +57,7 @@ export function RouteMap({
   const truckMarkerRef = useRef<mapboxgl.Marker | null>(null)
   const stopMarkersRef = useRef<mapboxgl.Marker[]>([])
   const [mapLoaded, setMapLoaded] = useState(false)
+  const [mapError, setMapError] = useState<string | null>(null)
 
   const stopsSignature = useMemo(
     () =>
@@ -73,34 +74,44 @@ export function RouteMap({
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
 
-    const sorted = sortStops(stops)
-    const center: [number, number] =
-      sorted.length > 0
-        ? [sorted.reduce((s, x) => s + x.lng, 0) / sorted.length, sorted.reduce((s, x) => s + x.lat, 0) / sorted.length]
-        : QUITO_CENTER
+    try {
+      const sorted = sortStops(stops)
+      const center: [number, number] =
+        sorted.length > 0
+          ? [sorted.reduce((s, x) => s + x.lng, 0) / sorted.length, sorted.reduce((s, x) => s + x.lat, 0) / sorted.length]
+          : QUITO_CENTER
 
-    const map = new mapboxgl.Map({
-      container: containerRef.current,
-      style: 'mapbox://styles/mapbox/streets-v12',
-      center,
-      zoom: 12,
-    })
-    mapRef.current = map
+      const map = new mapboxgl.Map({
+        container: containerRef.current,
+        style: 'mapbox://styles/mapbox/streets-v12',
+        center,
+        zoom: 12,
+      })
+      mapRef.current = map
 
-    map.on('load', () => {
-      map.addControl(new mapboxgl.NavigationControl({ showCompass: true }), 'top-right')
-      map.addControl(new mapboxgl.FullscreenControl(), 'top-right')
-      setMapLoaded(true)
-    })
+      map.on('load', () => {
+        map.addControl(new mapboxgl.NavigationControl({ showCompass: true }), 'top-right')
+        map.addControl(new mapboxgl.FullscreenControl(), 'top-right')
+        setMapLoaded(true)
+      })
 
-    return () => {
-      stopMarkersRef.current.forEach((m) => m.remove())
-      stopMarkersRef.current = []
-      truckMarkerRef.current?.remove()
-      truckMarkerRef.current = null
-      map.remove()
-      mapRef.current = null
-      setMapLoaded(false)
+      map.on('error', (e) => {
+        console.error('Mapbox error:', e)
+        setMapError('Error al cargar el mapa. WebGL puede no estar disponible en tu navegador.')
+      })
+
+      return () => {
+        stopMarkersRef.current.forEach((m) => m.remove())
+        stopMarkersRef.current = []
+        truckMarkerRef.current?.remove()
+        truckMarkerRef.current = null
+        map.remove()
+        mapRef.current = null
+        setMapLoaded(false)
+      }
+    } catch (error) {
+      console.error('Error initializing map:', error)
+      setMapError('No se pudo inicializar el mapa. WebGL no está disponible en tu navegador.')
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -255,6 +266,19 @@ export function RouteMap({
     if (currentPosition) bounds.extend([currentPosition.lng, currentPosition.lat])
     map.fitBounds(bounds, { padding: 48, maxZoom: 14 })
   }, [fitBoundsTrigger, mapLoaded]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (mapError) {
+    return (
+      <div className="flex h-64 flex-col items-center justify-center rounded-xl border border-amber-200 bg-amber-50 p-6 text-center">
+        <span className="material-symbols-outlined text-5xl text-amber-600">warning</span>
+        <p className="mt-3 text-sm font-semibold text-amber-900">Mapa no disponible</p>
+        <p className="mt-1 text-xs text-amber-700">{mapError}</p>
+        <p className="mt-2 text-xs text-amber-600">
+          Intenta usar un navegador moderno como Chrome, Firefox o Edge.
+        </p>
+      </div>
+    )
+  }
 
   if (stops.length === 0) {
     return (

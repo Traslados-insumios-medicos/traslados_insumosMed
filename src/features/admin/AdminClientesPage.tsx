@@ -1,8 +1,9 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { MapboxAddressInput } from '../../components/ui/MapboxAddressInput'
 import { ModalMotion } from '../../components/ui/ModalMotion'
 import { api } from '../../services/api'
 import { useToastStore } from '../../store/toastStore'
+import { useDbRefresh } from '../../hooks/useDbRefresh'
 
 type TipoCliente = 'PRINCIPAL' | 'SECUNDARIO'
 interface ClientePrincipalRef { id: string; nombre: string }
@@ -60,6 +61,7 @@ export function AdminClientesPage() {
   const [detailLoading, setDetailLoading] = useState(false)
   const [deleteConfirmCliente, setDeleteConfirmCliente] = useState<Cliente | null>(null)
   const [deleteClienteSubmitting, setDeleteClienteSubmitting] = useState(false)
+  const [busqueda, setBusqueda] = useState('')
 
   // Errores de validación
   const [nombreError, setNombreError] = useState('')
@@ -109,18 +111,19 @@ export function AdminClientesPage() {
   }
   const totalPages = Math.max(1, Math.ceil(total / LIMIT))
 
-  const fetchClientes = useCallback(async (p: number) => {
-    setLoading(true)
+  const fetchClientes = useCallback(async (p: number, silent = false) => {
+    if (!silent) setLoading(true)
     try {
       const params = new URLSearchParams({ page: String(p), limit: String(LIMIT) })
       if (filtroTipo) params.set('tipo', filtroTipo)
       const res = await api.get<PaginatedResponse>(`/clientes?${params}`)
       setClientes(res.data.data); setTotal(res.data.total); setPage(p)
     } catch { addToast('Error al cargar clientes', 'error') }
-    finally { setLoading(false) }
+    finally { if (!silent) setLoading(false) }
   }, [addToast, filtroTipo])
 
   useEffect(() => { fetchClientes(1) }, [fetchClientes])
+  useDbRefresh('clientes', () => fetchClientes(page, true))
   useEffect(() => {
     api.get<PaginatedResponse>('/clientes?tipo=PRINCIPAL&limit=100')
       .then((r) => setPrincipales(r.data.data.map((c) => ({ id: c.id, nombre: c.nombre }))))
@@ -147,12 +150,18 @@ export function AdminClientesPage() {
     setShowModal(true)
   }
 
+  const toggleThrottleRef = useRef<Map<string, number>>(new Map())
+
   const handleToggleActivo = async (id: string) => {
+    const now = Date.now()
+    const last = toggleThrottleRef.current.get(id) ?? 0
+    if (now - last < 1000) return
+    toggleThrottleRef.current.set(id, now)
+
     setClientes((prev) => prev.map((c) => c.id === id ? { ...c, activo: !c.activo } : c))
     try {
       const res = await api.patch<Cliente>(`/clientes/${id}/toggle-activo`)
-      setClientes((prev) => prev.map((c) => (c.id === id ? res.data : c)))
-      await fetchClientes(page)
+      setClientes((prev) => prev.map((c) => (c.id === id ? { ...c, activo: res.data.activo } : c)))
     } catch {
       setClientes((prev) => prev.map((c) => c.id === id ? { ...c, activo: !c.activo } : c))
       addToast('Error al cambiar estado', 'error')
@@ -261,7 +270,40 @@ export function AdminClientesPage() {
     })
   }
 
+  // Auto-expandir principales cuando la búsqueda coincide con un secundario
+  useEffect(() => {
+    if (!busqueda.trim()) return
+    const q = busqueda.toLowerCase()
+    const idsAExpandir = clientes
+      .filter((c) => (c.clientesSecundarios ?? []).some(
+        (s) => s.nombre.toLowerCase().includes(q) || s.ruc.includes(busqueda)
+      ))
+      .map((c) => c.id)
+    if (idsAExpandir.length > 0) {
+      setExpandedPrincipales((prev) => {
+        const next = new Set(prev)
+        idsAExpandir.forEach((id) => next.add(id))
+        return next
+      })
+    }
+  }, [busqueda, clientes])
+
   const totalActivos = clientes.filter((c) => c.activo).length
+
+  const clientesFiltrados = busqueda.trim()
+    ? clientes.filter((c) => {
+        const q = busqueda.toLowerCase()
+        const matchPrincipal =
+          c.nombre.toLowerCase().includes(q) ||
+          c.ruc.includes(busqueda) ||
+          (c.emailContacto ?? '').toLowerCase().includes(q)
+        // En vista "Todos", también incluir principal si algún secundario coincide
+        const matchSecundario = (c.clientesSecundarios ?? []).some(
+          (s) => s.nombre.toLowerCase().includes(q) || s.ruc.includes(busqueda)
+        )
+        return matchPrincipal || matchSecundario
+      })
+    : clientes
 
   const buildGrupos = (list: Cliente[]) => {
     const grupos = new Map<string, { label: string; items: Cliente[] }>()
@@ -273,6 +315,9 @@ export function AdminClientesPage() {
     }
     return Array.from(grupos.values())
   }
+
+  const trunc = (str: string, max = 47) =>
+    str.length > max ? str.slice(0, max) + '...' : str
 
   const actionIconClass = 'rounded p-1 text-slate-400 transition-colors hover:text-primary'
   const rowActions = (c: Cliente) => (
@@ -291,7 +336,7 @@ export function AdminClientesPage() {
 
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-xl font-bold text-slate-900">Clientes</h2>
@@ -314,6 +359,24 @@ export function AdminClientesPage() {
         </div>
       </div>
 
+      {/* Barra de búsqueda */}
+      <div className="relative">
+        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-slate-400">search</span>
+        <input
+          type="text"
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+          placeholder="Buscar por nombre, RUC o email..."
+          className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm text-slate-900 placeholder-slate-400 shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15"
+        />
+        {busqueda && (
+          <button type="button" onClick={() => setBusqueda('')}
+            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+            <span className="material-symbols-outlined text-[18px]">close</span>
+          </button>
+        )}
+      </div>
+
       <ModalMotion show={showModal} backdropClassName="bg-black/50" panelClassName="w-full max-w-lg max-h-[85vh] overflow-y-auto rounded-2xl bg-white shadow-2xl">
         <div className="flex items-center justify-between border-b border-slate-200 p-6">
           <h3 className="text-lg font-bold text-slate-900">{editingId ? 'Editar cliente' : 'Nuevo cliente'}</h3>
@@ -324,7 +387,7 @@ export function AdminClientesPage() {
         <form onSubmit={handleSubmit} className="space-y-5 p-6">
           <div className="space-y-2">
             <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Tipo *</label>
-            <div className="flex flex-col gap-2">
+            <div className="grid grid-cols-2 gap-2">
               {(['PRINCIPAL', 'SECUNDARIO'] as TipoCliente[]).map((t) => (
                 <label key={t} className={['flex cursor-pointer items-center gap-3 rounded-xl border-2 px-4 py-3 transition-all', tipo === t ? 'border-primary bg-primary/5' : 'border-slate-200 hover:border-slate-300'].join(' ')}>
                   <input type="radio" name="tipo" value={t} checked={tipo === t} onChange={() => setTipo(t)} className="sr-only" />
@@ -333,16 +396,16 @@ export function AdminClientesPage() {
                       {t === 'PRINCIPAL' ? 'corporate_fare' : 'location_on'}
                     </span>
                   </div>
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <p className={['text-sm font-semibold', tipo === t ? 'text-primary' : 'text-slate-800'].join(' ')}>
                       {t === 'PRINCIPAL' ? 'Principal' : 'Secundario'}
                     </p>
-                    <p className="text-xs text-slate-400">
+                    <p className="text-xs text-slate-400 truncate">
                       {t === 'PRINCIPAL' ? 'Empresa contratante' : 'Punto de entrega'}
                     </p>
                   </div>
                   {tipo === t && (
-                    <span className="ml-auto material-symbols-outlined text-base text-primary">check_circle</span>
+                    <span className="ml-auto shrink-0 material-symbols-outlined text-base text-primary">check_circle</span>
                   )}
                 </label>
               ))}
@@ -360,9 +423,12 @@ export function AdminClientesPage() {
           )}
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Nombre *</label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Nombre *</label>
+                <span className={`text-[10px] ${nombre.length > 80 ? 'text-amber-500' : 'text-slate-400'}`}>{nombre.length}/100</span>
+              </div>
               <input className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary ${nombreError ? 'border-red-400' : 'border-slate-300'}`}
-                value={nombre} onChange={(e) => handleNombreChange(e.target.value)} required />
+                value={nombre} onChange={(e) => handleNombreChange(e.target.value)} required maxLength={100} size={50} />
               {nombreError && <p className="text-xs text-red-500">{nombreError}</p>}
             </div>
             <div className="space-y-2">
@@ -388,9 +454,12 @@ export function AdminClientesPage() {
               {telefonoError && <p className="text-xs text-red-500">{telefonoError}</p>}
             </div>
             <div className="space-y-2">
-              <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Email</label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Email</label>
+                <span className={`text-[10px] ${emailContacto.length > 80 ? 'text-amber-500' : 'text-slate-400'}`}>{emailContacto.length}/100</span>
+              </div>
               <input type="email" className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary ${emailContactoError ? 'border-red-400' : 'border-slate-300'}`}
-                value={emailContacto} onChange={(e) => handleEmailContactoChange(e.target.value)} />
+                value={emailContacto} onChange={(e) => handleEmailContactoChange(e.target.value)} maxLength={100} size={50} />
               {emailContactoError && <p className="text-xs text-red-500">{emailContactoError}</p>}
             </div>
           </div>
@@ -549,12 +618,14 @@ export function AdminClientesPage() {
           <div className="flex items-center justify-center py-20">
             <span className="material-symbols-outlined animate-spin text-3xl text-primary">progress_activity</span>
           </div>
-        ) : clientes.length === 0 ? (
-          <div className="py-20 text-center text-sm text-slate-400">No hay clientes registrados.</div>
+        ) : clientesFiltrados.length === 0 ? (
+          <div className="py-20 text-center text-sm text-slate-400">
+            {busqueda ? `Sin resultados para "${busqueda}"` : 'No hay clientes registrados.'}
+          </div>
         ) : filtroTipo === 'PRINCIPAL' ? (
           <>
             <div className="divide-y divide-slate-100 sm:hidden">
-              {clientes.filter((c) => c.tipo === 'PRINCIPAL').map((c) => (
+              {clientesFiltrados.filter((c) => c.tipo === 'PRINCIPAL').map((c) => (
                 <div key={c.id} className="px-4 py-3.5">
                   <div className="flex items-center gap-3 mb-2.5">
                     <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10">
@@ -582,14 +653,14 @@ export function AdminClientesPage() {
                 </tr>
               </thead>
               <tbody>
-                {clientes.filter((c) => c.tipo === 'PRINCIPAL').map((c) => (
+                {clientesFiltrados.filter((c) => c.tipo === 'PRINCIPAL').map((c) => (
                   <tr key={c.id} className="border-t border-slate-100 hover:bg-slate-50/60">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <span className="material-symbols-outlined text-base text-primary">corporate_fare</span>
                         <div>
-                          <p className="font-medium text-slate-900">{c.nombre}</p>
-                          {c.emailContacto && <p className="mt-0.5 text-xs text-slate-400">{c.emailContacto}</p>}
+                          <p className="font-medium text-slate-900">{trunc(c.nombre)}</p>
+                          {c.emailContacto && <p className="mt-0.5 text-xs text-slate-400">{trunc(c.emailContacto)}</p>}
                         </div>
                       </div>
                     </td>
@@ -608,7 +679,7 @@ export function AdminClientesPage() {
         ) : filtroTipo === 'SECUNDARIO' ? (
           <>
             <div className="divide-y divide-slate-100 sm:hidden">
-              {buildGrupos(clientes).map((grupo) => (
+              {buildGrupos(clientesFiltrados).map((grupo) => (
                 <div key={grupo.label}>
                   <div className="flex items-center gap-2 bg-slate-50 px-4 py-2.5 border-b border-slate-100">
                     <span className="material-symbols-outlined text-[15px] text-primary">corporate_fare</span>
@@ -644,7 +715,7 @@ export function AdminClientesPage() {
                 </tr>
               </thead>
               <tbody>
-                {buildGrupos(clientes).map((grupo) => (
+                {buildGrupos(clientesFiltrados).map((grupo) => (
                   <React.Fragment key={grupo.label}>
                     <tr className="border-t-2 border-slate-200 bg-slate-50">
                       <td colSpan={4} className="px-6 py-2.5">
@@ -663,8 +734,8 @@ export function AdminClientesPage() {
                           <div className="flex items-center gap-3">
                             <span className="material-symbols-outlined text-base text-slate-400">location_on</span>
                             <div>
-                              <p className="font-medium text-slate-900">{c.nombre}</p>
-                              {c.emailContacto && <p className="mt-0.5 text-xs text-slate-400">{c.emailContacto}</p>}
+                              <p className="font-medium text-slate-900">{trunc(c.nombre)}</p>
+                              {c.emailContacto && <p className="mt-0.5 text-xs text-slate-400">{trunc(c.emailContacto)}</p>}
                             </div>
                           </div>
                         </td>
@@ -685,7 +756,7 @@ export function AdminClientesPage() {
         ) : (
           <>
             <div className="divide-y divide-slate-100 sm:hidden">
-              {clientes.filter((c) => c.tipo === 'PRINCIPAL').map((c) => {
+              {clientesFiltrados.filter((c) => c.tipo === 'PRINCIPAL').map((c) => {
                 const isOpen = expandedPrincipales.has(c.id)
                 const secundarios = c.clientesSecundarios ?? []
                 return (
@@ -738,7 +809,7 @@ export function AdminClientesPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {clientes.filter((c) => c.tipo === 'PRINCIPAL').map((c) => {
+                {clientesFiltrados.filter((c) => c.tipo === 'PRINCIPAL').map((c) => {
                   const isOpen = expandedPrincipales.has(c.id)
                   const secundarios = c.clientesSecundarios ?? []
                   return (
@@ -748,8 +819,8 @@ export function AdminClientesPage() {
                           <div className="flex items-center gap-3">
                             <span className="material-symbols-outlined text-base text-primary">corporate_fare</span>
                             <div>
-                              <p className="font-medium text-slate-900">{c.nombre}</p>
-                              {c.emailContacto && <p className="mt-0.5 text-xs text-slate-400">{c.emailContacto}</p>}
+                              <p className="font-medium text-slate-900">{trunc(c.nombre)}</p>
+                              {c.emailContacto && <p className="mt-0.5 text-xs text-slate-400">{trunc(c.emailContacto)}</p>}
                             </div>
                           </div>
                         </td>

@@ -325,7 +325,9 @@ export function ClienteEnvioDetallePage() {
                 {guia.receptorNombre && (
                   <div>
                     <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Recibido por</p>
-                    <p className="mt-1 text-sm font-medium text-slate-900">{guia.receptorNombre}</p>
+                    <p className="mt-1 text-sm font-medium text-slate-900">
+                      {guia.receptorNombre.length > 50 ? guia.receptorNombre.slice(0, 50) + '...' : guia.receptorNombre}
+                    </p>
                   </div>
                 )}
                 {guia.horaLlegada && (

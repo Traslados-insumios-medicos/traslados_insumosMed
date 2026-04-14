@@ -95,7 +95,7 @@ export function LoginPage() {
       {/* Left panel */}
       <div
         ref={leftPanelRef}
-        className="relative hidden lg:flex lg:w-[45%] flex-col justify-between overflow-hidden bg-primary px-12 py-10"
+        className="relative hidden lg:flex lg:w-[45%] flex-col justify-center overflow-hidden bg-primary px-12 py-10"
       >
         {/* Background pattern */}
         <div className="absolute inset-0 opacity-[0.04]"
@@ -103,12 +103,13 @@ export function LoginPage() {
         {/* Decorative circle */}
         <div className="absolute -bottom-32 -right-32 size-96 rounded-full bg-white/5" />
         <div className="absolute -top-20 -left-20 size-72 rounded-full bg-white/5" />
-
-        <div className="login-reveal relative">
-          <img src={logo} alt="LOGISTRANS" className="h-10 w-auto brightness-0 invert" />
+        
+        {/* Watermark logo */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <img src={logo} alt="" className="w-[420px] h-auto brightness-0 invert opacity-[0.15]" />
         </div>
 
-        <div className="login-reveal relative space-y-6">
+        <div className="login-reveal relative z-10 space-y-6">
           <div>
             <h1 className="font-display text-4xl font-bold leading-tight text-white">
               LOGISTRANS<br />S.A.
@@ -135,7 +136,7 @@ export function LoginPage() {
           </div>
         </div>
 
-        <p className="login-reveal relative text-xs text-blue-300">© 2025 LOGISTRANS S.A. Todos los derechos reservados.</p>
+        <p className="login-reveal absolute bottom-10 left-12 z-10 text-xs text-blue-300">© 2025 LOGISTRANS S.A. Todos los derechos reservados.</p>
       </div>
 
       {/* Right panel */}

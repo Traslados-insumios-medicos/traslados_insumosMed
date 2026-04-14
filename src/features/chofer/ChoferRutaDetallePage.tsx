@@ -9,6 +9,7 @@ import { RouteMap } from '../../components/map/RouteMap'
 import { PhotoUploader } from './PhotoUploader'
 import { IncidenceDialog } from './IncidenceDialog'
 import { SeguimientoChoferStepper } from '../../components/cliente/SeguimientoChoferStepper'
+import { ModalMotion } from '../../components/ui/ModalMotion'
 interface GuiaApi {
   id: string; numeroGuia: string; descripcion: string; estado: string
   receptorNombre?: string | null; horaLlegada?: string | null
@@ -69,6 +70,8 @@ export function ChoferRutaDetallePage() {
   const [guiaIdsDetalleGuardado, setGuiaIdsDetalleGuardado] = useState<Set<string>>(() => new Set())
   const rutaIdParaDetalleRef = useRef<string | null>(null)
   const [ultimaActualizacionSeguimiento, setUltimaActualizacionSeguimiento] = useState<string | null>(null)
+  const [showUbicacionErrorModal, setShowUbicacionErrorModal] = useState(false)
+  const ubicacionErrorShownRef = useRef(false)
 
   const fetchRuta = useCallback(async () => {
     if (!id) return
@@ -157,7 +160,10 @@ export function ChoferRutaDetallePage() {
 
   const activarUbicacion = useCallback(() => {
     if (!navigator.geolocation) {
-      addToast('Tu navegador no permite geolocalización', 'error')
+      if (!ubicacionErrorShownRef.current) {
+        ubicacionErrorShownRef.current = true
+        setShowUbicacionErrorModal(true)
+      }
       return
     }
     geoWatchRef.current = navigator.geolocation.watchPosition(
@@ -168,7 +174,10 @@ export function ChoferRutaDetallePage() {
         })
       },
       () => {
-        addToast('No se pudo leer tu ubicación. Revisa permisos del navegador.', 'error')
+        if (!ubicacionErrorShownRef.current) {
+          ubicacionErrorShownRef.current = true
+          setShowUbicacionErrorModal(true)
+        }
       },
       { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 },
     )
@@ -319,6 +328,8 @@ export function ChoferRutaDetallePage() {
       const res = await api.patch<RutaApi>(`/rutas/${id}/estado`, { estado: 'EN_CURSO' })
       setRuta(res.data)
       addToast('Ruta iniciada', 'success')
+      // Activar ubicación automáticamente al iniciar la ruta
+      activarUbicacion()
     } catch {
       addToast('Error al iniciar ruta', 'error')
     }
@@ -397,57 +408,55 @@ export function ChoferRutaDetallePage() {
         {/* Columna izquierda */}
         <div className="flex min-h-0 flex-col gap-4 lg:flex-1">
           {/* Resumen */}
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="mb-4 flex items-start justify-between">
+          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+            <div className="mb-3 flex items-start justify-between">
               <div>
-                <h3 className="text-base font-bold text-slate-900">Ruta #{ruta.id.slice(-6)}</h3>
-                <p className="text-sm text-slate-500">Distribución de Insumos Médicos</p>
+                <h3 className="text-sm font-bold text-slate-900">Ruta #{ruta.id.slice(-6)}</h3>
+                <p className="text-xs text-slate-500">Distribución de Insumos Médicos</p>
               </div>
-              <span className={`rounded-full px-2.5 py-1 text-xs font-bold uppercase ${
+              <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
                 ruta.estado === 'EN_CURSO' ? 'bg-emerald-100 text-emerald-700' :
                 ruta.estado === 'COMPLETADA' ? 'bg-slate-100 text-slate-600' : 'bg-amber-100 text-amber-700'
               }`}>
                 {ruta.estado === 'PENDIENTE' ? 'Planificada' : ruta.estado === 'EN_CURSO' ? 'En Curso' : ruta.estado}
               </span>
             </div>
-            <div className="space-y-3">
-              <div className="flex justify-between text-sm">
+            <div className="space-y-2">
+              <div className="flex justify-between text-xs">
                 <span className="text-slate-600">Progreso: {progreso}%</span>
                 <span className="font-bold text-primary">{entregadas + conIncidencia} / {total} guías</span>
               </div>
-              <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
-                <div className="h-2.5 rounded-full bg-primary" style={{ width: `${progreso}%` }} />
+              <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                <div className="h-2 rounded-full bg-primary" style={{ width: `${progreso}%` }} />
               </div>
             </div>
           </div>
 
           {/* Estados visibles para el cliente */}
           {ruta.estado === 'EN_CURSO' && (
-            <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 shadow-sm">
-              <h4 className="mb-1 flex items-center gap-2 text-sm font-bold text-slate-900">
-                <span className="material-symbols-outlined text-primary text-lg">share_location</span>
+            <div className="rounded-xl border border-primary/20 bg-primary/5 p-3">
+              <h4 className="mb-1 flex items-center gap-1.5 text-xs font-bold text-slate-900">
+                <span className="material-symbols-outlined text-primary text-base">share_location</span>
                 Avance para el cliente
               </h4>
-              <p className="mb-3 text-xs text-slate-600">
+              <p className="mb-2 text-[10px] text-slate-600">
                 Toca el estado que coincida con tu situación; el cliente lo verá en los pasos del envío.
               </p>
-              <p className="mb-3 text-[11px] font-medium text-slate-500">
+              <p className="mb-2 text-[10px] font-medium text-slate-500">
                 Actual:{' '}
                 <span className="text-primary">
                   {ruta.seguimientoChofer === 'EN_CAMINO'
                     ? 'En camino'
-                    : ruta.seguimientoChofer === 'EN_TRAFICO'
-                      ? 'En tráfico'
-                      : ruta.seguimientoChofer === 'CERCA_DESTINO'
+                    : ruta.seguimientoChofer === 'CERCA_DESTINO'
                         ? 'Cerca del destino'
                         : 'Sin reportar aún'}
                 </span>
               </p>
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-1.5">
                 <button
                   type="button"
                   onClick={() => handleSeguimientoCliente('EN_CAMINO')}
-                  className={`rounded-lg px-3 py-2 text-xs font-bold transition-colors ${
+                  className={`rounded-lg px-2.5 py-1.5 text-[10px] font-bold transition-colors ${
                     ruta.seguimientoChofer === 'EN_CAMINO'
                       ? 'bg-primary text-white'
                       : 'bg-white text-slate-800 ring-1 ring-slate-200 hover:bg-slate-50'
@@ -457,19 +466,8 @@ export function ChoferRutaDetallePage() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => handleSeguimientoCliente('EN_TRAFICO')}
-                  className={`rounded-lg px-3 py-2 text-xs font-bold transition-colors ${
-                    ruta.seguimientoChofer === 'EN_TRAFICO'
-                      ? 'bg-amber-600 text-white'
-                      : 'bg-white text-slate-800 ring-1 ring-slate-200 hover:bg-amber-50'
-                  }`}
-                >
-                  En tráfico
-                </button>
-                <button
-                  type="button"
                   onClick={() => handleSeguimientoCliente('CERCA_DESTINO')}
-                  className={`rounded-lg px-3 py-2 text-xs font-bold transition-colors ${
+                  className={`rounded-lg px-2.5 py-1.5 text-[10px] font-bold transition-colors ${
                     ruta.seguimientoChofer === 'CERCA_DESTINO'
                       ? 'bg-emerald-600 text-white'
                       : 'bg-white text-slate-800 ring-1 ring-slate-200 hover:bg-emerald-50'
@@ -478,8 +476,8 @@ export function ChoferRutaDetallePage() {
                   Cerca del destino
                 </button>
               </div>
-              <p className="mt-3 text-[11px] text-slate-500">
-                Última actualización enviada:{' '}
+              <p className="mt-2 text-[9px] text-slate-500">
+                Última actualización:{' '}
                 {ultimaActualizacionSeguimiento
                   ? new Date(ultimaActualizacionSeguimiento).toLocaleString('es-ES')
                   : '—'}
@@ -488,12 +486,12 @@ export function ChoferRutaDetallePage() {
           )}
 
           {ruta.estado === 'EN_CURSO' && (
-            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-              <h4 className="mb-2 flex items-center gap-2 text-sm font-bold text-slate-900">
-                <span className="material-symbols-outlined text-primary text-lg">visibility</span>
+            <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+              <h4 className="mb-2 flex items-center gap-1.5 text-xs font-bold text-slate-900">
+                <span className="material-symbols-outlined text-primary text-base">visibility</span>
                 Vista cliente (preview)
               </h4>
-              <p className="mb-3 text-xs text-slate-500">
+              <p className="mb-2 text-[10px] text-slate-500">
                 Así se está mostrando tu avance en el panel del cliente.
               </p>
               <SeguimientoChoferStepper
@@ -614,16 +612,20 @@ export function ChoferRutaDetallePage() {
                             <div className="mb-2 flex items-center justify-between gap-2">
                               <span className="text-sm font-bold text-slate-700">Guía: #{g.numeroGuia}</span>
                               <div className="flex flex-wrap gap-1">
-                                <button type="button" onClick={() => handleMarkEntregado(g.id)} disabled={g.estado === 'ENTREGADO'}
+                                <button type="button" onClick={() => handleMarkEntregado(g.id)} 
+                                  disabled={g.estado === 'ENTREGADO' || ruta.estado === 'PENDIENTE'}
                                   className={`rounded px-2 py-1 text-[10px] font-medium ${
                                     g.estado === 'ENTREGADO' ? 'bg-emerald-600 text-white' :
+                                    ruta.estado === 'PENDIENTE' ? 'border border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed' :
                                     'border border-slate-200 bg-white hover:bg-slate-50'
                                   }`}>
                                   Entregado
                                 </button>
                                 <button type="button" onClick={() => setIncidenceGuia({ id: g.id, numeroGuia: g.numeroGuia })}
+                                  disabled={ruta.estado === 'PENDIENTE'}
                                   className={`rounded px-2 py-1 text-[10px] font-medium ${
                                     g.estado === 'INCIDENCIA' ? 'bg-amber-600 text-white' :
+                                    ruta.estado === 'PENDIENTE' ? 'border border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed' :
                                     'border border-slate-200 bg-white hover:bg-amber-50'
                                   }`}>
                                   Incidencia
@@ -633,55 +635,64 @@ export function ChoferRutaDetallePage() {
                             <p className="text-xs text-slate-600">{g.descripcion}</p>
 
                             {/* Entrega: formulario → fotos → guardar (todo el bloque de esta guía) */}
-                            <div className="mt-3 space-y-4">
-                              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                                <div>
-                                  <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Recibido por</label>
-                                  <input type="text" placeholder="Nombre de quien recibe" value={detalleFormPorGuia[g.id]?.receptorNombre ?? ''}
-                                    onChange={(e) => setCampoDetalle(g.id, 'receptorNombre', e.target.value)}
-                                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15" />
+                            {ruta.estado === 'PENDIENTE' ? (
+                              <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                                <p className="flex items-center gap-2 text-xs font-medium text-amber-800">
+                                  <span className="material-symbols-outlined text-base">lock</span>
+                                  Debes iniciar la ruta para ingresar datos y subir fotos
+                                </p>
+                              </div>
+                            ) : (
+                              <div className="mt-3 space-y-4">
+                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                  <div>
+                                    <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Recibido por</label>
+                                    <input type="text" placeholder="Nombre de quien recibe" value={detalleFormPorGuia[g.id]?.receptorNombre ?? ''}
+                                      onChange={(e) => setCampoDetalle(g.id, 'receptorNombre', e.target.value)}
+                                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15" />
+                                  </div>
+                                  <div>
+                                    <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Temperatura (°C)</label>
+                                    <input type="text" placeholder="Ej: 18°C" value={detalleFormPorGuia[g.id]?.temperatura ?? ''}
+                                      onChange={(e) => setCampoDetalle(g.id, 'temperatura', e.target.value)}
+                                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15" />
+                                  </div>
+                                  <div>
+                                    <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Hora llegada</label>
+                                    <input type="time" value={detalleFormPorGuia[g.id]?.horaLlegada ?? ''}
+                                      onChange={(e) => setCampoDetalle(g.id, 'horaLlegada', e.target.value)}
+                                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15" />
+                                  </div>
+                                  <div>
+                                    <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Hora salida</label>
+                                    <input type="time" value={detalleFormPorGuia[g.id]?.horaSalida ?? ''}
+                                      onChange={(e) => setCampoDetalle(g.id, 'horaSalida', e.target.value)}
+                                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15" />
+                                  </div>
+                                  <div className="sm:col-span-2">
+                                    <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Observaciones</label>
+                                    <textarea rows={2} placeholder="Novedades o comentarios (opcional)" value={detalleFormPorGuia[g.id]?.observaciones ?? ''}
+                                      onChange={(e) => setCampoDetalle(g.id, 'observaciones', e.target.value)}
+                                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15" />
+                                  </div>
                                 </div>
-                                <div>
-                                  <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Temperatura (°C)</label>
-                                  <input type="text" placeholder="Ej: 18°C" value={detalleFormPorGuia[g.id]?.temperatura ?? ''}
-                                    onChange={(e) => setCampoDetalle(g.id, 'temperatura', e.target.value)}
-                                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15" />
-                                </div>
-                                <div>
-                                  <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Hora llegada</label>
-                                  <input type="time" value={detalleFormPorGuia[g.id]?.horaLlegada ?? ''}
-                                    onChange={(e) => setCampoDetalle(g.id, 'horaLlegada', e.target.value)}
-                                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15" />
-                                </div>
-                                <div>
-                                  <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Hora salida</label>
-                                  <input type="time" value={detalleFormPorGuia[g.id]?.horaSalida ?? ''}
-                                    onChange={(e) => setCampoDetalle(g.id, 'horaSalida', e.target.value)}
-                                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15" />
-                                </div>
-                                <div className="sm:col-span-2">
-                                  <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Observaciones</label>
-                                  <textarea rows={2} placeholder="Novedades o comentarios (opcional)" value={detalleFormPorGuia[g.id]?.observaciones ?? ''}
-                                    onChange={(e) => setCampoDetalle(g.id, 'observaciones', e.target.value)}
-                                    className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15" />
+
+                                <PhotoUploader scope="guia" guiaId={g.id} label="Fotos de entrega" max={8} onUploaded={fetchRuta} />
+
+                                <div className="border-t border-slate-200 pt-4">
+                                  <div className="w-full sm:flex sm:justify-end">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleGuardarDetalleGuia(g.id)}
+                                      disabled={guardandoGuiaId === g.id}
+                                      className="w-full rounded-lg bg-primary px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-primary/90 disabled:opacity-60 sm:w-auto"
+                                    >
+                                      {guardandoGuiaId === g.id ? 'Guardando…' : 'Guardar datos de entrega'}
+                                    </button>
+                                  </div>
                                 </div>
                               </div>
-
-                              <PhotoUploader scope="guia" guiaId={g.id} label="Fotos de entrega" max={8} onUploaded={fetchRuta} />
-
-                              <div className="border-t border-slate-200 pt-4">
-                                <div className="w-full sm:flex sm:justify-end">
-                                  <button
-                                    type="button"
-                                    onClick={() => handleGuardarDetalleGuia(g.id)}
-                                    disabled={guardandoGuiaId === g.id}
-                                    className="w-full rounded-lg bg-primary px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-primary/90 disabled:opacity-60 sm:w-auto"
-                                  >
-                                    {guardandoGuiaId === g.id ? 'Guardando…' : 'Guardar datos de entrega'}
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
+                            )}
                           </div>
                         ))}
                       </div>
@@ -696,23 +707,34 @@ export function ChoferRutaDetallePage() {
         {/* Columna derecha */}
         <div className="flex flex-col gap-4 lg:w-[380px] lg:flex-shrink-0">
           {/* Incidencias */}
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h4 className="mb-3 flex items-center gap-2 font-bold text-slate-900">
-              <span className="material-symbols-outlined text-amber-600">warning</span>
+          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+            <h4 className="mb-2 flex items-center gap-1.5 text-xs font-bold text-slate-900">
+              <span className="material-symbols-outlined text-amber-600 text-base">warning</span>
               Incidencias de esta ruta
             </h4>
             {(ruta.stops.flatMap((s) => s.guias).filter((g) => g.estado === 'INCIDENCIA')).length === 0 ? (
-              <p className="text-sm text-slate-500">Ninguna incidencia registrada.</p>
+              <p className="text-xs text-slate-500">Ninguna incidencia registrada.</p>
             ) : (
-              <p className="text-sm text-amber-600">{ruta.stops.flatMap((s) => s.guias).filter((g) => g.estado === 'INCIDENCIA').length} guía(s) con incidencia</p>
+              <p className="text-xs text-amber-600">{ruta.stops.flatMap((s) => s.guias).filter((g) => g.estado === 'INCIDENCIA').length} guía(s) con incidencia</p>
             )}
           </div>
 
           {/* Hoja de ruta */}
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <label className="mb-3 block text-sm font-bold text-slate-700">Hoja de ruta finalizada</label>
-            <PhotoUploader scope="hoja_ruta" rutaId={id} label="Fotos del documento" max={5} onUploaded={fetchRuta} />
-            <p className="mt-2 text-[10px] text-slate-500 dark:text-slate-400">Sube la foto del documento firmado (opcional).</p>
+          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+            <label className="mb-2 block text-xs font-bold text-slate-700">Hoja de ruta finalizada</label>
+            {ruta.estado === 'PENDIENTE' ? (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-2.5">
+                <p className="flex items-center gap-1.5 text-[10px] font-medium text-amber-800">
+                  <span className="material-symbols-outlined text-sm">lock</span>
+                  Debes iniciar la ruta para subir fotos
+                </p>
+              </div>
+            ) : (
+              <>
+                <PhotoUploader scope="hoja_ruta" rutaId={id} label="Fotos del documento" max={5} onUploaded={fetchRuta} />
+                <p className="mt-1.5 text-[9px] text-slate-500 dark:text-slate-400">Sube la foto del documento firmado (opcional).</p>
+              </>
+            )}
           </div>
 
           {/* Acciones */}
@@ -756,6 +778,64 @@ export function ChoferRutaDetallePage() {
           <p className="text-[9px] font-bold uppercase tracking-tight">Historial</p>
         </Link>
       </nav>
+
+      <AnimatePresence>
+        {showUbicacionErrorModal && (
+          <ModalMotion
+            show={showUbicacionErrorModal}
+            backdropClassName="bg-black/45"
+            panelClassName="w-full max-w-md rounded-2xl bg-white shadow-2xl"
+          >
+            <div className="border-b border-slate-100 px-6 py-4">
+              <h3 className="flex items-center gap-2 text-base font-bold text-slate-900">
+                <span className="material-symbols-outlined text-amber-600">location_off</span>
+                Ubicación no disponible
+              </h3>
+            </div>
+            <div className="space-y-4 px-6 py-5">
+              <p className="text-sm text-slate-700">
+                No se pudo acceder a tu ubicación. Para usar el seguimiento GPS, debes activar los permisos de ubicación.
+              </p>
+              
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <p className="mb-2 text-xs font-bold text-slate-900">Cómo activar la ubicación:</p>
+                <ol className="space-y-2 text-xs text-slate-600">
+                  <li className="flex gap-2">
+                    <span className="font-bold text-primary">1.</span>
+                    <span>Busca el ícono de candado o información en la barra de direcciones del navegador</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="font-bold text-primary">2.</span>
+                    <span>Haz clic y busca la opción "Permisos" o "Configuración del sitio"</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="font-bold text-primary">3.</span>
+                    <span>Cambia "Ubicación" de "Bloqueado" a "Permitir"</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="font-bold text-primary">4.</span>
+                    <span>Recarga la página y vuelve a iniciar la ruta</span>
+                  </li>
+                </ol>
+              </div>
+
+              <p className="text-xs text-slate-500">
+                Si el problema persiste, verifica que tu dispositivo tenga el GPS activado y que el navegador tenga permisos de ubicación en la configuración del sistema.
+              </p>
+
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowUbicacionErrorModal(false)}
+                  className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover"
+                >
+                  Entendido
+                </button>
+              </div>
+            </div>
+          </ModalMotion>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {incidenceGuia && (
