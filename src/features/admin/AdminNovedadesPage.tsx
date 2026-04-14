@@ -438,7 +438,6 @@ export function AdminNovedadesPage() {
               </motion.div>
             ) : (
               novedadesFiltradas.map((n) => {
-                const nota = notaInput[n.id] ?? ''
                 return (
                   <motion.button
                     key={n.id}
