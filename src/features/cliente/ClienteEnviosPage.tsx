@@ -7,7 +7,7 @@ import { useToastStore } from '../../store/toastStore'
 const estadoLabel: Record<string, string> = {
   ENTREGADO: 'Entregado',
   INCIDENCIA: 'Incidencia',
-  PENDIENTE: 'En tránsito',
+  PENDIENTE: 'En camino',
 }
 
 const estadoClass: Record<string, string> = {
@@ -250,7 +250,7 @@ export function ClienteEnviosPage() {
                               <span
                                 className={`size-1.5 rounded-full ${ruta.estado === 'EN_CURSO' ? 'bg-emerald-500' : 'bg-slate-400'}`}
                               />
-                              Ruta #{ruta.id.slice(-6)} · {rutaEstadoLabel[ruta.estado] ?? ruta.estado}
+                              RUTA #{ruta.id.slice(-6).toUpperCase()} • {rutaEstadoLabel[ruta.estado] ?? ruta.estado}
                             </span>
                           ) : (
                             '—'

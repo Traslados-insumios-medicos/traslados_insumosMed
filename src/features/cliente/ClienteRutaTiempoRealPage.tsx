@@ -279,7 +279,7 @@ export function ClienteRutaTiempoRealPage() {
                 <div className="flex justify-between text-sm">
                   <span className="text-slate-500">Estado</span>
                   <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${guiaActiva.estado === 'INCIDENCIA' ? 'bg-rose-100 text-rose-700' : 'bg-blue-100 text-blue-700'}`}>
-                    {guiaActiva.estado === 'INCIDENCIA' ? 'Incidencia' : 'En tránsito'}
+                    {guiaActiva.estado === 'INCIDENCIA' ? 'Incidencia' : 'En camino'}
                   </span>
                 </div>
                 {stopCliente && (
@@ -300,7 +300,7 @@ export function ClienteRutaTiempoRealPage() {
                   </div>
                   <div>
                     <p className="text-sm font-semibold text-slate-900">{chofer.nombre}</p>
-                    <p className="text-xs text-slate-500">Ruta #{ruta.id.slice(-6)} · {stopsRuta.length} paradas</p>
+                    <p className="text-xs text-slate-500">RUTA #{ruta.id.slice(-6).toUpperCase()} • {stopsRuta.length} paradas</p>
                   </div>
                 </div>
               </div>

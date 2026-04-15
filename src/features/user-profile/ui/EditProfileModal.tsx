@@ -8,12 +8,14 @@ interface EditProfileModalProps {
 }
 
 export function EditProfileModal({ show, onClose }: EditProfileModalProps) {
+  const REQUIRED_MESSAGE = 'Este campo es obligatorio'
   const { profile, updateProfile } = useUserProfileStore()
   const [nombre, setNombre] = useState('')
   const [cedula, setCedula] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
+  const [nombreRequiredError, setNombreRequiredError] = useState('')
 
   useEffect(() => {
     if (profile && show) {
@@ -21,12 +23,17 @@ export function EditProfileModal({ show, onClose }: EditProfileModalProps) {
       setCedula(profile.cedula ?? '')
       setError('')
       setSuccess(false)
+      setNombreRequiredError('')
     }
   }, [profile, show])
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    if (!nombre.trim()) { setError('El nombre es requerido'); return }
+    if (!nombre.trim()) {
+      setNombreRequiredError(REQUIRED_MESSAGE)
+      setError('El nombre es requerido')
+      return
+    }
     setError('')
     setLoading(true)
     try {
@@ -60,12 +67,20 @@ export function EditProfileModal({ show, onClose }: EditProfileModalProps) {
             <input
               type="text"
               value={nombre}
-              onChange={(e) => setNombre(e.target.value)}
+              onChange={(e) => {
+                const value = e.target.value
+                setNombre(value)
+                if (value.trim()) setNombreRequiredError('')
+              }}
+              onBlur={() => setNombreRequiredError(nombre.trim() ? '' : REQUIRED_MESSAGE)}
               required
               placeholder="Tu nombre completo"
-              className="w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-10 pr-4 text-sm text-slate-900 placeholder-slate-400 shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15"
+              className={`w-full rounded-lg border bg-white py-2.5 pl-10 pr-4 text-sm text-slate-900 placeholder-slate-400 shadow-sm focus:outline-none focus:ring-2 ${
+                nombreRequiredError ? 'border-red-400 focus:border-red-400 focus:ring-red-100' : 'border-slate-300 focus:border-primary focus:ring-primary/15'
+              }`}
             />
           </div>
+          {nombreRequiredError && <p className="mt-1 text-xs text-red-500">{nombreRequiredError}</p>}
         </div>
 
         <div>

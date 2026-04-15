@@ -26,8 +26,10 @@ interface IncidenceDialogProps {
 }
 
 export function IncidenceDialog({ guiaId, numeroGuia, onClose }: IncidenceDialogProps) {
+  const REQUIRED_MESSAGE = 'Este campo es obligatorio'
   const [tipo, setTipo] = useState<TipoNovedad>('CLIENTE_AUSENTE')
   const [descripcion, setDescripcion] = useState('')
+  const [descripcionError, setDescripcionError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const addToast = useToastStore((s) => s.addToast)
 
@@ -35,7 +37,10 @@ export function IncidenceDialog({ guiaId, numeroGuia, onClose }: IncidenceDialog
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (isOtra && !descripcion.trim()) return
+    if (isOtra && !descripcion.trim()) {
+      setDescripcionError(REQUIRED_MESSAGE)
+      return
+    }
     setSubmitting(true)
     try {
       await api.post('/novedades', {
@@ -91,9 +96,16 @@ export function IncidenceDialog({ guiaId, numeroGuia, onClose }: IncidenceDialog
           {isOtra && (
             <div>
               <label className="mb-2 block text-sm font-medium text-slate-700">Descripción (obligatoria)</label>
-              <textarea value={descripcion} onChange={(e) => setDescripcion(e.target.value)} rows={3} required
-                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900"
+              <textarea value={descripcion} onChange={(e) => {
+                const value = e.target.value
+                setDescripcion(value)
+                if (value.trim()) setDescripcionError('')
+              }} onBlur={() => setDescripcionError(descripcion.trim() ? '' : REQUIRED_MESSAGE)} rows={3} required
+                className={`w-full rounded-lg border bg-slate-50 px-3 py-2 text-sm text-slate-900 ${
+                  descripcionError ? 'border-red-400' : 'border-slate-200'
+                }`}
                 placeholder="Describe la incidencia..." />
+              {descripcionError && <p className="mt-1 text-xs text-red-500">{descripcionError}</p>}
             </div>
           )}
           <div className="flex justify-end gap-2 pt-2">

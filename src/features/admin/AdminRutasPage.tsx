@@ -88,8 +88,8 @@ export function AdminRutasPage() {
   const [deleteRutaSubmitting, setDeleteRutaSubmitting] = useState(false)
 
   // Filtros de fecha
-  const [filtroFecha, setFiltroFecha] = useState<'hoy' | 'ayer' | 'manana' | 'todas'>('hoy')
-  const [fechaCustom, setFechaCustom] = useState('')
+  const [fechaDesde, setFechaDesde] = useState('')
+  const [fechaHasta, setFechaHasta] = useState('')
   const [filtroEstado, setFiltroEstado] = useState<string>('')
   const [searchTerm, setSearchTerm] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
@@ -106,36 +106,21 @@ export function AdminRutasPage() {
   const [choferId, setChoferId] = useState('')
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10))
   const [stopsForm, setStopsForm] = useState<StopForm[]>([stopVacio()])
+  const REQUIRED_MESSAGE = 'Este campo es obligatorio'
+  const [choferError, setChoferError] = useState('')
+  const [stopsErrors, setStopsErrors] = useState<{ [key: number]: { clienteId?: string; direccion?: string; guiaDescripcion?: string } }>({})
 
   const totalPages = Math.max(1, Math.ceil(total / LIMIT))
-
-  const getFechaFiltro = useCallback(() => {
-    const hoy = new Date()
-    hoy.setHours(0, 0, 0, 0)
-    
-    if (filtroFecha === 'hoy') return hoy.toISOString().slice(0, 10)
-    if (filtroFecha === 'ayer') {
-      const ayer = new Date(hoy)
-      ayer.setDate(ayer.getDate() - 1)
-      return ayer.toISOString().slice(0, 10)
-    }
-    if (filtroFecha === 'manana') {
-      const manana = new Date(hoy)
-      manana.setDate(manana.getDate() + 1)
-      return manana.toISOString().slice(0, 10)
-    }
-    return fechaCustom || undefined
-  }, [filtroFecha, fechaCustom])
 
   const fetchRutas = useCallback(async (p: number, silent = false) => {
     if (!silent) setLoading(true)
     try {
-      const fechaParam = getFechaFiltro()
       const params = new URLSearchParams({
         page: p.toString(),
         limit: LIMIT.toString(),
       })
-      if (fechaParam) params.append('fecha', fechaParam)
+      if (fechaDesde) params.append('desde', fechaDesde)
+      if (fechaHasta) params.append('hasta', fechaHasta)
       if (filtroEstado) params.append('estado', filtroEstado)
       if (debouncedSearch.trim()) params.append('search', debouncedSearch.trim())
       
@@ -148,16 +133,16 @@ export function AdminRutasPage() {
     } finally {
       if (!silent) setLoading(false)
     }
-  }, [addToast, getFechaFiltro, filtroEstado, debouncedSearch])
+  }, [addToast, fechaDesde, fechaHasta, filtroEstado, debouncedSearch])
 
   useEffect(() => {
     fetchRutas(1)
   }, [fetchRutas])
 
   useEffect(() => {
-    // Recargar cuando cambie el filtro de fecha
+    // Recargar cuando cambien los filtros
     fetchRutas(1)
-  }, [filtroFecha, fechaCustom, filtroEstado, debouncedSearch, fetchRutas])
+  }, [fechaDesde, fechaHasta, filtroEstado, debouncedSearch, fetchRutas])
 
   useEffect(() => {
     // Load choferes and clientes for the form
@@ -173,8 +158,10 @@ export function AdminRutasPage() {
 
   const resetForm = () => {
     setChoferId('')
+    setChoferError('')
     setFecha(new Date().toISOString().slice(0, 10))
     setStopsForm([stopVacio()])
+    setStopsErrors({})
     setShowModal(false)
   }
 
@@ -184,6 +171,15 @@ export function AdminRutasPage() {
     setStopsForm((p) => p.map((s, idx) => (idx === i ? { ...s, [field]: value } : s)))
   const handleClienteChange = (i: number, clienteId: string) => {
     setStopsForm((p) => p.map((s, idx) => idx === i ? { ...s, clienteId, subClienteId: '', direccion: '', lat: null, lng: null } : s))
+    if (clienteId) {
+      setStopsErrors((prev) => {
+        const next = { ...prev }
+        if (!next[i]) return prev
+        delete next[i].clienteId
+        if (Object.keys(next[i]).length === 0) delete next[i]
+        return next
+      })
+    }
   }
 
   const handleSubClienteChange = (i: number, subClienteId: string) => {
@@ -198,12 +194,31 @@ export function AdminRutasPage() {
 
   const handleDireccionChange = (i: number, direccion: string, coords?: { lat: number; lng: number }) => {
     setStopsForm((p) => p.map((s, idx) => idx === i ? { ...s, direccion, lat: coords?.lat ?? null, lng: coords?.lng ?? null } : s))
+    if (direccion.trim() && coords) {
+      setStopsErrors((prev) => {
+        const next = { ...prev }
+        if (!next[i]) return prev
+        delete next[i].direccion
+        if (Object.keys(next[i]).length === 0) delete next[i]
+        return next
+      })
+    }
   }
 
   const canSubmit = choferId && stopsForm.every((s) => s.clienteId && s.direccion && s.lat !== null)
 
   const handleSubmit = async () => {
-    if (!canSubmit) return
+    const nextStopsErrors: { [key: number]: { clienteId?: string; direccion?: string; guiaDescripcion?: string } } = {}
+    stopsForm.forEach((s, i) => {
+      if (!s.clienteId) nextStopsErrors[i] = { ...(nextStopsErrors[i] ?? {}), clienteId: REQUIRED_MESSAGE }
+      if (!s.direccion || s.lat === null) nextStopsErrors[i] = { ...(nextStopsErrors[i] ?? {}), direccion: REQUIRED_MESSAGE }
+      if (!s.guiaDescripcion.trim()) nextStopsErrors[i] = { ...(nextStopsErrors[i] ?? {}), guiaDescripcion: REQUIRED_MESSAGE }
+    })
+
+    setStopsErrors(nextStopsErrors)
+    setChoferError(choferId ? '' : REQUIRED_MESSAGE)
+
+    if (!canSubmit || !choferId || Object.keys(nextStopsErrors).length > 0) return
     setSubmitting(true)
     try {
       await api.post('/rutas', {
@@ -300,65 +315,56 @@ export function AdminRutasPage() {
           )}
         </div>
 
-        {/* Filtros de fecha */}
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[10px] font-semibold text-slate-500">Fecha:</span>
-          {(['hoy', 'ayer', 'manana', 'todas'] as const).map((f) => (
-            <button
-              key={f}
-              type="button"
-              onClick={() => {
-                setFiltroFecha(f)
+        {/* Filtros */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Estado</label>
+            <div className="relative">
+              <select 
+                value={filtroEstado} 
+                onChange={(e) => {
+                  setFiltroEstado(e.target.value)
+                  setPage(1)
+                }}
+                className="w-full appearance-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 pr-10 text-sm text-slate-700 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors"
+              >
+                <option value="">Todos</option>
+                <option value="PENDIENTE">Pendiente</option>
+                <option value="EN_CURSO">En Curso</option>
+                <option value="COMPLETADA">Completada</option>
+                <option value="CANCELADA">Cancelada</option>
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
+                <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 20 20">
+                  <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M6 8l4 4 4-4"/>
+                </svg>
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Desde</label>
+            <input 
+              type="date" 
+              value={fechaDesde} 
+              onChange={(e) => {
+                setFechaDesde(e.target.value)
                 setPage(1)
               }}
-              className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold transition-colors ${
-                filtroFecha === f
-                  ? 'bg-primary text-white'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              {f === 'hoy' ? 'Hoy' : f === 'ayer' ? 'Ayer' : f === 'manana' ? 'Mañana' : 'Todas'}
-            </button>
-          ))}
-          <input
-            type="date"
-            value={fechaCustom}
-            onChange={(e) => {
-              setFechaCustom(e.target.value)
-              setFiltroFecha('todas')
-              setPage(1)
-            }}
-            placeholder="dd/mm/aaaa"
-            className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px]"
-          />
-        </div>
-
-        {/* Filtros de estado */}
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[10px] font-semibold text-slate-500">Estado:</span>
-          {[
-            { value: '', label: 'Todos' },
-            { value: 'PENDIENTE', label: 'Pendiente' },
-            { value: 'EN_CURSO', label: 'En Curso' },
-            { value: 'COMPLETADA', label: 'Completada' },
-            { value: 'CANCELADA', label: 'Cancelada' },
-          ].map((e) => (
-            <button
-              key={e.value}
-              type="button"
-              onClick={() => {
-                setFiltroEstado(e.value)
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors" 
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Hasta</label>
+            <input 
+              type="date" 
+              value={fechaHasta} 
+              onChange={(e) => {
+                setFechaHasta(e.target.value)
                 setPage(1)
               }}
-              className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold transition-colors ${
-                filtroEstado === e.value
-                  ? 'bg-primary text-white'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              {e.label}
-            </button>
-          ))}
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors" 
+            />
+          </div>
         </div>
       </div>
 
@@ -409,12 +415,20 @@ export function AdminRutasPage() {
                 <label className="mb-1.5 block text-sm font-semibold text-slate-700">Chofer</label>
                 <select
                   value={choferId}
-                  onChange={(e) => setChoferId(e.target.value)}
-                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
+                  onChange={(e) => {
+                    const value = e.target.value
+                    setChoferId(value)
+                    if (value) setChoferError('')
+                  }}
+                  onBlur={() => setChoferError(choferId ? '' : REQUIRED_MESSAGE)}
+                  className={`w-full rounded-lg border bg-slate-50 px-3 py-2 text-sm ${
+                    choferError ? 'border-red-400' : 'border-slate-200'
+                  }`}
                 >
                   <option value="">Seleccionar chofer...</option>
                   {choferes.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                 </select>
+                {choferError && <p className="mt-1 text-xs text-red-500">{choferError}</p>}
               </div>
 
               <div>
@@ -451,11 +465,21 @@ export function AdminRutasPage() {
                         <select
                           value={s.clienteId}
                           onChange={(e) => handleClienteChange(i, e.target.value)}
-                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                          onBlur={() => {
+                            if (!s.clienteId) {
+                              setStopsErrors(prev => ({ ...prev, [i]: { ...prev[i], clienteId: REQUIRED_MESSAGE } }))
+                            }
+                          }}
+                          className={`w-full rounded-lg border bg-white px-3 py-2 text-sm ${
+                            stopsErrors[i]?.clienteId ? 'border-red-400' : 'border-slate-200'
+                          }`}
                         >
                           <option value="">Seleccionar cliente...</option>
                           {clientes.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
                         </select>
+                        {stopsErrors[i]?.clienteId && (
+                          <p className="text-xs text-red-500">{stopsErrors[i].clienteId}</p>
+                        )}
                         {/* Cliente secundario — solo si el principal tiene secundarios */}
                         {s.clienteId && (() => {
                           const principal = clientes.find((c) => c.id === s.clienteId)
@@ -478,27 +502,78 @@ export function AdminRutasPage() {
                           value={s.direccion}
                           coords={s.lat !== null && s.lng !== null ? { lat: s.lat, lng: s.lng } : null}
                           onChange={(dir, coords) => handleDireccionChange(i, dir, coords)}
+                          onBlur={() => {
+                            if (!s.direccion || s.lat === null) {
+                              setStopsErrors(prev => ({ ...prev, [i]: { ...prev[i], direccion: REQUIRED_MESSAGE } }))
+                            }
+                          }}
                         />
+                        {stopsErrors[i]?.direccion && (
+                          <p className="text-xs text-red-500">{stopsErrors[i].direccion}</p>
+                        )}
                         {s.lat !== null && (
                           <p className="flex items-center gap-1 text-[11px] text-emerald-600">
                             <span className="material-symbols-outlined text-sm">check_circle</span>
                             Coordenadas guardadas
                           </p>
                         )}
-                        <input
-                          type="text"
-                          placeholder="Descripción de guía (ej: Insumos médicos)"
-                          value={s.guiaDescripcion}
-                          onChange={(e) => handleStopChange(i, 'guiaDescripcion', e.target.value)}
-                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
-                        />
-                        <input
-                          type="text"
-                          placeholder="Notas (opcional)"
-                          value={s.notas}
-                          onChange={(e) => handleStopChange(i, 'notas', e.target.value)}
-                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
-                        />
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs font-medium text-slate-600">Descripción de guía *</label>
+                            <span className={`text-[10px] ${s.guiaDescripcion.length > 130 ? 'text-amber-500' : 'text-slate-400'}`}>
+                              {s.guiaDescripcion.length}/150
+                            </span>
+                          </div>
+                          <input
+                            type="text"
+                            placeholder="Ej: Insumos médicos"
+                            value={s.guiaDescripcion}
+                            onChange={(e) => {
+                              handleStopChange(i, 'guiaDescripcion', e.target.value)
+                              if (e.target.value.trim()) {
+                                setStopsErrors(prev => {
+                                  const newErrors = { ...prev }
+                                  if (newErrors[i]) {
+                                    delete newErrors[i].guiaDescripcion
+                                    if (Object.keys(newErrors[i]).length === 0) delete newErrors[i]
+                                  }
+                                  return newErrors
+                                })
+                              }
+                            }}
+                            onBlur={() => {
+                              if (!s.guiaDescripcion.trim()) {
+                                setStopsErrors(prev => ({
+                                  ...prev,
+                                  [i]: { ...prev[i], guiaDescripcion: REQUIRED_MESSAGE }
+                                }))
+                              }
+                            }}
+                            maxLength={150}
+                            className={`w-full rounded-lg border bg-white px-3 py-2 text-sm ${
+                              stopsErrors[i]?.guiaDescripcion ? 'border-red-400' : 'border-slate-200'
+                            }`}
+                          />
+                          {stopsErrors[i]?.guiaDescripcion && (
+                            <p className="text-xs text-red-500">{stopsErrors[i].guiaDescripcion}</p>
+                          )}
+                        </div>
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs font-medium text-slate-600">Notas (opcional)</label>
+                            <span className={`text-[10px] ${s.notas.length > 230 ? 'text-amber-500' : 'text-slate-400'}`}>
+                              {s.notas.length}/250
+                            </span>
+                          </div>
+                          <input
+                            type="text"
+                            placeholder="Notas adicionales..."
+                            value={s.notas}
+                            onChange={(e) => handleStopChange(i, 'notas', e.target.value)}
+                            maxLength={250}
+                            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                          />
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -531,18 +606,18 @@ export function AdminRutasPage() {
         <div className="rounded-xl border border-slate-200 bg-white p-8 text-center">
           <span className="material-symbols-outlined text-4xl text-slate-300">search_off</span>
           <p className="mt-2 text-sm text-slate-600">
-            {debouncedSearch || filtroEstado || fechaCustom 
+            {debouncedSearch || filtroEstado || fechaDesde || fechaHasta 
               ? 'No se encontraron rutas con los filtros aplicados.'
               : 'No hay rutas registradas.'}
           </p>
-          {(debouncedSearch || filtroEstado || fechaCustom) && (
+          {(debouncedSearch || filtroEstado || fechaDesde || fechaHasta) && (
             <button
               type="button"
               onClick={() => {
                 setSearchTerm('')
                 setFiltroEstado('')
-                setFechaCustom('')
-                setFiltroFecha('hoy')
+                setFechaDesde('')
+                setFechaHasta('')
               }}
               className="mt-3 text-xs font-semibold text-primary hover:underline"
             >
@@ -564,7 +639,7 @@ export function AdminRutasPage() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">
-                        <p className="font-display text-sm font-bold text-slate-900">Ruta #{ruta.id.slice(-6)}</p>
+                        <p className="font-display text-sm font-bold text-slate-900">RUTA #{ruta.id.slice(-6).toUpperCase()}</p>
                         <div className="flex items-center gap-1 shrink-0">
                           <button
                             type="button"

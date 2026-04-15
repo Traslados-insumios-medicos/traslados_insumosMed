@@ -8,9 +8,10 @@ interface Props {
   coords?: Coords | null
   onChange: (value: string, coords?: Coords) => void
   placeholder?: string
+  onBlur?: () => void
 }
 
-export function MapboxAddressInput({ value, coords, onChange, placeholder = 'Seleccionar ubicacion...' }: Props) {
+export function MapboxAddressInput({ value, coords, onChange, placeholder = 'Seleccionar ubicacion...', onBlur }: Props) {
   const [open, setOpen] = useState(false)
 
   const handleConfirm = (address: string, c: Coords) => {
@@ -23,6 +24,7 @@ export function MapboxAddressInput({ value, coords, onChange, placeholder = 'Sel
       <button
         type="button"
         onClick={() => setOpen(true)}
+        onBlur={onBlur}
         className="flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left text-sm transition-colors hover:border-primary"
       >
         <span className={`material-symbols-outlined text-base ${coords ? 'text-emerald-500' : 'text-slate-400'}`}>

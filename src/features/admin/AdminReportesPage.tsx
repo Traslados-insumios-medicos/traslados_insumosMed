@@ -8,6 +8,8 @@ type TabId = 'cliente' | 'fechas' | 'chofer'
 interface ResumenCliente {
   clienteId: string; nombre: string; total: number
   entregados: number; pendientes: number; incidencias: number
+  tipo: 'PRINCIPAL' | 'SECUNDARIO'
+  clientePrincipal?: { nombre: string } | null
 }
 
 interface GuiaFecha {
@@ -50,6 +52,7 @@ export function AdminReportesPage() {
   const [fechaDesde, setFechaDesde] = useState('')
   const [fechaHasta, setFechaHasta] = useState('')
   const [choferId, setChoferId] = useState('')
+  const [tipoCliente, setTipoCliente] = useState<'' | 'PRINCIPAL' | 'SECUNDARIO'>('')
 
   const [clientes, setClientes] = useState<ClienteOption[]>([])
   const [choferes, setChoferes] = useState<ChoferOption[]>([])
@@ -76,9 +79,12 @@ export function AdminReportesPage() {
 
   // Load filter options
   useEffect(() => {
-    api.get<{ data: ClienteOption[] }>('/clientes?limit=100').then((r) => setClientes(r.data.data)).catch(() => {})
+    const params = new URLSearchParams()
+    if (tipoCliente) params.set('tipo', tipoCliente)
+    params.set('limit', '100')
+    api.get<{ data: ClienteOption[] }>(`/clientes?${params}`).then((r) => setClientes(r.data.data)).catch(() => {})
     api.get<{ data: ChoferOption[] }>('/usuarios?rol=CHOFER&limit=100').then((r) => setChoferes(r.data.data)).catch(() => {})
-  }, [])
+  }, [tipoCliente])
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -86,6 +92,7 @@ export function AdminReportesPage() {
       if (tab === 'cliente') {
         const params = new URLSearchParams()
         if (clienteId) params.set('clienteId', clienteId)
+        if (tipoCliente) params.set('tipo', tipoCliente)
         if (fechaDesde) params.set('desde', fechaDesde)
         if (fechaHasta) params.set('hasta', fechaHasta)
         const res = await api.get<ResumenCliente[]>(`/reportes/clientes?${params}`)
@@ -110,7 +117,7 @@ export function AdminReportesPage() {
     } finally {
       setLoading(false)
     }
-  }, [tab, fechaDesde, fechaHasta, clienteId, choferId, addToast])
+  }, [tab, fechaDesde, fechaHasta, clienteId, choferId, tipoCliente, addToast])
 
   useEffect(() => { 
     fetchData()
@@ -121,15 +128,58 @@ export function AdminReportesPage() {
   }, [fetchData])
 
   // Export helpers
+  const buildFilterInfo = () => {
+    const filters: string[] = []
+    if (tipoCliente) {
+      filters.push(`Tipo de cliente: ${tipoCliente === 'PRINCIPAL' ? 'Principales' : 'Secundarios'}`)
+    }
+    if (clienteId) {
+      const cliente = clientes.find(c => c.id === clienteId)
+      if (cliente) filters.push(`Cliente: ${cliente.nombre}`)
+    }
+    if (fechaDesde) {
+      filters.push(`Desde: ${new Date(fechaDesde).toLocaleDateString('es-ES')}`)
+    }
+    if (fechaHasta) {
+      filters.push(`Hasta: ${new Date(fechaHasta).toLocaleDateString('es-ES')}`)
+    }
+    if (choferId) {
+      const chofer = choferes.find(c => c.id === choferId)
+      if (chofer) filters.push(`Chofer: ${chofer.nombre}`)
+    }
+    return filters.length > 0 ? filters : undefined
+  }
+
   const handleExportClienteExcel = () => {
     exportToExcel(
-      dataCliente.map((r) => ({ Cliente: r.nombre, 'Total guías': r.total, Entregados: r.entregados, Pendientes: r.pendientes, Incidencias: r.incidencias })),
-      'reporte-por-cliente', 'Por Cliente',
+      dataCliente.map((r) => ({ 
+        Cliente: r.nombre, 
+        Tipo: r.tipo === 'PRINCIPAL' ? 'Principal' : `Secundario (${r.clientePrincipal?.nombre || 'Sin asignar'})`,
+        'Total guías': r.total, 
+        Entregados: r.entregados, 
+        Pendientes: r.pendientes, 
+        Incidencias: r.incidencias 
+      })),
+      'reporte-por-cliente', 
+      'Por Cliente',
+      buildFilterInfo()
     )
   }
   const handleExportClientePDF = () => {
-    exportToPDF('Reporte por Cliente', ['Cliente', 'Total guías', 'Entregados', 'Pendientes', 'Incidencias'],
-      dataCliente.map((r) => [r.nombre, r.total, r.entregados, r.pendientes, r.incidencias]), 'reporte-por-cliente')
+    exportToPDF(
+      'Reporte por Cliente', 
+      ['Cliente', 'Tipo', 'Total guías', 'Entregados', 'Pendientes', 'Incidencias'],
+      dataCliente.map((r) => [
+        r.nombre, 
+        r.tipo === 'PRINCIPAL' ? 'Principal' : `Secundario (${r.clientePrincipal?.nombre || 'Sin asignar'})`,
+        r.total, 
+        r.entregados, 
+        r.pendientes, 
+        r.incidencias
+      ]), 
+      'reporte-por-cliente',
+      buildFilterInfo()
+    )
   }
 
   const buildChoferRows = () => {
@@ -148,13 +198,14 @@ export function AdminReportesPage() {
     })
     return rows
   }
-  const handleExportChoferExcel = () => exportToExcel(buildChoferRows(), 'reporte-por-chofer', 'Por Chofer')
+  const handleExportChoferExcel = () => exportToExcel(buildChoferRows(), 'reporte-por-chofer', 'Por Chofer', buildFilterInfo())
   const handleExportChoferPDF = () => {
     const rows = buildChoferRows()
     exportToPDF('Reporte por Chofer',
       ['Chofer', 'Ruta', 'Fecha', 'Cliente', 'Nº Guía', 'Estado', 'Recibido por', 'H. Llegada', 'H. Salida', 'Temp.', 'Novedades'],
       rows.map((r) => [r['Chofer'], r['Ruta'], r['Fecha'], r['Cliente'], r['Nº Guía'], r['Estado'], r['Recibido por'], r['Hora llegada'], r['Hora salida'], r['Temperatura'], r['Novedades']]),
-      'reporte-por-chofer')
+      'reporte-por-chofer',
+      buildFilterInfo())
   }
 
   return (
@@ -165,33 +216,83 @@ export function AdminReportesPage() {
       </div>
 
       {/* Filtros globales */}
-      <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-        <div className="flex flex-wrap items-end gap-3">
-          <div className="flex flex-col gap-1">
+      <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Tipo de cliente</label>
+            <div className="relative">
+              <select 
+                value={tipoCliente} 
+                onChange={(e) => {
+                  setTipoCliente(e.target.value as '' | 'PRINCIPAL' | 'SECUNDARIO')
+                  setClienteId('') // Reset cliente selection when tipo changes
+                }}
+                className="w-full appearance-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 pr-10 text-sm text-slate-700 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors"
+              >
+                <option value="">Todos</option>
+                <option value="PRINCIPAL">Principales</option>
+                <option value="SECUNDARIO">Secundarios</option>
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
+                <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 20 20">
+                  <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M6 8l4 4 4-4"/>
+                </svg>
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-col gap-1.5">
             <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Cliente</label>
-            <select value={clienteId} onChange={(e) => setClienteId(e.target.value)}
-              className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs min-w-[140px] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary">
-              <option value="">Todos</option>
-              {clientes.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-            </select>
+            <div className="relative">
+              <select 
+                value={clienteId} 
+                onChange={(e) => setClienteId(e.target.value)}
+                className="w-full appearance-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 pr-10 text-sm text-slate-700 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors"
+              >
+                <option value="">Todos</option>
+                {clientes.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
+                <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 20 20">
+                  <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M6 8l4 4 4-4"/>
+                </svg>
+              </div>
+            </div>
           </div>
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1.5">
             <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Desde</label>
-            <input type="date" value={fechaDesde} onChange={(e) => setFechaDesde(e.target.value)}
-              className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary" />
+            <input 
+              type="date" 
+              value={fechaDesde} 
+              onChange={(e) => setFechaDesde(e.target.value)}
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors" 
+            />
           </div>
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1.5">
             <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Hasta</label>
-            <input type="date" value={fechaHasta} onChange={(e) => setFechaHasta(e.target.value)}
-              className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary" />
+            <input 
+              type="date" 
+              value={fechaHasta} 
+              onChange={(e) => setFechaHasta(e.target.value)}
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors" 
+            />
           </div>
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1.5">
             <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Chofer</label>
-            <select value={choferId} onChange={(e) => setChoferId(e.target.value)}
-              className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1.5 text-xs min-w-[140px] focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary">
-              <option value="">Todos</option>
-              {choferes.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-            </select>
+            <div className="relative">
+              <select 
+                value={choferId} 
+                onChange={(e) => setChoferId(e.target.value)}
+                className="w-full appearance-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 pr-10 text-sm text-slate-700 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors"
+              >
+                <option value="">Todos</option>
+                {choferes.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+              </select>
+              <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
+                <svg className="h-4 w-4 text-slate-400" fill="none" viewBox="0 0 20 20">
+                  <path stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M6 8l4 4 4-4"/>
+                </svg>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -244,26 +345,77 @@ export function AdminReportesPage() {
             {tab === 'cliente' && (
               <div>
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[440px] text-left text-sm">
+                  <table className="w-full min-w-[640px] text-left text-sm">
                     <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wider text-slate-500">
                       <tr>
                         <th className="px-4 py-3">Cliente</th>
-                        <th className="px-4 py-3 text-right">Total guías</th>
-                        <th className="px-4 py-3 text-right">Entregados</th>
-                        <th className="px-4 py-3 text-right">Pendientes</th>
-                        <th className="px-4 py-3 text-right">Incidencias</th>
+                        <th className="px-4 py-3">Tipo / Pertenece a</th>
+                        <th className="px-4 py-3 text-center">Total guías</th>
+                        <th className="px-4 py-3 text-center">Entregados</th>
+                        <th className="px-4 py-3 text-center">Pendientes</th>
+                        <th className="px-4 py-3 text-center">Incidencias</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {dataClientePaginada.map((r) => (
-                        <tr key={r.clienteId} className="hover:bg-slate-50">
-                          <td className="px-4 py-3 font-medium text-slate-900 max-w-xs break-words overflow-hidden">{trunc(r.nombre)}</td>
-                          <td className="px-4 py-3 text-right">{r.total}</td>
-                          <td className="px-4 py-3 text-right text-emerald-600">{r.entregados}</td>
-                          <td className="px-4 py-3 text-right">{r.pendientes}</td>
-                          <td className="px-4 py-3 text-right text-amber-600">{r.incidencias}</td>
+                      {dataClientePaginada.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="px-4 py-12 text-center text-sm text-slate-400">
+                            No hay datos para mostrar con los filtros seleccionados
+                          </td>
                         </tr>
-                      ))}
+                      ) : (
+                        dataClientePaginada.map((r) => (
+                          <tr key={r.clienteId} className="hover:bg-slate-50/80 transition-colors">
+                            <td className="px-4 py-3.5">
+                              <div className="flex items-center gap-2.5">
+                                <div className={`flex size-8 shrink-0 items-center justify-center rounded-lg ${
+                                  r.tipo === 'PRINCIPAL' ? 'bg-primary/10' : 'bg-slate-100'
+                                }`}>
+                                  <span className={`material-symbols-outlined text-[16px] ${
+                                    r.tipo === 'PRINCIPAL' ? 'text-primary' : 'text-slate-400'
+                                  }`}>
+                                    {r.tipo === 'PRINCIPAL' ? 'corporate_fare' : 'location_on'}
+                                  </span>
+                                </div>
+                                <span className="font-medium text-slate-900">{trunc(r.nombre, 40)}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3.5">
+                              {r.tipo === 'PRINCIPAL' ? (
+                                <span className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+                                  <span className="material-symbols-outlined text-[14px]">verified</span>
+                                  Principal
+                                </span>
+                              ) : (
+                                <div className="flex items-center gap-1.5 text-xs text-slate-600">
+                                  <span className="material-symbols-outlined text-[14px] text-slate-400">arrow_forward</span>
+                                  <span>{r.clientePrincipal?.nombre || 'Sin asignar'}</span>
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-4 py-3.5 text-center">
+                              <span className="inline-flex items-center justify-center rounded-lg bg-slate-100 px-2.5 py-1 text-sm font-semibold text-slate-700">
+                                {r.total}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3.5 text-center">
+                              <span className="inline-flex items-center justify-center rounded-lg bg-emerald-50 px-2.5 py-1 text-sm font-semibold text-emerald-700">
+                                {r.entregados}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3.5 text-center">
+                              <span className="inline-flex items-center justify-center rounded-lg bg-blue-50 px-2.5 py-1 text-sm font-semibold text-blue-700">
+                                {r.pendientes}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3.5 text-center">
+                              <span className="inline-flex items-center justify-center rounded-lg bg-amber-50 px-2.5 py-1 text-sm font-semibold text-amber-700">
+                                {r.incidencias}
+                              </span>
+                            </td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
@@ -367,7 +519,7 @@ export function AdminReportesPage() {
                             </div>
                           </div>
                           <span className="text-xs font-semibold text-emerald-600">
-                            {totalGuias > 0 ? Math.round((entregadas / totalGuias) * 100) : 0}%
+                            Completado: {totalGuias > 0 ? Math.round((entregadas / totalGuias) * 100) : 0}%
                           </span>
                         </button>
 
@@ -376,7 +528,7 @@ export function AdminReportesPage() {
                             {ch.rutas.map((ruta) => (
                               <div key={ruta.rutaId} className="border-b border-slate-100 px-12 py-3 last:border-0">
                                 <p className="mb-2 text-xs font-bold uppercase tracking-wider text-primary">
-                                  Ruta #{ruta.rutaId.slice(-6)} · {ruta.fecha} · <span className="normal-case font-normal text-slate-500">{ruta.estado}</span>
+                                  RUTA #{ruta.rutaId.slice(-6).toUpperCase()} • {ruta.fecha} • <span className="normal-case font-normal text-slate-500">{ruta.estado}</span>
                                 </p>
                                 <div className="space-y-2">
                                   {ruta.guias.map((g) => (

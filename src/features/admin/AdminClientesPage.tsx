@@ -32,6 +32,7 @@ function ToggleActivo({ activo, onToggle }: { activo: boolean; onToggle: () => v
 const LIMIT = 10
 
 export function AdminClientesPage() {
+  const REQUIRED_MESSAGE = 'Este campo es obligatorio'
   const addToast = useToastStore((s) => s.addToast)
   const [clientes, setClientes] = useState<Cliente[]>([])
   const [total, setTotal] = useState(0)
@@ -72,6 +73,7 @@ export function AdminClientesPage() {
   const [emailContactoError, setEmailContactoError] = useState('')
   const [usuarioNombreError, setUsuarioNombreError] = useState('')
   const [usuarioEmailError, setUsuarioEmailError] = useState('')
+  const [direccionError, setDireccionError] = useState('')
 
   const NOMBRE_REGEX = /^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]*$/
   const RUC_REGEX = /^\d{0,13}$/
@@ -81,19 +83,31 @@ export function AdminClientesPage() {
   const handleNombreChange = (val: string) => {
     if (!NOMBRE_REGEX.test(val)) return
     setNombre(val)
-    setNombreError(val && !/^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]+$/.test(val) ? 'El nombre solo debe contener letras, tildes y ñ' : '')
+    if (!val.trim()) {
+      setNombreError('')
+      return
+    }
+    setNombreError(!/^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]+$/.test(val) ? 'El nombre solo debe contener letras, tildes y ñ' : '')
   }
 
   const handleRucChange = (val: string) => {
     if (!RUC_REGEX.test(val)) return
     setRuc(val)
-    setRucError(val && val.length !== 13 ? 'El RUC debe tener exactamente 13 dígitos numéricos' : '')
+    if (!val.trim()) {
+      setRucError('')
+      return
+    }
+    setRucError(val.length !== 13 ? 'El RUC debe tener exactamente 13 dígitos numéricos' : '')
   }
 
   const handleTelefonoChange = (val: string) => {
     if (!TELEFONO_REGEX.test(val)) return
     setTelefono(val)
-    setTelefonoError(val && val.length !== 10 ? 'El teléfono debe tener exactamente 10 dígitos' : '')
+    if (!val.trim()) {
+      setTelefonoError('')
+      return
+    }
+    setTelefonoError(val.length !== 10 ? 'El teléfono debe tener exactamente 10 dígitos' : '')
   }
 
   const handleEmailContactoChange = (val: string) => {
@@ -110,12 +124,20 @@ export function AdminClientesPage() {
   const handleUsuarioNombreChange = (val: string) => {
     if (!NOMBRE_REGEX.test(val)) return
     setUsuarioNombre(val)
-    setUsuarioNombreError(val && !/^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]+$/.test(val) ? 'El nombre solo debe contener letras, tildes y ñ' : '')
+    if (!val.trim()) {
+      setUsuarioNombreError('')
+      return
+    }
+    setUsuarioNombreError(!/^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]+$/.test(val) ? 'El nombre solo debe contener letras, tildes y ñ' : '')
   }
 
   const handleUsuarioEmailChange = (val: string) => {
     setUsuarioEmail(val)
-    setUsuarioEmailError(val && !EMAIL_REGEX.test(val) ? 'El email debe contener @, dominio y extensión válida (ej. usuario@empresa.com)' : '')
+    if (!val.trim()) {
+      setUsuarioEmailError('')
+      return
+    }
+    setUsuarioEmailError(!EMAIL_REGEX.test(val) ? 'El email debe contener @, dominio y extensión válida (ej. usuario@empresa.com)' : '')
   }
   const totalPages = Math.max(1, Math.ceil(total / LIMIT))
 
@@ -155,6 +177,7 @@ export function AdminClientesPage() {
     setUsuarioNombre(''); setUsuarioEmail(''); setShowModal(false)
     setNombreError(''); setRucError(''); setTelefonoError('')
     setEmailContactoError(''); setUsuarioNombreError(''); setUsuarioEmailError('')
+    setDireccionError('')
   }
 
   const handleEdit = (c: Cliente) => {
@@ -226,7 +249,19 @@ export function AdminClientesPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!nombre || !ruc || !direccion || !telefono || !emailContacto) return
+    if (!nombre.trim() || !ruc.trim() || !direccion.trim() || !telefono.trim() || !emailContacto.trim()) {
+      if (!nombre.trim()) setNombreError(REQUIRED_MESSAGE)
+      if (!ruc.trim()) setRucError(REQUIRED_MESSAGE)
+      if (!direccion.trim()) setDireccionError(REQUIRED_MESSAGE)
+      if (!telefono.trim()) setTelefonoError(REQUIRED_MESSAGE)
+      if (!emailContacto.trim()) setEmailContactoError(REQUIRED_MESSAGE)
+      return
+    }
+    if (((editingId && tipoOriginal === 'SECUNDARIO' && tipo === 'PRINCIPAL') || (!editingId && tipo === 'PRINCIPAL'))) {
+      if (!usuarioNombre.trim()) setUsuarioNombreError(REQUIRED_MESSAGE)
+      if (!usuarioEmail.trim()) setUsuarioEmailError(REQUIRED_MESSAGE)
+      if (!usuarioNombre.trim() || !usuarioEmail.trim()) return
+    }
     if (nombreError || rucError || telefonoError || emailContactoError || usuarioNombreError || usuarioEmailError) return
     if (ruc.length !== 13) { setRucError('El RUC debe tener exactamente 13 dígitos numéricos'); return }
     if (!EMAIL_REGEX.test(emailContacto)) { setEmailContactoError('El email debe contener @, dominio y extensión válida (ej. usuario@empresa.com)'); return }
@@ -446,13 +481,29 @@ export function AdminClientesPage() {
                 <span className={`text-[10px] ${nombre.length > 80 ? 'text-amber-500' : 'text-slate-400'}`}>{nombre.length}/100</span>
               </div>
               <input className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary ${nombreError ? 'border-red-400' : 'border-slate-300'}`}
-                value={nombre} onChange={(e) => handleNombreChange(e.target.value)} required maxLength={100} size={50} />
+                value={nombre} onChange={(e) => handleNombreChange(e.target.value)} onBlur={() => {
+                  if (!nombre.trim()) {
+                    setNombreError(REQUIRED_MESSAGE)
+                    return
+                  }
+                  setNombreError('')
+                }} required maxLength={100} size={50} />
               {nombreError && <p className="text-xs text-red-500">{nombreError}</p>}
             </div>
             <div className="space-y-2">
               <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">RUC *</label>
               <input className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary ${rucError ? 'border-red-400' : 'border-slate-300'}`}
-                value={ruc} onChange={(e) => handleRucChange(e.target.value)} required inputMode="numeric" />
+                value={ruc} onChange={(e) => handleRucChange(e.target.value)} onBlur={() => {
+                  if (!ruc.trim()) {
+                    setRucError(REQUIRED_MESSAGE)
+                    return
+                  }
+                  if (ruc.length !== 13) {
+                    setRucError('El RUC debe tener exactamente 13 dígitos numéricos')
+                    return
+                  }
+                  setRucError('')
+                }} required inputMode="numeric" />
               {rucError && <p className="text-xs text-red-500">{rucError}</p>}
             </div>
           </div>
@@ -461,14 +512,29 @@ export function AdminClientesPage() {
             <MapboxAddressInput
               value={direccion}
               coords={coordsDireccion}
-              onChange={(val, coords) => { setDireccion(val); if (coords) setCoordsDireccion(coords) }}
+              onChange={(val, coords) => {
+                setDireccion(val)
+                if (val.trim()) setDireccionError('')
+                if (coords) setCoordsDireccion(coords)
+              }}
             />
+            {direccionError && <p className="text-xs text-red-500">{direccionError}</p>}
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Teléfono *</label>
               <input className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary ${telefonoError ? 'border-red-400' : 'border-slate-300'}`}
-                value={telefono} onChange={(e) => handleTelefonoChange(e.target.value)} inputMode="numeric" required />
+                value={telefono} onChange={(e) => handleTelefonoChange(e.target.value)} onBlur={() => {
+                  if (!telefono.trim()) {
+                    setTelefonoError(REQUIRED_MESSAGE)
+                    return
+                  }
+                  if (telefono.length !== 10) {
+                    setTelefonoError('El teléfono debe tener exactamente 10 dígitos')
+                    return
+                  }
+                  setTelefonoError('')
+                }} inputMode="numeric" required />
               {telefonoError && <p className="text-xs text-red-500">{telefonoError}</p>}
             </div>
             <div className="space-y-2">
@@ -477,7 +543,17 @@ export function AdminClientesPage() {
                 <span className={`text-[10px] ${emailContacto.length > 120 ? 'text-amber-500' : 'text-slate-400'}`}>{emailContacto.length}/150</span>
               </div>
               <input type="email" className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary ${emailContactoError ? 'border-red-400' : 'border-slate-300'}`}
-                value={emailContacto} onChange={(e) => handleEmailContactoChange(e.target.value)} maxLength={150} size={50} required />
+                value={emailContacto} onChange={(e) => handleEmailContactoChange(e.target.value)} onBlur={() => {
+                  if (!emailContacto.trim()) {
+                    setEmailContactoError(REQUIRED_MESSAGE)
+                    return
+                  }
+                  if (!EMAIL_REGEX.test(emailContacto)) {
+                    setEmailContactoError('El email debe contener @, dominio y extensión válida (ej. usuario@empresa.com)')
+                    return
+                  }
+                  setEmailContactoError('')
+                }} maxLength={150} size={50} required />
               {emailContactoError && <p className="text-xs text-red-500">{emailContactoError}</p>}
             </div>
           </div>
@@ -488,7 +564,13 @@ export function AdminClientesPage() {
                 <div className="space-y-2">
                   <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Nombre usuario *</label>
                   <input className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary ${usuarioNombreError ? 'border-red-400' : 'border-slate-300'}`}
-                    value={usuarioNombre} onChange={(e) => handleUsuarioNombreChange(e.target.value)} required />
+                    value={usuarioNombre} onChange={(e) => handleUsuarioNombreChange(e.target.value)} onBlur={() => {
+                      if (!usuarioNombre.trim()) {
+                        setUsuarioNombreError(REQUIRED_MESSAGE)
+                        return
+                      }
+                      setUsuarioNombreError('')
+                    }} required />
                   {usuarioNombreError && <p className="text-xs text-red-500">{usuarioNombreError}</p>}
                 </div>
                 <div className="space-y-2">
@@ -497,7 +579,17 @@ export function AdminClientesPage() {
                     <span className={`text-[10px] ${usuarioEmail.length > 120 ? 'text-amber-500' : 'text-slate-400'}`}>{usuarioEmail.length}/150</span>
                   </div>
                   <input type="email" className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm focus:ring-2 focus:ring-primary ${usuarioEmailError ? 'border-red-400' : 'border-slate-300'}`}
-                    value={usuarioEmail} onChange={(e) => handleUsuarioEmailChange(e.target.value)} required maxLength={150} disabled={usarMismoEmail} />
+                    value={usuarioEmail} onChange={(e) => handleUsuarioEmailChange(e.target.value)} onBlur={() => {
+                      if (!usuarioEmail.trim()) {
+                        setUsuarioEmailError(REQUIRED_MESSAGE)
+                        return
+                      }
+                      if (!EMAIL_REGEX.test(usuarioEmail)) {
+                        setUsuarioEmailError('El email debe contener @, dominio y extensión válida (ej. usuario@empresa.com)')
+                        return
+                      }
+                      setUsuarioEmailError('')
+                    }} required maxLength={150} disabled={usarMismoEmail} />
                   {usuarioEmailError && <p className="text-xs text-red-500">{usuarioEmailError}</p>}
                 </div>
               </div>
@@ -760,31 +852,29 @@ export function AdminClientesPage() {
                   <th className="px-4 py-2.5">
                     <div className="text-xs font-semibold uppercase tracking-wider text-slate-400">RUC</div>
                   </th>
-                  {filtroTipo !== 'PRINCIPAL' && (
-                    <th className="px-4 py-2.5">
-                      <div className="relative overflow-hidden">
-                        <input
-                          type="text"
-                          placeholder="Buscar cliente principal..."
-                          value={filtroPrincipal}
-                          onChange={(e) => setFiltroPrincipal(e.target.value)}
-                          onFocus={(e) => { if (e.target.value === 'Cliente Principal') setFiltroPrincipal('') }}
-                          onBlur={(e) => { if (e.target.value === '') setFiltroPrincipal('Cliente Principal') }}
-                          className="w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 pr-9 text-xs font-medium text-slate-700 placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                        />
-                        {filtroPrincipal && filtroPrincipal !== 'Cliente Principal' && (
-                          <button
-                            type="button"
-                            onClick={() => setFiltroPrincipal('Cliente Principal')}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center justify-center rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                            title="Limpiar filtro"
-                          >
-                            <span className="material-symbols-outlined text-sm">close</span>
-                          </button>
-                        )}
-                      </div>
-                    </th>
-                  )}
+                  <th className="px-4 py-2.5">
+                    <div className="relative overflow-hidden">
+                      <input
+                        type="text"
+                        placeholder="Buscar cliente principal..."
+                        value={filtroPrincipal}
+                        onChange={(e) => setFiltroPrincipal(e.target.value)}
+                        onFocus={(e) => { if (e.target.value === 'Cliente Principal') setFiltroPrincipal('') }}
+                        onBlur={(e) => { if (e.target.value === '') setFiltroPrincipal('Cliente Principal') }}
+                        className="w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 pr-9 text-xs font-medium text-slate-700 placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      />
+                      {filtroPrincipal && filtroPrincipal !== 'Cliente Principal' && (
+                        <button
+                          type="button"
+                          onClick={() => setFiltroPrincipal('Cliente Principal')}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center justify-center rounded p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                          title="Limpiar filtro"
+                        >
+                          <span className="material-symbols-outlined text-sm">close</span>
+                        </button>
+                      )}
+                    </div>
+                  </th>
                   <th className="px-4 py-2.5">
                     <div className="text-xs font-semibold uppercase tracking-wider text-slate-400">Estado</div>
                   </th>
@@ -796,7 +886,7 @@ export function AdminClientesPage() {
               <tbody className="divide-y divide-slate-100">
                 {clientesFiltrados.length === 0 ? (
                   <tr>
-                    <td colSpan={filtroTipo === 'PRINCIPAL' ? 4 : 5} className="py-20 text-center text-sm text-slate-400">
+                    <td colSpan={5} className="py-20 text-center text-sm text-slate-400">
                       {busqueda || (filtroPrincipal && filtroPrincipal !== 'Cliente Principal') ? 'Sin resultados para los filtros aplicados' : 'No hay clientes registrados.'}
                     </td>
                   </tr>
@@ -810,17 +900,15 @@ export function AdminClientesPage() {
                         </div>
                       </td>
                       <td className="px-4 py-3 font-mono text-xs text-slate-500">{c.ruc}</td>
-                      {filtroTipo !== 'PRINCIPAL' && (
-                        <td className="px-4 py-3">
-                          {c.tipo === 'PRINCIPAL' ? (
-                            <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
-                              Principal
-                            </span>
-                          ) : (
-                            <span className="text-xs text-slate-700">{c.clientePrincipal?.nombre || 'Sin asignar'}</span>
-                          )}
-                        </td>
-                      )}
+                      <td className="px-4 py-3">
+                        {c.tipo === 'PRINCIPAL' ? (
+                          <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
+                            Principal
+                          </span>
+                        ) : (
+                          <span className="text-xs text-slate-700">{c.clientePrincipal?.nombre || 'Sin asignar'}</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3">
                         <ToggleActivo activo={c.activo} onToggle={() => handleToggleActivo(c.id)} />
                       </td>

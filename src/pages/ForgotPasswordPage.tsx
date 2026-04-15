@@ -4,14 +4,20 @@ import { api } from '../services/api'
 import logo from '../assets/logo.png'
 
 export function ForgotPasswordPage() {
+  const REQUIRED_MESSAGE = 'Este campo es obligatorio'
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState('')
+  const [emailRequiredError, setEmailRequiredError] = useState('')
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
+    if (!email.trim()) {
+      setEmailRequiredError(REQUIRED_MESSAGE)
+      return
+    }
     setError('')
     setLoading(true)
 
@@ -96,13 +102,21 @@ export function ForgotPasswordPage() {
                 <input
                   type="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    const value = e.target.value
+                    setEmail(value)
+                    if (value.trim()) setEmailRequiredError('')
+                  }}
+                  onBlur={() => setEmailRequiredError(email.trim() ? '' : REQUIRED_MESSAGE)}
                   required
                   maxLength={150}
                   placeholder="correo@empresa.com"
-                  className="w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-10 pr-4 text-sm text-slate-900 placeholder-slate-400 shadow-sm transition-shadow focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15"
+                  className={`w-full rounded-lg border bg-white py-2.5 pl-10 pr-4 text-sm text-slate-900 placeholder-slate-400 shadow-sm transition-shadow focus:outline-none focus:ring-2 ${
+                    emailRequiredError ? 'border-red-400 focus:border-red-400 focus:ring-red-100' : 'border-slate-300 focus:border-primary focus:ring-primary/15'
+                  }`}
                 />
               </div>
+              {emailRequiredError && <p className="text-xs text-red-500">{emailRequiredError}</p>}
             </div>
           </div>
 
