@@ -676,9 +676,6 @@ export function ChoferRutaDetallePage() {
             <div className="flex flex-1 flex-col gap-3 overflow-y-auto pb-1 pr-0.5">
               {stopsRuta.map((stop) => {
                 const guiasStop = stop.guias
-                const paradaCompletaEntrega =
-                  guiasStop.length > 0 &&
-                  guiasStop.every((g) => g.estado === 'ENTREGADO' || g.estado === 'INCIDENCIA')
                 const paradaDetalleCompleto =
                   guiasStop.length > 0 &&
                   guiasStop.every((g) => guiaIdsDetalleGuardado.has(g.id))
