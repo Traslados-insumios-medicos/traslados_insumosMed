@@ -4,6 +4,7 @@ import { useAuthStore } from '../store/authStore'
 import logo from '../assets/logo.png'
 
 export function CambiarPasswordPage() {
+  const REQUIRED_MESSAGE = 'Este campo es obligatorio'
   const navigate = useNavigate()
   const { changePassword, currentUser, logout } = useAuthStore()
   const [passwordActual, setPasswordActual] = useState('')
@@ -15,11 +16,23 @@ export function CambiarPasswordPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
+  const [requiredErrors, setRequiredErrors] = useState({
+    passwordActual: '',
+    passwordNueva: '',
+    confirmacion: '',
+  })
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setError('')
     setSuccess(false)
+    const nextErrors = {
+      passwordActual: passwordActual.trim() ? '' : REQUIRED_MESSAGE,
+      passwordNueva: passwordNueva.trim() ? '' : REQUIRED_MESSAGE,
+      confirmacion: confirmacion.trim() ? '' : REQUIRED_MESSAGE,
+    }
+    setRequiredErrors(nextErrors)
+    if (nextErrors.passwordActual || nextErrors.passwordNueva || nextErrors.confirmacion) return
 
     if (passwordNueva !== confirmacion) {
       setError('Las contraseñas nuevas no coinciden')
@@ -77,10 +90,17 @@ export function CambiarPasswordPage() {
               <input
                 type={showCurrentPass ? 'text' : 'password'}
                 value={passwordActual}
-                onChange={(e) => setPasswordActual(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value
+                  setPasswordActual(value)
+                  if (value.trim()) setRequiredErrors((prev) => ({ ...prev, passwordActual: '' }))
+                }}
+                onBlur={() => setRequiredErrors((prev) => ({ ...prev, passwordActual: passwordActual.trim() ? '' : REQUIRED_MESSAGE }))}
                 required
                 placeholder="Tu contraseña actual"
-                className="w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-10 pr-10 text-sm text-slate-900 placeholder-slate-400 shadow-sm transition-shadow focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15"
+                className={`w-full rounded-lg border bg-white py-2.5 pl-10 pr-10 text-sm text-slate-900 placeholder-slate-400 shadow-sm transition-shadow focus:outline-none focus:ring-2 ${
+                  requiredErrors.passwordActual ? 'border-red-400 focus:border-red-400 focus:ring-red-100' : 'border-slate-300 focus:border-primary focus:ring-primary/15'
+                }`}
               />
               <button
                 type="button"
@@ -92,6 +112,7 @@ export function CambiarPasswordPage() {
                 </span>
               </button>
             </div>
+            {requiredErrors.passwordActual && <p className="mt-1 text-xs text-red-500">{requiredErrors.passwordActual}</p>}
           </div>
 
           <div>
@@ -105,10 +126,17 @@ export function CambiarPasswordPage() {
               <input
                 type={showNewPass ? 'text' : 'password'}
                 value={passwordNueva}
-                onChange={(e) => setPasswordNueva(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value
+                  setPasswordNueva(value)
+                  if (value.trim()) setRequiredErrors((prev) => ({ ...prev, passwordNueva: '' }))
+                }}
+                onBlur={() => setRequiredErrors((prev) => ({ ...prev, passwordNueva: passwordNueva.trim() ? '' : REQUIRED_MESSAGE }))}
                 required
                 placeholder="Mínimo 6 caracteres"
-                className="w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-10 pr-10 text-sm text-slate-900 placeholder-slate-400 shadow-sm transition-shadow focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15"
+                className={`w-full rounded-lg border bg-white py-2.5 pl-10 pr-10 text-sm text-slate-900 placeholder-slate-400 shadow-sm transition-shadow focus:outline-none focus:ring-2 ${
+                  requiredErrors.passwordNueva ? 'border-red-400 focus:border-red-400 focus:ring-red-100' : 'border-slate-300 focus:border-primary focus:ring-primary/15'
+                }`}
               />
               <button
                 type="button"
@@ -120,6 +148,7 @@ export function CambiarPasswordPage() {
                 </span>
               </button>
             </div>
+            {requiredErrors.passwordNueva && <p className="mt-1 text-xs text-red-500">{requiredErrors.passwordNueva}</p>}
           </div>
 
           <div>
@@ -133,10 +162,17 @@ export function CambiarPasswordPage() {
               <input
                 type={showConfirmPass ? 'text' : 'password'}
                 value={confirmacion}
-                onChange={(e) => setConfirmacion(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value
+                  setConfirmacion(value)
+                  if (value.trim()) setRequiredErrors((prev) => ({ ...prev, confirmacion: '' }))
+                }}
+                onBlur={() => setRequiredErrors((prev) => ({ ...prev, confirmacion: confirmacion.trim() ? '' : REQUIRED_MESSAGE }))}
                 required
                 placeholder="Repite la nueva contraseña"
-                className="w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-10 pr-10 text-sm text-slate-900 placeholder-slate-400 shadow-sm transition-shadow focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15"
+                className={`w-full rounded-lg border bg-white py-2.5 pl-10 pr-10 text-sm text-slate-900 placeholder-slate-400 shadow-sm transition-shadow focus:outline-none focus:ring-2 ${
+                  requiredErrors.confirmacion ? 'border-red-400 focus:border-red-400 focus:ring-red-100' : 'border-slate-300 focus:border-primary focus:ring-primary/15'
+                }`}
               />
               <button
                 type="button"
@@ -148,6 +184,7 @@ export function CambiarPasswordPage() {
                 </span>
               </button>
             </div>
+            {requiredErrors.confirmacion && <p className="mt-1 text-xs text-red-500">{requiredErrors.confirmacion}</p>}
           </div>
 
           {error && (

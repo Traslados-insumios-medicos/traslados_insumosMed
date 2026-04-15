@@ -6,6 +6,7 @@ import { ModalMotion } from '../components/ui/ModalMotion'
 import logo from '../assets/logo.png'
 
 export function LoginPage() {
+  const REQUIRED_MESSAGE = 'Este campo es obligatorio'
   const leftPanelRef = useRef<HTMLDivElement>(null)
   const rightPanelRef = useRef<HTMLDivElement>(null)
 
@@ -52,6 +53,7 @@ export function LoginPage() {
   const [showPass, setShowPass] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [requiredErrors, setRequiredErrors] = useState({ email: '', password: '' })
   const [showInactiveModal, setShowInactiveModal] = useState(false)
   const [inactiveMsg, setInactiveMsg] = useState('Su acceso está inactivo. Contacte al administrador de la empresa.')
 
@@ -67,6 +69,12 @@ export function LoginPage() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setError('')
+    const nextErrors = {
+      email: email.trim() ? '' : REQUIRED_MESSAGE,
+      password: password.trim() ? '' : REQUIRED_MESSAGE,
+    }
+    setRequiredErrors(nextErrors)
+    if (nextErrors.email || nextErrors.password) return
     setLoading(true)
     try {
       const { mustChangePassword } = await loginWithCredentials(email, password)
@@ -169,7 +177,13 @@ export function LoginPage() {
                     // Solo permitir caracteres ASCII básicos para emails (sin espacios, tildes, ñ, emojis)
                     if (value === '' || /^[a-zA-Z0-9@._-]*$/.test(value)) {
                       setEmail(value)
+                      if (value.trim()) {
+                        setRequiredErrors((prev) => ({ ...prev, email: '' }))
+                      }
                     }
+                  }}
+                  onBlur={() => {
+                    setRequiredErrors((prev) => ({ ...prev, email: email.trim() ? '' : REQUIRED_MESSAGE }))
                   }}
                   onPaste={(e) => {
                     e.preventDefault()
@@ -180,23 +194,37 @@ export function LoginPage() {
                   maxLength={150}
                   required
                   placeholder="Ingresa tu correo electrónico"
-                  className="w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-10 pr-4 text-sm text-slate-900 placeholder-slate-400 shadow-sm transition-shadow focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15"
+                  className={`w-full rounded-lg border bg-white py-2.5 pl-10 pr-4 text-sm text-slate-900 placeholder-slate-400 shadow-sm transition-shadow focus:outline-none focus:ring-2 ${
+                    requiredErrors.email ? 'border-red-400 focus:border-red-400 focus:ring-red-100' : 'border-slate-300 focus:border-primary focus:ring-primary/15'
+                  }`}
                 />
               </div>
+              {requiredErrors.email && <p className="mt-1 text-xs text-red-500">{requiredErrors.email}</p>}
             </div>
 
             <div>
               <label className="mb-1.5 block text-sm font-medium text-slate-700">Contraseña</label>
               <div className="relative">
                 <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[20px] text-slate-400 flex items-center">lock</span>
-                <input type={showPass ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)} required
+                <input type={showPass ? 'text' : 'password'} value={password} onChange={(e) => {
+                  const value = e.target.value
+                  setPassword(value)
+                  if (value.trim()) {
+                    setRequiredErrors((prev) => ({ ...prev, password: '' }))
+                  }
+                }} onBlur={() => {
+                  setRequiredErrors((prev) => ({ ...prev, password: password.trim() ? '' : REQUIRED_MESSAGE }))
+                }} required
                   placeholder="Ingresa tu contraseña"
-                  className="w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-10 pr-10 text-sm text-slate-900 placeholder-slate-400 shadow-sm transition-shadow focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15" />
+                  className={`w-full rounded-lg border bg-white py-2.5 pl-10 pr-10 text-sm text-slate-900 placeholder-slate-400 shadow-sm transition-shadow focus:outline-none focus:ring-2 ${
+                    requiredErrors.password ? 'border-red-400 focus:border-red-400 focus:ring-red-100' : 'border-slate-300 focus:border-primary focus:ring-primary/15'
+                  }`} />
                 <button type="button" onClick={() => setShowPass((v) => !v)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 flex items-center">
                   <span className="material-symbols-outlined text-[20px]">{showPass ? 'visibility_off' : 'visibility'}</span>
                 </button>
               </div>
+              {requiredErrors.password && <p className="mt-1 text-xs text-red-500">{requiredErrors.password}</p>}
             </div>
 
             {error && (

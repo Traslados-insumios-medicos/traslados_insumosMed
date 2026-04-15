@@ -205,7 +205,7 @@ export function ChoferRutasPage() {
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
             }`}
           >
-            {f === 'hoy' ? 'Hoy' : f === 'ayer' ? 'Ayer' : f === 'manana' ? 'Mañana' : 'Todas'}
+            {f === 'hoy' ? 'Hoy' : f === 'ayer' ? 'Ayer' : f === 'manana' ? 'Ma••ana' : 'Todas'}
           </button>
         ))}
         <input
@@ -215,7 +215,7 @@ export function ChoferRutasPage() {
             setFechaCustom(e.target.value)
             setFiltroFecha('todas')
           }}
-          placeholder="Fecha específica"
+          placeholder="Fecha espec••fica"
           className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px]"
         />
       </div>
@@ -269,8 +269,8 @@ export function ChoferRutasPage() {
             {debouncedSearch || filtroEstado || fechaCustom
               ? 'No se encontraron rutas con los filtros aplicados.'
               : filtro === 'activas' 
-                ? 'No tenés rutas activas.' 
-                : 'No hay rutas en esta categoría.'}
+                ? 'No ten••s rutas activas.' 
+                : 'No hay rutas en esta categor••a.'}
           </p>
           {(debouncedSearch || filtroEstado || fechaCustom) && (
             <button
@@ -301,8 +301,8 @@ export function ChoferRutasPage() {
                 className="flex flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:border-primary hover:shadow-lg">
                 <div className="flex items-start justify-between">
                   <div>
-                    <h3 className="text-base font-bold text-slate-900">Ruta #{ruta.id.slice(-6)}</h3>
-                    <p className="text-xs text-slate-500">{ruta.fecha} · {ruta.stops.length} paradas</p>
+                    <h3 className="text-base font-bold text-slate-900">RUTA #{ruta.id.slice(-6).toUpperCase()}</h3>
+                    <p className="text-xs text-slate-500">{ruta.fecha} • {ruta.stops.length} paradas</p>
                     <p className="text-[10px] text-slate-400 mt-0.5">
                       Creada: {new Date(ruta.createdAt).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
                     </p>
@@ -334,7 +334,7 @@ export function ChoferRutasPage() {
         </div>
       )}
 
-      {/* Paginación */}
+      {/* Paginaci••n */}
       {totalPages > 1 && (
         <div className="flex items-center justify-between text-sm">
           <p className="text-slate-500">{total} ruta{total !== 1 ? 's' : ''} en total</p>

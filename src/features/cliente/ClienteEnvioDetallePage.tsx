@@ -130,7 +130,7 @@ export function ClienteEnvioDetallePage() {
 
   const statusSteps = [
     { key: 'created', label: 'Pedido recibido', done: true, active: false },
-    { key: 'transit', label: 'En tránsito', done: guia.estado !== 'PENDIENTE', active: guia.estado === 'PENDIENTE' },
+    { key: 'transit', label: 'En camino', done: guia.estado !== 'PENDIENTE', active: guia.estado === 'PENDIENTE' },
     {
       key: 'delivery',
       label: 'En entrega',
@@ -160,7 +160,7 @@ export function ClienteEnvioDetallePage() {
               ? 'Entregado'
               : guia.estado === 'INCIDENCIA'
                 ? 'Incidencia'
-                : 'En tránsito',
+                : 'En camino',
           'Recibido por': guia.receptorNombre ?? '—',
           'Hora llegada': guia.horaLlegada ?? '—',
           'Hora salida': guia.horaSalida ?? '—',
@@ -188,7 +188,7 @@ export function ClienteEnvioDetallePage() {
             ? 'Entregado'
             : guia.estado === 'INCIDENCIA'
               ? 'Incidencia'
-              : 'En tránsito',
+              : 'En camino',
         ],
         ['Recibido por', guia.receptorNombre ?? '—'],
         ['Hora llegada', guia.horaLlegada ?? '—'],
@@ -232,7 +232,7 @@ export function ClienteEnvioDetallePage() {
               ? 'Entregado'
               : guia.estado === 'INCIDENCIA'
                 ? 'Incidencia'
-                : 'En tránsito'}
+                : 'En camino'}
           </span>
           <button
             type="button"

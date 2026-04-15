@@ -149,83 +149,81 @@ export function AdminDashboardPage() {
         </motion.div>
       </motion.div>
 
-      {/* Rutas recientes + Novedades */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        {/* Rutas recientes */}
-        <div className="lg:col-span-2">
-          <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-base font-semibold text-slate-800">Rutas recientes</h3>
-          </div>
-          <div className="overflow-x-auto overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-            {ultimasRutas.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-12 text-center">
-                <span className="material-symbols-outlined text-4xl text-slate-300">route</span>
-                <p className="mt-2 text-sm text-slate-400">No hay rutas registradas</p>
-              </div>
-            ) : (
-              <>
-                {/* Mobile: cards */}
-                <div className="divide-y divide-slate-100 sm:hidden">
-                  {ultimasRutas.map((ruta) => (
-                    <div key={ruta.id} className="flex items-center justify-between gap-3 px-4 py-3">
-                      <div className="flex min-w-0 items-center gap-2.5">
-                        <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-white">
-                          {ruta.chofer.nombre.charAt(0)}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-medium text-slate-800">
-                            {ruta.chofer.nombre.length > 50 ? ruta.chofer.nombre.slice(0, 50) + '...' : ruta.chofer.nombre}
-                          </p>
-                          <p className="truncate text-xs text-slate-500">
-                            {ruta.primerDestino.length > 50 ? ruta.primerDestino.slice(0, 50) + '...' : ruta.primerDestino}
-                          </p>
-                        </div>
+      {/* Rutas recientes */}
+      <div>
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-base font-semibold text-slate-800">Rutas recientes</h3>
+        </div>
+        <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          {ultimasRutas.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <span className="material-symbols-outlined text-4xl text-slate-300">route</span>
+              <p className="mt-2 text-sm text-slate-400">No hay rutas registradas</p>
+            </div>
+          ) : (
+            <>
+              {/* Mobile: cards */}
+              <div className="divide-y divide-slate-100 sm:hidden">
+                {ultimasRutas.slice(0, 5).map((ruta) => (
+                  <div key={ruta.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <div className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-white">
+                        {ruta.chofer.nombre.charAt(0)}
                       </div>
-                      <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${estadoBadge(ruta.estado)}`}>
-                        {ruta.estado === 'EN_CURSO' ? 'En Curso' : ruta.estado === 'COMPLETADA' ? 'Completada' : ruta.estado === 'PENDIENTE' ? 'Pendiente' : 'Cancelada'}
-                      </span>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-slate-800">
+                          {ruta.chofer.nombre.length > 30 ? ruta.chofer.nombre.slice(0, 30) + '...' : ruta.chofer.nombre}
+                        </p>
+                        <p className="truncate text-xs text-slate-500">
+                          {ruta.primerDestino.length > 35 ? ruta.primerDestino.slice(0, 35) + '...' : ruta.primerDestino}
+                        </p>
+                      </div>
                     </div>
-                  ))}
-                </div>
-                {/* Desktop: table */}
-                <div className="hidden sm:block overflow-x-auto">
-                  <table className="w-full text-left text-sm">
-                    <thead className="border-b border-slate-100 bg-slate-50">
-                      <tr>
-                        <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400 whitespace-nowrap">Chofer</th>
-                        <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400 whitespace-nowrap">Destino</th>
-                        <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400 whitespace-nowrap">Progreso</th>
-                        <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400 whitespace-nowrap">Estado</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {ultimasRutas.map((ruta) => (
-                        <tr key={ruta.id} className="hover:bg-slate-50 transition-colors">
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            <div className="flex items-center gap-2.5">
-                              <div className="flex size-7 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-white">
-                                {ruta.chofer.nombre.charAt(0)}
-                              </div>
-                              <span className="font-medium text-slate-800">
-                                {ruta.chofer.nombre.length > 50 ? ruta.chofer.nombre.slice(0, 50) + '...' : ruta.chofer.nombre}
-                              </span>
+                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${estadoBadge(ruta.estado)}`}>
+                      {ruta.estado === 'EN_CURSO' ? 'En Curso' : ruta.estado === 'COMPLETADA' ? 'Completada' : ruta.estado === 'PENDIENTE' ? 'Pendiente' : 'Cancelada'}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              {/* Desktop: table */}
+              <div className="hidden sm:block">
+                <table className="w-full text-left text-sm">
+                  <thead className="border-b border-slate-100 bg-slate-50">
+                    <tr>
+                      <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Chofer</th>
+                      <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Destino</th>
+                      <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Progreso</th>
+                      <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-400">Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {ultimasRutas.slice(0, 5).map((ruta) => (
+                      <tr key={ruta.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2.5">
+                            <div className="flex size-7 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-white">
+                              {ruta.chofer.nombre.charAt(0)}
                             </div>
-                          </td>
-                          <td className="px-4 py-3 text-slate-600">
-                            <div className="max-w-[300px] truncate">
-                              {ruta.primerDestino.length > 50 ? ruta.primerDestino.slice(0, 50) + '...' : ruta.primerDestino}
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            <div className="flex items-center gap-2">
-                              <div className="h-1.5 w-20 overflow-hidden rounded-full bg-slate-100">
-                                <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${ruta.progreso}%` }} />
-                              </div>
-                              <span className="text-xs font-semibold text-slate-600">{ruta.progreso}%</span>
-                            </div>
+                            <span className="font-medium text-slate-800 truncate max-w-[150px]">
+                              {ruta.chofer.nombre}
+                            </span>
+                          </div>
                         </td>
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${estadoBadge(ruta.estado)}`}>
+                        <td className="px-4 py-3 text-slate-600">
+                          <div className="truncate max-w-[250px]">
+                            {ruta.primerDestino}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <div className="h-1.5 w-20 overflow-hidden rounded-full bg-slate-100">
+                              <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${ruta.progreso}%` }} />
+                            </div>
+                            <span className="text-xs font-semibold text-slate-600">{ruta.progreso}%</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className={`rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${estadoBadge(ruta.estado)}`}>
                             {ruta.estado === 'EN_CURSO' ? 'En Curso' : ruta.estado === 'COMPLETADA' ? 'Completada' : ruta.estado === 'PENDIENTE' ? 'Pendiente' : 'Cancelada'}
                           </span>
                         </td>
@@ -233,40 +231,43 @@ export function AdminDashboardPage() {
                     ))}
                   </tbody>
                 </table>
-                </div>
-              </>
-            )}
-          </div>
+              </div>
+            </>
+          )}
         </div>
+      </div>
 
-        {/* Novedades recientes */}
-        <div>
-          <div className="mb-3 flex items-center justify-between">
-            <h3 className="text-base font-semibold text-slate-800">Novedades recientes</h3>
-            {novedadesCount > 0 && <span className="size-2 animate-pulse rounded-full bg-red-500" />}
-          </div>
+      {/* Novedades recientes */}
+      <div>
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-base font-semibold text-slate-800">Novedades recientes</h3>
+          {novedadesCount > 0 && <span className="size-2 animate-pulse rounded-full bg-red-500" />}
+        </div>
+        {ultimasNovedades.length === 0 ? (
           <motion.div
-            className="space-y-3"
-            variants={novedadList}
+            variants={novedadItem}
             initial="hidden"
             animate="show"
-            key={ultimasNovedades.map((n) => n.id).join(',')}
+            className="flex flex-col items-center justify-center rounded-xl border border-slate-200 bg-white py-10 text-center shadow-sm"
           >
-            {ultimasNovedades.length === 0 ? (
-              <motion.div
-                variants={novedadItem}
-                className="flex flex-col items-center justify-center rounded-xl border border-slate-200 bg-white py-10 text-center shadow-sm"
-              >
-                <span className="material-symbols-outlined text-3xl text-slate-300">check_circle</span>
-                <p className="mt-2 text-sm text-slate-400">Sin novedades</p>
-              </motion.div>
-            ) : (
-              ultimasNovedades.map((n) => (
+            <span className="material-symbols-outlined text-3xl text-slate-300">check_circle</span>
+            <p className="mt-2 text-sm text-slate-400">Sin novedades</p>
+          </motion.div>
+        ) : (
+          <div className="overflow-x-auto pb-2">
+            <motion.div
+              className="flex gap-3"
+              variants={novedadList}
+              initial="hidden"
+              animate="show"
+              key={ultimasNovedades.map((n) => n.id).join(',')}
+            >
+              {ultimasNovedades.slice(0, 8).map((n) => (
                 <motion.div
                   key={n.id}
                   layout
                   variants={novedadItem}
-                  className="w-full rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+                  className="flex-shrink-0 w-[320px] rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
                 >
                   <div className="flex items-start gap-3">
                     <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-red-50">
@@ -282,20 +283,20 @@ export function AdminDashboardPage() {
                         <div className="flex items-center gap-1.5 text-xs text-slate-600 min-w-0">
                           <span className="material-symbols-outlined text-[14px] text-slate-400 flex-shrink-0">person</span>
                           <span className="font-medium flex-shrink-0">Chofer:</span>
-                          <span className="break-words overflow-hidden min-w-0">{n.guia.ruta.chofer.nombre.length > 25 ? n.guia.ruta.chofer.nombre.slice(0, 22) + '...' : n.guia.ruta.chofer.nombre}</span>
+                          <span className="truncate overflow-hidden min-w-0">{n.guia.ruta.chofer.nombre}</span>
                         </div>
                         
                         <div className="flex items-center gap-1.5 text-xs text-slate-600 min-w-0">
                           <span className="material-symbols-outlined text-[14px] text-slate-400 flex-shrink-0">store</span>
                           <span className="font-medium flex-shrink-0">Cliente:</span>
-                          <span className="break-words overflow-hidden min-w-0">{n.guia.stop.cliente.nombre.length > 25 ? n.guia.stop.cliente.nombre.slice(0, 22) + '...' : n.guia.stop.cliente.nombre}</span>
+                          <span className="truncate overflow-hidden min-w-0">{n.guia.stop.cliente.nombre}</span>
                         </div>
                         
                         {n.guia.receptorNombre && (
                           <div className="flex items-center gap-1.5 text-xs text-slate-600 min-w-0">
                             <span className="material-symbols-outlined text-[14px] text-slate-400 flex-shrink-0">badge</span>
                             <span className="font-medium flex-shrink-0">Receptor:</span>
-                            <span className="break-words overflow-hidden min-w-0">{n.guia.receptorNombre.length > 25 ? n.guia.receptorNombre.slice(0, 22) + '...' : n.guia.receptorNombre}</span>
+                            <span className="truncate overflow-hidden min-w-0">{n.guia.receptorNombre}</span>
                           </div>
                         )}
                         
@@ -311,10 +312,10 @@ export function AdminDashboardPage() {
                     </div>
                   </div>
                 </motion.div>
-              ))
-            )}
-          </motion.div>
-        </div>
+              ))}
+            </motion.div>
+          </div>
+        )}
       </div>
     </div>
   )

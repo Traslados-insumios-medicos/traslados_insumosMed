@@ -7,7 +7,6 @@ import { useAuthStore } from '../../store/authStore'
 import { useToastStore } from '../../store/toastStore'
 import { RouteMap } from '../../components/map/RouteMap'
 import { PhotoUploader } from './PhotoUploader'
-import { IncidenceDialog } from './IncidenceDialog'
 import { SeguimientoChoferStepper } from '../../components/cliente/SeguimientoChoferStepper'
 import { ModalMotion } from '../../components/ui/ModalMotion'
 interface GuiaApi {
@@ -16,7 +15,10 @@ interface GuiaApi {
   horaSalida?: string | null; temperatura?: string | null; observaciones?: string | null
   stopId: string
   updatedAt?: string
+  fotos?: FotoApi[]
 }
+
+type TipoNovedad = 'CLIENTE_AUSENTE' | 'MERCADERIA_DANADA' | 'DIRECCION_INCORRECTA' | 'OTRO'
 
 interface GuiaDetalleForm {
   receptorNombre: string
@@ -24,7 +26,10 @@ interface GuiaDetalleForm {
   horaLlegada: string
   horaSalida: string
   observaciones: string
+  tipoIncidencia: TipoNovedad
 }
+
+type GuiaDetalleErrorFields = Pick<GuiaDetalleForm, 'receptorNombre' | 'temperatura' | 'horaLlegada' | 'horaSalida'>
 
 interface StopApi {
   id: string; orden: number; direccion: string; lat: number; lng: number
@@ -43,15 +48,25 @@ interface RutaApi {
 
 function guiaTieneDetallePersistido(g: GuiaApi) {
   return !!(
-    g.receptorNombre?.trim() ||
+    (g.receptorNombre?.trim() ||
     g.temperatura?.trim() ||
     g.horaLlegada?.trim() ||
     g.horaSalida?.trim() ||
-    g.observaciones?.trim()
+    g.observaciones?.trim()) &&
+    g.fotos && g.fotos.length > 0
   )
 }
 
 export function ChoferRutaDetallePage() {
+  const REQUIRED_MESSAGE = 'Este campo es obligatorio'
+  
+  const TIPOS_INCIDENCIA: { value: TipoNovedad; label: string }[] = [
+    { value: 'CLIENTE_AUSENTE', label: 'Cliente no estuvo / ausente' },
+    { value: 'MERCADERIA_DANADA', label: 'Mercadería dañada' },
+    { value: 'DIRECCION_INCORRECTA', label: 'Dirección incorrecta' },
+    { value: 'OTRO', label: 'Otra' },
+  ]
+  
   const { id } = useParams<{ id: string }>()
   const { currentUser } = useAuthStore()
   const addToast = useToastStore((s) => s.addToast)
@@ -60,14 +75,16 @@ export function ChoferRutaDetallePage() {
   const [loading, setLoading] = useState(true)
   const [selectedStopId, setSelectedStopId] = useState<string | null>(null)
   const [fitBoundsTrigger, setFitBoundsTrigger] = useState(0)
-  const [incidenceGuia, setIncidenceGuia] = useState<{ id: string; numeroGuia: string } | null>(null)
   const [ubicacionActiva, setUbicacionActiva] = useState(false)
   const [miUbicacion, setMiUbicacion] = useState<{ lat: number; lng: number } | null>(null)
   const geoWatchRef = useRef<number | null>(null)
   const miUbicacionRef = useRef<{ lat: number; lng: number } | null>(null)
   const [detalleFormPorGuia, setDetalleFormPorGuia] = useState<Record<string, GuiaDetalleForm>>({})
+  const [erroresDetallePorGuia, setErroresDetallePorGuia] = useState<Record<string, Partial<GuiaDetalleErrorFields>>>({})
   const [guardandoGuiaId, setGuardandoGuiaId] = useState<string | null>(null)
   const [guiaIdsDetalleGuardado, setGuiaIdsDetalleGuardado] = useState<Set<string>>(() => new Set())
+  const [guiaIdsEnEdicion, setGuiaIdsEnEdicion] = useState<Set<string>>(() => new Set())
+  const [fotosBorradorPorGuia, setFotosBorradorPorGuia] = useState<Record<string, File[]>>({})
   const rutaIdParaDetalleRef = useRef<string | null>(null)
   const [ultimaActualizacionSeguimiento, setUltimaActualizacionSeguimiento] = useState<string | null>(null)
   const [showUbicacionErrorModal, setShowUbicacionErrorModal] = useState(false)
@@ -115,17 +132,26 @@ export function ChoferRutaDetallePage() {
     setDetalleFormPorGuia((prev) => {
       const next = { ...prev }
       ruta.guias.forEach((g) => {
-        next[g.id] = {
-          receptorNombre: g.receptorNombre ?? '',
-          temperatura: g.temperatura ?? '',
-          horaLlegada: g.horaLlegada ?? '',
-          horaSalida: g.horaSalida ?? '',
-          observaciones: g.observaciones ?? '',
+        // Solo actualizar si:
+        // 1. No existe en el formulario (primera carga)
+        // 2. Los datos están persistidos Y no está en modo edición
+        const estaEnEdicion = guiaIdsEnEdicion.has(g.id)
+        const yaExiste = !!prev[g.id]
+        
+        if (!yaExiste || (guiaTieneDetallePersistido(g) && !estaEnEdicion)) {
+          next[g.id] = {
+            receptorNombre: g.receptorNombre ?? '',
+            temperatura: g.temperatura ?? '',
+            horaLlegada: g.horaLlegada ?? '',
+            horaSalida: g.horaSalida ?? '',
+            observaciones: g.observaciones ?? '',
+            tipoIncidencia: 'CLIENTE_AUSENTE',
+          }
         }
       })
       return next
     })
-  }, [rutaDetalleSyncKey, ruta])
+  }, [rutaDetalleSyncKey, ruta, guiaIdsEnEdicion])
 
   useEffect(() => {
     if (!ruta) return
@@ -231,25 +257,42 @@ export function ChoferRutaDetallePage() {
   const total = guiasPorRuta.length
   const progreso = total ? Math.round(((entregadas + conIncidencia) / total) * 100) : 0
 
+  const totalFotos = ruta?.fotos?.length ?? 0
+  
+  // Verificar que todas las guías tengan datos guardados (lo que implica que tienen fotos)
+  const todasLasGuiasTienenDatosGuardados = guiasPorRuta.every((g) => {
+    return guiaTieneDetallePersistido(g)
+  })
+  
   const puedeFinalizar =
     total > 0 &&
-    guiasPorRuta.every((g) => g.estado === 'ENTREGADO' || g.estado === 'INCIDENCIA')
+    guiasPorRuta.every((g) => g.estado === 'ENTREGADO' || g.estado === 'INCIDENCIA') &&
+    totalFotos > 0 &&
+    todasLasGuiasTienenDatosGuardados &&
+    guiaIdsEnEdicion.size === 0 // No debe haber guías en modo edición
 
-  const handleMarkEntregado = async (guiaId: string) => {
-    try {
-      await api.patch(`/guias/${guiaId}/estado`, { estado: 'ENTREGADO' })
-      setRuta((prev) => prev ? {
-        ...prev,
-        guias: prev.guias.map((g) => g.id === guiaId ? { ...g, estado: 'ENTREGADO' } : g),
-        stops: prev.stops.map((s) => ({
-          ...s,
-          guias: s.guias.map((g) => g.id === guiaId ? { ...g, estado: 'ENTREGADO' } : g),
-        })),
-      } : prev)
-      addToast('Entrega confirmada', 'success')
-    } catch {
-      addToast('Error al actualizar estado', 'error')
-    }
+  const handleMarkIncidencia = (guiaId: string) => {
+    // Solo cambiar el estado localmente, no llamar al API
+    setRuta((prev) => prev ? {
+      ...prev,
+      guias: prev.guias.map((g) => g.id === guiaId ? { ...g, estado: 'INCIDENCIA' } : g),
+      stops: prev.stops.map((s) => ({
+        ...s,
+        guias: s.guias.map((g) => g.id === guiaId ? { ...g, estado: 'INCIDENCIA' } : g),
+      })),
+    } : prev)
+  }
+
+  const handleMarkEntregado = (guiaId: string) => {
+    // Solo cambiar el estado localmente, no llamar al API
+    setRuta((prev) => prev ? {
+      ...prev,
+      guias: prev.guias.map((g) => g.id === guiaId ? { ...g, estado: 'ENTREGADO' } : g),
+      stops: prev.stops.map((s) => ({
+        ...s,
+        guias: s.guias.map((g) => g.id === guiaId ? { ...g, estado: 'ENTREGADO' } : g),
+      })),
+    } : prev)
   }
 
   const patchDetalleGuiaEnEstado = (guiaId: string, patch: Partial<GuiaApi>) => {
@@ -274,11 +317,70 @@ export function ChoferRutaDetallePage() {
     }))
   }
 
+  const setErrorCampoDetalle = (guiaId: string, campo: keyof GuiaDetalleErrorFields, mensaje: string) => {
+    setErroresDetallePorGuia((prev) => ({
+      ...prev,
+      [guiaId]: { ...(prev[guiaId] ?? {}), [campo]: mensaje },
+    }))
+  }
+
+  const limpiarErrorCampoDetalle = (guiaId: string, campo: keyof GuiaDetalleErrorFields) => {
+    setErrorCampoDetalle(guiaId, campo, '')
+  }
+
+  const marcarErroresObligatoriosDetalle = (guiaId: string, form: GuiaDetalleForm, esIncidencia: boolean) => {
+    if (esIncidencia) {
+      // Para incidencias, validar tipo de incidencia en lugar de receptor
+      const nuevosErrores: Partial<GuiaDetalleErrorFields> = {
+        receptorNombre: '', // No se valida para incidencias
+        temperatura: form.temperatura.trim() ? '' : REQUIRED_MESSAGE,
+        horaLlegada: form.horaLlegada ? '' : REQUIRED_MESSAGE,
+        horaSalida: form.horaSalida ? '' : REQUIRED_MESSAGE,
+      }
+      setErroresDetallePorGuia((prev) => ({ ...prev, [guiaId]: { ...(prev[guiaId] ?? {}), ...nuevosErrores } }))
+      return Boolean(
+        nuevosErrores.temperatura ||
+        nuevosErrores.horaLlegada ||
+        nuevosErrores.horaSalida,
+      )
+    }
+    
+    // Para entregas normales, validar todos los campos
+    const nuevosErrores: Partial<GuiaDetalleErrorFields> = {
+      receptorNombre: form.receptorNombre.trim() ? '' : REQUIRED_MESSAGE,
+      temperatura: form.temperatura.trim() ? '' : REQUIRED_MESSAGE,
+      horaLlegada: form.horaLlegada ? '' : REQUIRED_MESSAGE,
+      horaSalida: form.horaSalida ? '' : REQUIRED_MESSAGE,
+    }
+    setErroresDetallePorGuia((prev) => ({ ...prev, [guiaId]: { ...(prev[guiaId] ?? {}), ...nuevosErrores } }))
+    return Boolean(
+      nuevosErrores.receptorNombre ||
+      nuevosErrores.temperatura ||
+      nuevosErrores.horaLlegada ||
+      nuevosErrores.horaSalida,
+    )
+  }
+
+  const handleHabilitarEdicion = (guiaId: string) => {
+    setGuiaIdsEnEdicion((prev) => new Set(prev).add(guiaId))
+  }
+
   const handleGuardarDetalleGuia = async (guiaId: string) => {
     const f = detalleFormPorGuia[guiaId]
     if (!f) return
+    
+    // Buscar la guía para saber si es incidencia
+    const guia = guiasPorRuta.find((g) => g.id === guiaId)
+    const esIncidencia = guia?.estado === 'INCIDENCIA'
+    
+    if (marcarErroresObligatoriosDetalle(guiaId, f, esIncidencia)) return
+    
     setGuardandoGuiaId(guiaId)
     try {
+      // 1. Guardar estado de la guía (ENTREGADO o INCIDENCIA)
+      await api.patch(`/guias/${guiaId}/estado`, { estado: guia?.estado ?? 'ENTREGADO' })
+      
+      // 2. Guardar datos del formulario
       const res = await api.patch<{
         id: string
         receptorNombre: string | null
@@ -288,12 +390,31 @@ export function ChoferRutaDetallePage() {
         observaciones: string | null
         updatedAt: string
       }>(`/guias/${guiaId}/detalle`, {
-        receptorNombre: f.receptorNombre.trim() || undefined,
+        receptorNombre: esIncidencia ? `INCIDENCIA: ${f.tipoIncidencia}` : (f.receptorNombre.trim() || undefined),
         temperatura: f.temperatura.trim() || undefined,
         horaLlegada: f.horaLlegada.trim() || undefined,
         horaSalida: f.horaSalida.trim() || undefined,
         observaciones: f.observaciones.trim() || undefined,
       })
+      
+      // 3. Subir fotos en borrador
+      const fotosBorrador = fotosBorradorPorGuia[guiaId] || []
+      if (fotosBorrador.length > 0) {
+        for (const file of fotosBorrador) {
+          const formData = new FormData()
+          formData.append('foto', file)
+          await api.post(`/fotos/guia/${guiaId}`, formData, {
+            headers: { 'Content-Type': 'multipart/form-data' },
+          })
+        }
+        // Limpiar fotos en borrador
+        setFotosBorradorPorGuia((prev) => {
+          const next = { ...prev }
+          delete next[guiaId]
+          return next
+        })
+      }
+      
       const row = res.data
       patchDetalleGuiaEnEstado(guiaId, {
         receptorNombre: row.receptorNombre,
@@ -303,18 +424,21 @@ export function ChoferRutaDetallePage() {
         observaciones: row.observaciones,
         updatedAt: row.updatedAt,
       })
-      setDetalleFormPorGuia((prev) => ({
-        ...prev,
-        [guiaId]: {
-          receptorNombre: row.receptorNombre ?? '',
-          temperatura: row.temperatura ?? '',
-          horaLlegada: row.horaLlegada ?? '',
-          horaSalida: row.horaSalida ?? '',
-          observaciones: row.observaciones ?? '',
-        },
-      }))
+      
+      // NO actualizar el formulario aquí, dejar que el efecto lo haga después de recargar
+      setGuiaIdsEnEdicion((prev) => {
+        const next = new Set(prev)
+        next.delete(guiaId)
+        return next
+      })
+      
+      addToast('Datos y fotos guardados. El administrador los ve en Rutas • expandir ruta.', 'success')
+      
+      // Recargar para mostrar las fotos subidas
+      await fetchRuta()
+      
+      // Después de recargar, asegurarse de que el ID esté en guiaIdsDetalleGuardado
       setGuiaIdsDetalleGuardado((prev) => new Set(prev).add(guiaId))
-      addToast('Datos guardados. El administrador los ve en Rutas → expandir ruta.', 'success')
     } catch {
       addToast('No se pudieron guardar los datos de entrega', 'error')
     } finally {
@@ -335,7 +459,7 @@ export function ChoferRutaDetallePage() {
     }
   }
 
-  const handleSeguimientoCliente = async (seguimientoChofer: 'EN_CAMINO' | 'EN_TRAFICO' | 'CERCA_DESTINO') => {
+  const handleSeguimientoCliente = async (seguimientoChofer: 'EN_CAMINO' | 'CERCA_DESTINO') => {
     if (!id) return
     try {
       const res = await api.patch<RutaApi>(`/rutas/${id}/seguimiento`, { seguimientoChofer })
@@ -356,11 +480,6 @@ export function ChoferRutaDetallePage() {
     } catch {
       addToast('Error al finalizar ruta', 'error')
     }
-  }
-
-  const handleIncidenciaCreada = () => {
-    setIncidenceGuia(null)
-    fetchRuta() // recargar para reflejar el nuevo estado INCIDENCIA
   }
 
   if (loading) {
@@ -411,7 +530,7 @@ export function ChoferRutaDetallePage() {
           <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
             <div className="mb-3 flex items-start justify-between">
               <div>
-                <h3 className="text-sm font-bold text-slate-900">Ruta #{ruta.id.slice(-6)}</h3>
+                <h3 className="text-sm font-bold text-slate-900">RUTA #{ruta.id.slice(-6).toUpperCase()}</h3>
                 <p className="text-xs text-slate-500">Distribución de Insumos Médicos</p>
                 <p className="text-[10px] text-slate-400 mt-0.5">
                   Creada: {new Date(ruta.createdAt).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
@@ -483,7 +602,7 @@ export function ChoferRutaDetallePage() {
                 Última actualización:{' '}
                 {ultimaActualizacionSeguimiento
                   ? new Date(ultimaActualizacionSeguimiento).toLocaleString('es-ES')
-                  : '—'}
+                  : '•'}
               </p>
             </div>
           )}
@@ -534,7 +653,7 @@ export function ChoferRutaDetallePage() {
             {ubicacionActiva && ruta.estado === 'EN_CURSO' && (
               <p className="border-b border-slate-100 bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
                 La línea azul sigue calles desde tu posición hacia las paradas pendientes. Las completadas se muestran en verde (
-                ✓) y ya no forman parte del trazado activo.
+                •) y ya no forman parte del trazado activo.
               </p>
             )}
             <div className="h-64 sm:h-72 lg:h-[360px]">
@@ -584,21 +703,6 @@ export function ChoferRutaDetallePage() {
                         {stop.notas && <p className="text-xs text-slate-400">{stop.notas}</p>}
                       </div>
                       <div className="flex shrink-0 flex-col items-end gap-1">
-                        <span
-                          className={`rounded px-2 py-0.5 text-[10px] font-bold ${
-                            paradaDetalleCompleto
-                              ? 'bg-emerald-600 text-white'
-                              : paradaCompletaEntrega
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : 'border border-slate-200 bg-slate-100 text-slate-600'
-                          }`}>
-                        
-                          {paradaDetalleCompleto
-                            ? 'Datos guardados'
-                            : paradaCompletaEntrega
-                              ? 'Entrega ok'
-                              : 'Pendiente'}
-                        </span>
                         <span className="rounded border border-slate-200 bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
                           {guiasStop.length} guía(s)
                         </span>
@@ -616,19 +720,25 @@ export function ChoferRutaDetallePage() {
                               <span className="text-sm font-bold text-slate-700">Guía: #{g.numeroGuia}</span>
                               <div className="flex flex-wrap gap-1">
                                 <button type="button" onClick={() => handleMarkEntregado(g.id)} 
-                                  disabled={g.estado === 'ENTREGADO' || ruta.estado === 'PENDIENTE'}
+                                  disabled={
+                                    ruta.estado === 'PENDIENTE' ||
+                                    ruta.estado === 'COMPLETADA'
+                                  }
                                   className={`rounded px-2 py-1 text-[10px] font-medium ${
                                     g.estado === 'ENTREGADO' ? 'bg-emerald-600 text-white' :
-                                    ruta.estado === 'PENDIENTE' ? 'border border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed' :
+                                    ruta.estado === 'PENDIENTE' || ruta.estado === 'COMPLETADA' ? 'border border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed' :
                                     'border border-slate-200 bg-white hover:bg-slate-50'
                                   }`}>
                                   Entregado
                                 </button>
-                                <button type="button" onClick={() => setIncidenceGuia({ id: g.id, numeroGuia: g.numeroGuia })}
-                                  disabled={ruta.estado === 'PENDIENTE'}
+                                <button type="button" onClick={() => handleMarkIncidencia(g.id)}
+                                  disabled={
+                                    ruta.estado === 'PENDIENTE' ||
+                                    ruta.estado === 'COMPLETADA'
+                                  }
                                   className={`rounded px-2 py-1 text-[10px] font-medium ${
                                     g.estado === 'INCIDENCIA' ? 'bg-amber-600 text-white' :
-                                    ruta.estado === 'PENDIENTE' ? 'border border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed' :
+                                    ruta.estado === 'PENDIENTE' || ruta.estado === 'COMPLETADA' ? 'border border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed' :
                                     'border border-slate-200 bg-white hover:bg-amber-50'
                                   }`}>
                                   Incidencia
@@ -637,17 +747,193 @@ export function ChoferRutaDetallePage() {
                             </div>
                             <p className="text-xs text-slate-600">{g.descripcion}</p>
 
-                            {/* Entrega: formulario → fotos → guardar (todo el bloque de esta guía) */}
-                            {ruta.estado === 'PENDIENTE' ? (
+                            {/* Entrega: formulario • fotos • guardar (todo el bloque de esta guía) */}
+                            {ruta.estado === 'PENDIENTE' || ruta.estado === 'COMPLETADA' ? (
                               <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
                                 <p className="flex items-center gap-2 text-xs font-medium text-amber-800">
                                   <span className="material-symbols-outlined text-base">lock</span>
-                                  Debes iniciar la ruta para ingresar datos y subir fotos
+                                  {ruta.estado === 'PENDIENTE' 
+                                    ? 'Debes iniciar la ruta para ingresar datos y subir fotos'
+                                    : 'La ruta está finalizada y no se puede editar'}
                                 </p>
                               </div>
                             ) : (
                               <div className="mt-3 space-y-4">
-                                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                {g.estado === 'INCIDENCIA' ? (
+                                  /* Formulario para INCIDENCIAS */
+                                  <>
+                                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 mb-3">
+                                      <p className="flex items-center gap-2 text-xs font-medium text-amber-800">
+                                        <span className="material-symbols-outlined text-base">warning</span>
+                                        Esta guía tiene una incidencia registrada
+                                      </p>
+                                    </div>
+                                    
+                                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                      <div>
+                                        <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Tipo de incidencia *</label>
+                                        <select
+                                          value={detalleFormPorGuia[g.id]?.tipoIncidencia ?? 'CLIENTE_AUSENTE'}
+                                          onChange={(e) => setCampoDetalle(g.id, 'tipoIncidencia', e.target.value as TipoNovedad)}
+                                          disabled={guiaIdsDetalleGuardado.has(g.id) && !guiaIdsEnEdicion.has(g.id)}
+                                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500"
+                                        >
+                                          {TIPOS_INCIDENCIA.map((t) => (
+                                            <option key={t.value} value={t.value}>{t.label}</option>
+                                          ))}
+                                        </select>
+                                      </div>
+                                      <div>
+                                        <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Temperatura (•C)</label>
+                                        <div className="relative">
+                                          <input
+                                            type="text"
+                                            inputMode="decimal"
+                                            placeholder="Ej: 18"
+                                            value={detalleFormPorGuia[g.id]?.temperatura ?? ''}
+                                            onChange={(e) => {
+                                              const value = e.target.value
+                                              if (value === '' || value === '-' || /^-?\d{0,3}(\.\d?)?$/.test(value)) {
+                                                setCampoDetalle(g.id, 'temperatura', value)
+                                                if (value.trim() && value !== '-' && value !== '.' && !value.endsWith('.')) {
+                                                  limpiarErrorCampoDetalle(g.id, 'temperatura')
+                                                }
+                                              }
+                                            }}
+                                            onBlur={() => {
+                                              const value = detalleFormPorGuia[g.id]?.temperatura ?? ''
+                                              const isValid = value.trim() && value !== '-' && value !== '.' && !value.endsWith('.')
+                                              setErrorCampoDetalle(g.id, 'temperatura', isValid ? '' : REQUIRED_MESSAGE)
+                                            }}
+                                            maxLength={6}
+                                            disabled={guiaIdsDetalleGuardado.has(g.id) && !guiaIdsEnEdicion.has(g.id)}
+                                            className={`w-full rounded-lg border bg-white px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 ${
+                                              erroresDetallePorGuia[g.id]?.temperatura ? 'border-red-400 focus:border-red-400 focus:ring-red-100' : 'border-slate-200 focus:border-primary focus:ring-primary/15'
+                                            }`}
+                                          />
+                                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-400 pointer-events-none">•C</span>
+                                        </div>
+                                        {erroresDetallePorGuia[g.id]?.temperatura && (
+                                          <p className="mt-1 text-xs text-red-500">{erroresDetallePorGuia[g.id]?.temperatura}</p>
+                                        )}
+                                      </div>
+                                      <div>
+                                        <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Hora llegada</label>
+                                        <input type="time" value={detalleFormPorGuia[g.id]?.horaLlegada ?? ''}
+                                          onChange={(e) => {
+                                            const value = e.target.value
+                                            setCampoDetalle(g.id, 'horaLlegada', value)
+                                            if (value) limpiarErrorCampoDetalle(g.id, 'horaLlegada')
+                                          }}
+                                          onBlur={() => {
+                                            const value = detalleFormPorGuia[g.id]?.horaLlegada ?? ''
+                                            setErrorCampoDetalle(g.id, 'horaLlegada', value ? '' : REQUIRED_MESSAGE)
+                                          }}
+                                          disabled={guiaIdsDetalleGuardado.has(g.id) && !guiaIdsEnEdicion.has(g.id)}
+                                          className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 ${
+                                            erroresDetallePorGuia[g.id]?.horaLlegada ? 'border-red-400 focus:border-red-400 focus:ring-red-100' : 'border-slate-200 focus:border-primary focus:ring-primary/15'
+                                          }`} />
+                                        {erroresDetallePorGuia[g.id]?.horaLlegada && (
+                                          <p className="mt-1 text-xs text-red-500">{erroresDetallePorGuia[g.id]?.horaLlegada}</p>
+                                        )}
+                                      </div>
+                                      <div>
+                                        <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Hora salida</label>
+                                        <input type="time" value={detalleFormPorGuia[g.id]?.horaSalida ?? ''}
+                                          onChange={(e) => {
+                                            const value = e.target.value
+                                            setCampoDetalle(g.id, 'horaSalida', value)
+                                            if (value) limpiarErrorCampoDetalle(g.id, 'horaSalida')
+                                          }}
+                                          onBlur={() => {
+                                            const value = detalleFormPorGuia[g.id]?.horaSalida ?? ''
+                                            setErrorCampoDetalle(g.id, 'horaSalida', value ? '' : REQUIRED_MESSAGE)
+                                          }}
+                                          disabled={guiaIdsDetalleGuardado.has(g.id) && !guiaIdsEnEdicion.has(g.id)}
+                                          className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 ${
+                                            erroresDetallePorGuia[g.id]?.horaSalida ? 'border-red-400 focus:border-red-400 focus:ring-red-100' : 'border-slate-200 focus:border-primary focus:ring-primary/15'
+                                          }`} />
+                                        {erroresDetallePorGuia[g.id]?.horaSalida && (
+                                          <p className="mt-1 text-xs text-red-500">{erroresDetallePorGuia[g.id]?.horaSalida}</p>
+                                        )}
+                                      </div>
+                                      <div className="sm:col-span-2">
+                                        <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Observaciones (máx. 255 caracteres)</label>
+                                        <div className="relative">
+                                          <textarea
+                                            rows={3}
+                                            placeholder="Detalles adicionales sobre la incidencia (opcional)"
+                                            value={detalleFormPorGuia[g.id]?.observaciones ?? ''}
+                                            onChange={(e) => setCampoDetalle(g.id, 'observaciones', e.target.value)}
+                                            maxLength={255}
+                                            disabled={guiaIdsDetalleGuardado.has(g.id) && !guiaIdsEnEdicion.has(g.id)}
+                                            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15 disabled:bg-slate-50 disabled:text-slate-500 disabled:cursor-not-allowed"
+                                          />
+                                          <span className={`absolute -bottom-4 right-0 text-[10px] ${(detalleFormPorGuia[g.id]?.observaciones?.length || 0) > 240 ? 'text-amber-600' : 'text-slate-400'}`}>
+                                            {detalleFormPorGuia[g.id]?.observaciones?.length || 0}/255
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    <PhotoUploader 
+                                      scope="guia" 
+                                      guiaId={g.id} 
+                                      label="Fotos de la incidencia" 
+                                      draftMode={!guiaIdsDetalleGuardado.has(g.id) || guiaIdsEnEdicion.has(g.id)}
+                                      onDraftChange={(files) => {
+                                        setFotosBorradorPorGuia((prev) => ({
+                                          ...prev,
+                                          [g.id]: files
+                                        }))
+                                      }}
+                                      initialDraftFiles={fotosBorradorPorGuia[g.id]}
+                                      onUploaded={fetchRuta}
+                                    />
+
+                                    <div className="border-t border-slate-200 pt-4">
+                                      <div className="w-full sm:flex sm:justify-end sm:gap-2">
+                                        {guiaIdsDetalleGuardado.has(g.id) && !guiaIdsEnEdicion.has(g.id) ? (
+                                          <button
+                                            type="button"
+                                            onClick={() => handleHabilitarEdicion(g.id)}
+                                            className="w-full rounded-lg border border-primary bg-white px-4 py-2.5 text-xs font-bold text-primary shadow-sm hover:bg-primary/5 sm:w-auto"
+                                          >
+                                            Editar datos
+                                          </button>
+                                        ) : (
+                                          <button
+                                            type="button"
+                                            onClick={() => handleGuardarDetalleGuia(g.id)}
+                                            disabled={
+                                              guardandoGuiaId === g.id ||
+                                              !detalleFormPorGuia[g.id]?.temperatura?.trim() ||
+                                              !detalleFormPorGuia[g.id]?.horaLlegada ||
+                                              !detalleFormPorGuia[g.id]?.horaSalida ||
+                                              ((fotosBorradorPorGuia[g.id]?.length ?? 0) + (g.fotos?.length ?? 0)) === 0
+                                            }
+                                            className="w-full rounded-lg bg-primary px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-primary/90 disabled:opacity-60 sm:w-auto"
+                                          >
+                                            {guardandoGuiaId === g.id ? 'Guardando…' : 'Guardar datos de incidencia'}
+                                          </button>
+                                        )}
+                                      </div>
+                                      {(!detalleFormPorGuia[g.id]?.temperatura?.trim() ||
+                                        !detalleFormPorGuia[g.id]?.horaLlegada ||
+                                        !detalleFormPorGuia[g.id]?.horaSalida ||
+                                        ((fotosBorradorPorGuia[g.id]?.length ?? 0) + (g.fotos?.length ?? 0)) === 0) && (
+                                        <p className="mt-2 text-xs text-amber-600 text-center sm:text-right">
+                                          {((fotosBorradorPorGuia[g.id]?.length ?? 0) + (g.fotos?.length ?? 0)) === 0
+                                            ? 'Debes subir al menos 1 foto para guardar'
+                                            : 'Completa todos los campos obligatorios para guardar'}
+                                        </p>
+                                      )}
+                                    </div>
+                                  </>
+                                ) : (
+                                  /* Formulario para ENTREGAS NORMALES */
+                                  <>
+                                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                                   <div>
                                     <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Recibido por</label>
                                     <div className="relative">
@@ -660,18 +946,29 @@ export function ChoferRutaDetallePage() {
                                           // Solo permitir letras, espacios y caracteres especiales comunes en nombres
                                           if (value === '' || /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'-]+$/.test(value)) {
                                             setCampoDetalle(g.id, 'receptorNombre', value)
+                                            if (value.trim()) limpiarErrorCampoDetalle(g.id, 'receptorNombre')
                                           }
                                         }}
+                                        onBlur={() => {
+                                          const value = detalleFormPorGuia[g.id]?.receptorNombre ?? ''
+                                          setErrorCampoDetalle(g.id, 'receptorNombre', value.trim() ? '' : REQUIRED_MESSAGE)
+                                        }}
                                         maxLength={50}
-                                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15"
+                                        disabled={ruta.estado === 'COMPLETADA' || (guiaIdsDetalleGuardado.has(g.id) && !guiaIdsEnEdicion.has(g.id))}
+                                        className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 ${
+                                          erroresDetallePorGuia[g.id]?.receptorNombre ? 'border-red-400 focus:border-red-400 focus:ring-red-100' : 'border-slate-200 focus:border-primary focus:ring-primary/15'
+                                        }`}
                                       />
                                       <span className={`absolute -bottom-4 right-0 text-[10px] ${(detalleFormPorGuia[g.id]?.receptorNombre?.length || 0) > 45 ? 'text-amber-600' : 'text-slate-400'}`}>
                                         {detalleFormPorGuia[g.id]?.receptorNombre?.length || 0}/50
                                       </span>
                                     </div>
+                                    {erroresDetallePorGuia[g.id]?.receptorNombre && (
+                                      <p className="mt-1 text-xs text-red-500">{erroresDetallePorGuia[g.id]?.receptorNombre}</p>
+                                    )}
                                   </div>
                                   <div>
-                                    <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Temperatura (°C)</label>
+                                    <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Temperatura (•C)</label>
                                     <div className="relative">
                                       <input
                                         type="text"
@@ -680,28 +977,70 @@ export function ChoferRutaDetallePage() {
                                         value={detalleFormPorGuia[g.id]?.temperatura ?? ''}
                                         onChange={(e) => {
                                           const value = e.target.value
-                                          // Solo permitir números, punto decimal y signo negativo
-                                          if (value === '' || /^-?\d*\.?\d*$/.test(value)) {
+                                          // Solo permitir números de máximo 3 dígitos enteros y 1 decimal (ej: 123.5 o -12.5)
+                                          if (value === '' || value === '-' || /^-?\d{0,3}(\.\d?)?$/.test(value)) {
                                             setCampoDetalle(g.id, 'temperatura', value)
+                                            if (value.trim() && value !== '-' && value !== '.' && !value.endsWith('.')) {
+                                              limpiarErrorCampoDetalle(g.id, 'temperatura')
+                                            }
                                           }
                                         }}
-                                        maxLength={25}
-                                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 pr-10 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15"
+                                        onBlur={() => {
+                                          const value = detalleFormPorGuia[g.id]?.temperatura ?? ''
+                                          const isValid = value.trim() && value !== '-' && value !== '.' && !value.endsWith('.')
+                                          setErrorCampoDetalle(g.id, 'temperatura', isValid ? '' : REQUIRED_MESSAGE)
+                                        }}
+                                        maxLength={6}
+                                        disabled={guiaIdsDetalleGuardado.has(g.id) && !guiaIdsEnEdicion.has(g.id)}
+                                        className={`w-full rounded-lg border bg-white px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 ${
+                                          erroresDetallePorGuia[g.id]?.temperatura ? 'border-red-400 focus:border-red-400 focus:ring-red-100' : 'border-slate-200 focus:border-primary focus:ring-primary/15'
+                                        }`}
                                       />
-                                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-400 pointer-events-none">°C</span>
+                                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-400 pointer-events-none">•C</span>
                                     </div>
+                                    {erroresDetallePorGuia[g.id]?.temperatura && (
+                                      <p className="mt-1 text-xs text-red-500">{erroresDetallePorGuia[g.id]?.temperatura}</p>
+                                    )}
                                   </div>
                                   <div>
                                     <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Hora llegada</label>
                                     <input type="time" value={detalleFormPorGuia[g.id]?.horaLlegada ?? ''}
-                                      onChange={(e) => setCampoDetalle(g.id, 'horaLlegada', e.target.value)}
-                                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15" />
+                                      onChange={(e) => {
+                                        const value = e.target.value
+                                        setCampoDetalle(g.id, 'horaLlegada', value)
+                                        if (value) limpiarErrorCampoDetalle(g.id, 'horaLlegada')
+                                      }}
+                                      onBlur={() => {
+                                        const value = detalleFormPorGuia[g.id]?.horaLlegada ?? ''
+                                        setErrorCampoDetalle(g.id, 'horaLlegada', value ? '' : REQUIRED_MESSAGE)
+                                      }}
+                                      disabled={guiaIdsDetalleGuardado.has(g.id) && !guiaIdsEnEdicion.has(g.id)}
+                                      className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 ${
+                                        erroresDetallePorGuia[g.id]?.horaLlegada ? 'border-red-400 focus:border-red-400 focus:ring-red-100' : 'border-slate-200 focus:border-primary focus:ring-primary/15'
+                                      }`} />
+                                    {erroresDetallePorGuia[g.id]?.horaLlegada && (
+                                      <p className="mt-1 text-xs text-red-500">{erroresDetallePorGuia[g.id]?.horaLlegada}</p>
+                                    )}
                                   </div>
                                   <div>
                                     <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Hora salida</label>
                                     <input type="time" value={detalleFormPorGuia[g.id]?.horaSalida ?? ''}
-                                      onChange={(e) => setCampoDetalle(g.id, 'horaSalida', e.target.value)}
-                                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15" />
+                                      onChange={(e) => {
+                                        const value = e.target.value
+                                        setCampoDetalle(g.id, 'horaSalida', value)
+                                        if (value) limpiarErrorCampoDetalle(g.id, 'horaSalida')
+                                      }}
+                                      onBlur={() => {
+                                        const value = detalleFormPorGuia[g.id]?.horaSalida ?? ''
+                                        setErrorCampoDetalle(g.id, 'horaSalida', value ? '' : REQUIRED_MESSAGE)
+                                      }}
+                                      disabled={guiaIdsDetalleGuardado.has(g.id) && !guiaIdsEnEdicion.has(g.id)}
+                                      className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 ${
+                                        erroresDetallePorGuia[g.id]?.horaSalida ? 'border-red-400 focus:border-red-400 focus:ring-red-100' : 'border-slate-200 focus:border-primary focus:ring-primary/15'
+                                      }`} />
+                                    {erroresDetallePorGuia[g.id]?.horaSalida && (
+                                      <p className="mt-1 text-xs text-red-500">{erroresDetallePorGuia[g.id]?.horaSalida}</p>
+                                    )}
                                   </div>
                                   <div className="sm:col-span-2">
                                     <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Observaciones (máx. 255 caracteres)</label>
@@ -712,7 +1051,8 @@ export function ChoferRutaDetallePage() {
                                         value={detalleFormPorGuia[g.id]?.observaciones ?? ''}
                                         onChange={(e) => setCampoDetalle(g.id, 'observaciones', e.target.value)}
                                         maxLength={255}
-                                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15"
+                                        disabled={guiaIdsDetalleGuardado.has(g.id) && !guiaIdsEnEdicion.has(g.id)}
+                                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15 disabled:bg-slate-50 disabled:text-slate-500 disabled:cursor-not-allowed"
                                       />
                                       <span className={`absolute -bottom-4 right-0 text-[10px] ${(detalleFormPorGuia[g.id]?.observaciones?.length || 0) > 240 ? 'text-amber-600' : 'text-slate-400'}`}>
                                         {detalleFormPorGuia[g.id]?.observaciones?.length || 0}/255
@@ -721,34 +1061,67 @@ export function ChoferRutaDetallePage() {
                                   </div>
                                 </div>
 
-                                <PhotoUploader scope="guia" guiaId={g.id} label="Fotos de entrega" max={8} onUploaded={fetchRuta} />
+                                <PhotoUploader 
+                                  scope="guia" 
+                                  guiaId={g.id} 
+                                  label="Fotos de entrega" 
+                                  draftMode={!guiaIdsDetalleGuardado.has(g.id) || guiaIdsEnEdicion.has(g.id)}
+                                  onDraftChange={(files) => {
+                                    setFotosBorradorPorGuia((prev) => ({
+                                      ...prev,
+                                      [g.id]: files
+                                    }))
+                                  }}
+                                  initialDraftFiles={fotosBorradorPorGuia[g.id]}
+                                  onUploaded={fetchRuta}
+                                />
 
                                 <div className="border-t border-slate-200 pt-4">
-                                  <div className="w-full sm:flex sm:justify-end">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleGuardarDetalleGuia(g.id)}
-                                      disabled={
-                                        guardandoGuiaId === g.id ||
-                                        !detalleFormPorGuia[g.id]?.receptorNombre?.trim() ||
-                                        !detalleFormPorGuia[g.id]?.temperatura?.trim() ||
-                                        !detalleFormPorGuia[g.id]?.horaLlegada ||
-                                        !detalleFormPorGuia[g.id]?.horaSalida
-                                      }
-                                      className="w-full rounded-lg bg-primary px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-primary/90 disabled:opacity-60 sm:w-auto"
-                                    >
-                                      {guardandoGuiaId === g.id ? 'Guardando…' : 'Guardar datos de entrega'}
-                                    </button>
+                                  <div className="w-full sm:flex sm:justify-end sm:gap-2">
+                                    {guiaIdsDetalleGuardado.has(g.id) && !guiaIdsEnEdicion.has(g.id) ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleHabilitarEdicion(g.id)}
+                                        className="w-full rounded-lg border border-primary bg-white px-4 py-2.5 text-xs font-bold text-primary shadow-sm hover:bg-primary/5 sm:w-auto"
+                                      >
+                                        Editar datos
+                                      </button>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleGuardarDetalleGuia(g.id)}
+                                        disabled={
+                                          guardandoGuiaId === g.id ||
+                                          !detalleFormPorGuia[g.id]?.receptorNombre?.trim() ||
+                                          !detalleFormPorGuia[g.id]?.temperatura?.trim() ||
+                                          !detalleFormPorGuia[g.id]?.horaLlegada ||
+                                          !detalleFormPorGuia[g.id]?.horaSalida ||
+                                          g.estado === 'PENDIENTE' ||
+                                          ((fotosBorradorPorGuia[g.id]?.length ?? 0) + (g.fotos?.length ?? 0)) === 0
+                                        }
+                                        className="w-full rounded-lg bg-primary px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-primary/90 disabled:opacity-60 sm:w-auto"
+                                      >
+                                        {guardandoGuiaId === g.id ? 'Guardando…' : 'Guardar datos de entrega'}
+                                      </button>
+                                    )}
                                   </div>
                                   {(!detalleFormPorGuia[g.id]?.receptorNombre?.trim() ||
                                     !detalleFormPorGuia[g.id]?.temperatura?.trim() ||
                                     !detalleFormPorGuia[g.id]?.horaLlegada ||
-                                    !detalleFormPorGuia[g.id]?.horaSalida) && (
+                                    !detalleFormPorGuia[g.id]?.horaSalida ||
+                                    g.estado === 'PENDIENTE' ||
+                                    ((fotosBorradorPorGuia[g.id]?.length ?? 0) + (g.fotos?.length ?? 0)) === 0) && (
                                     <p className="mt-2 text-xs text-amber-600 text-center sm:text-right">
-                                      Completa todos los campos obligatorios para guardar
+                                      {((fotosBorradorPorGuia[g.id]?.length ?? 0) + (g.fotos?.length ?? 0)) === 0
+                                        ? 'Debes subir al menos 1 foto para guardar'
+                                        : g.estado === 'PENDIENTE'
+                                          ? 'Marca la guía como "Entregado" para guardar'
+                                          : 'Completa todos los campos obligatorios para guardar'}
                                     </p>
                                   )}
-                                </div>
+                                    </div>
+                                  </>
+                                )}
                               </div>
                             )}
                           </div>
@@ -787,9 +1160,28 @@ export function ChoferRutaDetallePage() {
                   Debes iniciar la ruta para subir fotos
                 </p>
               </div>
+            ) : ruta.estado === 'COMPLETADA' ? (
+              <>
+                <PhotoUploader scope="hoja_ruta" rutaId={id} label="Fotos del documento" onUploaded={fetchRuta} readOnly={true} />
+                <p className="mt-1.5 text-[9px] text-slate-500 dark:text-slate-400">La ruta está finalizada. No se pueden agregar o eliminar fotos.</p>
+              </>
+            ) : guiaIdsDetalleGuardado.size === 0 ? (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-2.5">
+                <p className="flex items-center gap-1.5 text-[10px] font-medium text-amber-800">
+                  <span className="material-symbols-outlined text-sm">lock</span>
+                  Debes guardar al menos una guía para subir fotos de la hoja de ruta
+                </p>
+              </div>
+            ) : !todasLasGuiasTienenDatosGuardados ? (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-2.5">
+                <p className="flex items-center gap-1.5 text-[10px] font-medium text-amber-800">
+                  <span className="material-symbols-outlined text-sm">lock</span>
+                  Todas las guías deben tener datos y fotos guardados para subir la hoja de ruta
+                </p>
+              </div>
             ) : (
               <>
-                <PhotoUploader scope="hoja_ruta" rutaId={id} label="Fotos del documento" max={5} onUploaded={fetchRuta} />
+                <PhotoUploader scope="hoja_ruta" rutaId={id} label="Fotos del documento" onUploaded={fetchRuta} />
                 <p className="mt-1.5 text-[9px] text-slate-500 dark:text-slate-400">Sube la foto del documento firmado (opcional).</p>
               </>
             )}
@@ -813,7 +1205,13 @@ export function ChoferRutaDetallePage() {
                 </button>
                 {!puedeFinalizar && (
                   <p className="mt-2 text-center text-xs text-slate-500 dark:text-slate-400">
-                    Completa todas las guías para finalizar.
+                    {totalFotos === 0 
+                      ? 'Debes subir al menos 1 foto de la hoja de ruta para finalizar.'
+                      : guiaIdsEnEdicion.size > 0
+                        ? 'Debes guardar los datos de todas las guías en edición antes de finalizar.'
+                        : !todasLasGuiasTienenDatosGuardados
+                          ? 'Todas las guías deben tener datos y fotos guardados para finalizar.'
+                          : 'Completa todas las guías para finalizar.'}
                   </p>
                 )}
               </>
@@ -892,17 +1290,6 @@ export function ChoferRutaDetallePage() {
               </div>
             </div>
           </ModalMotion>
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {incidenceGuia && (
-          <IncidenceDialog
-            key={incidenceGuia.id}
-            guiaId={incidenceGuia.id}
-            numeroGuia={incidenceGuia.numeroGuia}
-            onClose={handleIncidenciaCreada}
-          />
         )}
       </AnimatePresence>
     </div>

@@ -75,8 +75,8 @@ export function ChoferHistorialPage() {
             className="flex flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition-all hover:border-primary hover:shadow-lg">
             <div className="flex items-start justify-between">
               <div>
-                <h3 className="text-base font-bold text-slate-900">Ruta #{ruta.id.slice(-6)}</h3>
-                <p className="text-xs text-slate-500">{ruta.fecha} · {ruta.stops.length} paradas</p>
+                <h3 className="text-base font-bold text-slate-900">RUTA #{ruta.id.slice(-6).toUpperCase()}</h3>
+                <p className="text-xs text-slate-500">{ruta.fecha} â€¢ {ruta.stops.length} paradas</p>
               </div>
               <span className={`rounded-full px-2.5 py-1 text-xs font-bold uppercase ${estadoBadge(ruta.estado)}`}>
                 {estadoLabel(ruta.estado)}
@@ -86,7 +86,7 @@ export function ChoferHistorialPage() {
             <div className="mt-4 space-y-1.5">
               <div className="flex justify-between text-xs text-slate-500">
                 <span>Progreso</span>
-                <span className="font-semibold text-slate-700">{entregadas + incidencias} / {total} guías</span>
+                <span className="font-semibold text-slate-700">{entregadas + incidencias} / {total} guÃ­as</span>
               </div>
               <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
                 <div className="h-2 rounded-full bg-primary" style={{ width: `${progreso}%` }} />
