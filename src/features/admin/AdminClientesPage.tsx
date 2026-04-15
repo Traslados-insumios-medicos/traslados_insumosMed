@@ -210,11 +210,6 @@ export function AdminClientesPage() {
     setDeleteClienteSubmitting(true)
     try {
       await api.delete(`/clientes/${c.id}`)
-      setExpandedPrincipales((prev) => {
-        const next = new Set(prev)
-        next.delete(c.id)
-        return next
-      })
       if (detailId === c.id) closeDetail()
       addToast(c.tipo === 'PRINCIPAL' ? 'Cliente y datos vinculados eliminados' : 'Cliente eliminado', 'success')
       setDeleteConfirmCliente(null)
@@ -312,12 +307,6 @@ export function AdminClientesPage() {
       await navigator.clipboard.writeText(passwordModal.password)
       setCopied(true); setTimeout(() => setCopied(false), 2000)
     } catch { addToast('No se pudo copiar', 'error') }
-  }
-
-  const toggleExpand = (id: string) => {
-    setExpandedPrincipales((prev) => {
-      const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next
-    })
   }
 
   const totalActivos = clientes.filter((c) => c.activo).length
