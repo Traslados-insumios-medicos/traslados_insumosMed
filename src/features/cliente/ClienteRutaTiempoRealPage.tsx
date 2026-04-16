@@ -173,31 +173,46 @@ export function ClienteRutaTiempoRealPage() {
     // Escuchar cuando la guía se entrega - recargar datos y cerrar después
     socket.on('guia:entregada', async (p: { guiaId: string; numeroGuia: string; rutaId: string }) => {
       console.log('✅ Guía entregada:', p)
-      // Recargar la ruta para mostrar el cambio
-      try {
-        const res = await api.get<RutaApi>(`/rutas/${rutaId}`)
-        setRuta(res.data)
-      } catch (error) {
-        console.error('Error al recargar ruta:', error)
-      }
       
-      // Si es la guía del cliente, mostrar mensaje y cerrar después
+      // Si es la guía del cliente, mostrar mensaje y redirigir
       if (p.guiaId === guiaActiva.id) {
+        // Recargar la lista de candidatos para actualizar el estado
+        await fetchActivos(true)
+        
         addToast('¡Tu envío ha sido entregado exitosamente!', 'success')
+        
+        // Desconectar socket antes de redirigir para evitar errores
+        socket.disconnect()
+        
         setTimeout(() => {
           window.location.href = '/cliente/envios'
-        }, 3000)
+        }, 2500)
+      } else {
+        // Si no es la guía del cliente, solo recargar la ruta
+        try {
+          const res = await api.get<RutaApi>(`/rutas/${rutaId}`)
+          setRuta(res.data)
+        } catch (error) {
+          console.error('Error al recargar ruta:', error)
+        }
       }
     })
     
     // Escuchar cuando la ruta se completa
-    socket.on('ruta:completada', (p: { rutaId: string; estado: string }) => {
+    socket.on('ruta:completada', async (p: { rutaId: string; estado: string }) => {
       console.log('🏁 Ruta completada:', p)
       if (p.rutaId === rutaId) {
+        // Recargar la lista de candidatos para actualizar el estado
+        await fetchActivos(true)
+        
         addToast('La ruta ha sido completada. Gracias por usar nuestro servicio.', 'success')
+        
+        // Desconectar socket antes de redirigir para evitar errores
+        socket.disconnect()
+        
         setTimeout(() => {
           window.location.href = '/cliente/envios'
-        }, 3000)
+        }, 2500)
       }
     })
     
