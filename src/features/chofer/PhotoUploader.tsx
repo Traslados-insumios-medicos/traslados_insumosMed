@@ -24,6 +24,10 @@ interface PhotoUploaderProps {
   initialDraftFiles?: File[]
   /** Modo solo lectura: no se pueden agregar ni eliminar fotos */
   readOnly?: boolean
+  /** Callback cuando empieza a procesar fotos */
+  onProcessingStart?: () => void
+  /** Callback cuando termina de procesar fotos */
+  onProcessingEnd?: () => void
 }
 
 function isFotoBorrador(foto: FotoDisplay): foto is FotoBorrador {
@@ -40,8 +44,11 @@ export function PhotoUploader({
   draftMode = false,
   onDraftChange,
   initialDraftFiles = [],
-  readOnly = false
+  readOnly = false,
+  onProcessingStart,
+  onProcessingEnd
 }: PhotoUploaderProps) {
+  const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp'])
   const inputRef = useRef<HTMLInputElement>(null)
   const addToast = useToastStore((s) => s.addToast)
 
@@ -86,14 +93,21 @@ export function PhotoUploader({
   // Sin límite si max no está definido
   const hasLimit = max !== undefined
   const remaining = hasLimit ? Math.max(max - fotos.length, 0) : Infinity
-  // Permitir subir solo si NO estamos en modo solo lectura Y estamos en modo borrador
-  const canUpload = !readOnly && draftMode
+  // Permitir subir si NO estamos en modo solo lectura
+  const canUpload = !readOnly
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = hasLimit 
       ? Array.from(e.target.files ?? []).slice(0, remaining)
       : Array.from(e.target.files ?? [])
     if (files.length === 0) return
+
+    const invalidFiles = files.filter((file) => !ALLOWED_IMAGE_TYPES.has(file.type.toLowerCase()))
+    if (invalidFiles.length > 0) {
+      addToast('Formato no permitido. Solo se aceptan JPG, PNG o WEBP (GIF bloqueado).', 'error')
+      e.target.value = ''
+      return
+    }
 
     if (draftMode) {
       // Modo borrador: guardar localmente (sin toast)
@@ -117,6 +131,7 @@ export function PhotoUploader({
     }
 
     // Modo normal: subir inmediatamente
+    onProcessingStart?.()
     setUploading(true)
     try {
       for (const file of files) {
@@ -132,15 +147,19 @@ export function PhotoUploader({
       }
       addToast('Foto(s) subida(s)', 'success')
       onUploaded?.()
-    } catch {
-      addToast('Error al subir foto', 'error')
+    } catch (err: unknown) {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      addToast(message || 'Error al subir foto', 'error')
     } finally {
       setUploading(false)
+      onProcessingEnd?.()
       e.target.value = ''
     }
   }
 
   const handleRemove = async (foto: FotoDisplay, index: number) => {
+    if (readOnly) return // No permitir eliminar en modo solo lectura
+    
     if (isFotoBorrador(foto)) {
       // Foto en borrador: solo quitar del estado local
       const nuevasFotos = fotos.filter((_, i) => i !== index)
@@ -160,6 +179,8 @@ export function PhotoUploader({
     }
 
     // Foto del servidor: eliminar del servidor
+    onProcessingStart?.()
+    setUploading(true) // Bloquear mientras se elimina
     try {
       await api.delete(`/fotos/${foto.id}`)
       setFotos((prev) => prev.filter((f) => !isFotoBorrador(f) && f.id !== foto.id))
@@ -167,6 +188,9 @@ export function PhotoUploader({
       onUploaded?.()
     } catch {
       addToast('Error al eliminar foto', 'error')
+    } finally {
+      setUploading(false)
+      onProcessingEnd?.()
     }
   }
 
@@ -191,16 +215,17 @@ export function PhotoUploader({
       <div className="flex flex-wrap gap-2">
         {fotos.map((f, index) => {
           const preview = isFotoBorrador(f) ? f.preview : f.urlPreview
-          // Permitir eliminar si:
-          // - NO estamos en modo solo lectura
-          // - Y estamos en modo borrador (editando)
-          const canDelete = !readOnly && draftMode
+          // Permitir eliminar si NO estamos en modo solo lectura
+          const canDelete = !readOnly
           return (
             <div key={isFotoBorrador(f) ? f.preview : f.id} className="relative">
               <img src={preview} alt="Preview" className="h-16 w-16 rounded-lg border border-slate-200 object-cover sm:h-20 sm:w-20" />
               {canDelete && (
-                <button type="button" onClick={() => handleRemove(f, index)}
-                  className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white shadow"
+                <button 
+                  type="button" 
+                  onClick={() => handleRemove(f, index)}
+                  disabled={uploading}
+                  className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white shadow disabled:opacity-50 disabled:cursor-not-allowed"
                   aria-label="Eliminar foto">
                   <span className="material-symbols-outlined text-sm">close</span>
                 </button>
@@ -210,7 +235,7 @@ export function PhotoUploader({
         })}
         {canUpload && (
           <>
-            <input ref={inputRef} type="file" accept="image/*"
+            <input ref={inputRef} type="file" accept="image/jpeg,image/jpg,image/png,image/webp"
               capture={scope === 'guia' ? 'environment' : undefined}
               multiple className="hidden" onChange={handleFileChange} />
             <button type="button" onClick={() => inputRef.current?.click()} disabled={uploading}

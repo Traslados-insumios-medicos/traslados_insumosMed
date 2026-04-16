@@ -40,8 +40,9 @@ interface RutaApi {
   id: string
   fecha: string
   estado: string
-  chofer: { id: string; nombre: string }
+  chofer: { id: string; nombre: string; cedula: string }
   stops: StopApi[]
+  guias: GuiaApi[]
   fotos: FotoApi[]
 }
 

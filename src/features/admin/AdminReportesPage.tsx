@@ -10,22 +10,55 @@ interface ResumenCliente {
   entregados: number; pendientes: number; incidencias: number
   tipo: 'PRINCIPAL' | 'SECUNDARIO'
   clientePrincipal?: { nombre: string } | null
+  guias: {
+    id: string
+    numeroGuia: string
+    descripcion: string
+    estado: string
+    receptorNombre?: string | null
+    horaLlegada?: string | null
+    horaSalida?: string | null
+    temperatura?: string | null
+    observaciones?: string | null
+    createdAt: string
+    ruta: { id: string; fecha: string; createdAt: string; estado: string; chofer: { id: string; nombre: string } }
+    stop?: { id: string; direccion: string; lat: number | null; lng: number | null } | null
+    novedades: { tipo: string; descripcion: string; createdAt: string }[]
+    fotos: { id: string; urlPreview: string; tipo: string; createdAt: string }[]
+  }[]
 }
 
 interface GuiaFecha {
   id: string; numeroGuia: string; descripcion: string; estado: string
-  createdAt: string; cliente: { nombre: string }
-  ruta: { chofer: { nombre: string } }
+  createdAt: string
+  receptorNombre?: string | null
+  horaLlegada?: string | null
+  horaSalida?: string | null
+  temperatura?: string | null
+  observaciones?: string | null
+  cliente: { id: string; nombre: string }
+  ruta: { id: string; fecha: string; estado: string; chofer: { id: string; nombre: string } }
+  stop?: { id: string; direccion: string; lat: number | null; lng: number | null } | null
+  novedades: { tipo: string; descripcion: string; createdAt: string }[]
+  fotos: { id: string; urlPreview: string; tipo: string; createdAt: string }[]
 }
 
 interface GuiaChofer {
-  guiaId: string; numeroGuia: string; descripcion: string; estado: string
+  guiaId: string; stopId: string; numeroGuia: string; descripcion: string; estado: string
   cliente: string; receptorNombre?: string; horaLlegada?: string
   horaSalida?: string; temperatura?: string; observaciones?: string
-  novedades: string[]
+  createdAt: string
+  novedades: { tipo: string; descripcion: string; createdAt: string }[]
+  fotos: { id: string; urlPreview: string; tipo: string; createdAt: string }[]
 }
 
-interface RutaChofer { rutaId: string; fecha: string; estado: string; guias: GuiaChofer[] }
+interface RutaChofer {
+  rutaId: string
+  fecha: string
+  estado: string
+  guias: GuiaChofer[]
+  stops?: { id: string; direccion: string; lat: number | null; lng: number | null }[]
+}
 interface ResumenChofer { choferId: string; nombre: string; cedula?: string; rutas: RutaChofer[] }
 
 interface ChoferOption { id: string; nombre: string }
@@ -42,6 +75,24 @@ const LIMIT = 10
 const trunc = (str: string | undefined | null, max = 50) => {
   if (!str) return ''
   return str.length > max ? str.slice(0, max - 3) + '...' : str
+}
+
+const formatNovedades = (novedades: { tipo: string; descripcion: string }[]) =>
+  novedades.length ? novedades.map((n) => `${n.tipo}: ${n.descripcion}`).join(' | ') : '—'
+
+const formatFotos = (fotos: { urlPreview: string }[]) =>
+  fotos.length ? fotos.map((f) => f.urlPreview).join(' | ') : '—'
+
+const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN as string | undefined
+const buildStaticMapUrl = (lat?: number | null, lng?: number | null, direccion?: string | null) => {
+  if (!MAPBOX_TOKEN) return ''
+  if (lat !== null && lat !== undefined && lng !== null && lng !== undefined) {
+    return `https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/pin-s+0f172a(${lng},${lat})/${lng},${lat},14/520x280@2x?access_token=${MAPBOX_TOKEN}`
+  }
+  if (direccion && direccion.trim()) {
+    return `https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/pin-s+0f172a(${encodeURIComponent(direccion)})/auto/520x280@2x?access_token=${MAPBOX_TOKEN}`
+  }
+  return ''
 }
 
 export function AdminReportesPage() {
@@ -95,6 +146,7 @@ export function AdminReportesPage() {
         if (tipoCliente) params.set('tipo', tipoCliente)
         if (fechaDesde) params.set('desde', fechaDesde)
         if (fechaHasta) params.set('hasta', fechaHasta)
+        if (choferId) params.set('choferId', choferId)
         const res = await api.get<ResumenCliente[]>(`/reportes/clientes?${params}`)
         setDataCliente(res.data)
       } else if (tab === 'fechas') {
@@ -102,6 +154,7 @@ export function AdminReportesPage() {
         if (fechaDesde) params.set('desde', fechaDesde)
         if (fechaHasta) params.set('hasta', fechaHasta)
         if (clienteId) params.set('clienteId', clienteId)
+        if (choferId) params.set('choferId', choferId)
         const res = await api.get<GuiaFecha[]>(`/reportes/fechas?${params}`)
         setDataFechas(res.data)
       } else {
@@ -151,6 +204,24 @@ export function AdminReportesPage() {
   }
 
   const handleExportClienteExcel = () => {
+    const detalleRows = dataCliente.flatMap((cliente) =>
+      cliente.guias.map((g) => [
+        cliente.nombre,
+        g.numeroGuia,
+        g.estado,
+        new Date(g.createdAt).toLocaleString('es-ES'),
+        g.ruta.id,
+        g.ruta.chofer.nombre,
+        g.receptorNombre ?? '—',
+        g.horaLlegada ?? '—',
+        g.horaSalida ?? '—',
+        g.temperatura ?? '—',
+        g.observaciones ?? '—',
+        formatNovedades(g.novedades),
+        formatFotos(g.fotos.filter((f) => f.tipo === 'GUIA')),
+        buildStaticMapUrl(g.stop?.lat, g.stop?.lng, g.stop?.direccion),
+      ]),
+    )
     exportToExcel(
       dataCliente.map((r) => ({ 
         Cliente: r.nombre, 
@@ -162,13 +233,64 @@ export function AdminReportesPage() {
       })),
       'reporte-por-cliente', 
       'Por Cliente',
-      buildFilterInfo()
+      buildFilterInfo(),
+      [
+        {
+          sheetName: 'Detalle Guias',
+          headers: [
+            'Cliente',
+            'Numero de guia',
+            'Estado',
+            'Fecha registro',
+            'Ruta',
+            'Chofer',
+            'Recibido por',
+            'Hora llegada',
+            'Hora salida',
+            'Temperatura',
+            'Observaciones',
+            'Incidencias',
+            'Fotos (URLs)',
+            'Mapa',
+          ],
+          rows: detalleRows,
+        },
+      ],
     )
   }
-  const handleExportClientePDF = () => {
-    exportToPDF(
+  const handleExportClientePDF = async () => {
+    const totalGuias = dataCliente.reduce((acc, r) => acc + r.total, 0)
+    const totalEntregados = dataCliente.reduce((acc, r) => acc + r.entregados, 0)
+    const totalIncidencias = dataCliente.reduce((acc, r) => acc + r.incidencias, 0)
+    const detalleGuiasCards = dataCliente
+      .flatMap((cliente) =>
+        cliente.guias.map((g) => ({
+          routeId: g.ruta.id,
+          card: {
+            groupTitle: `Ruta #${g.ruta.id.slice(-6).toUpperCase()} · Chofer: ${g.ruta.chofer.nombre} · Fecha ruta: ${new Date(g.ruta.fecha).toLocaleDateString('es-ES')} · Creada: ${new Date(g.ruta.createdAt).toLocaleString('es-ES')}`,
+            title: `${cliente.nombre} · Guia ${g.numeroGuia}`,
+            subtitle: `Estado de la guia: ${g.estado}`,
+            fields: [
+              { label: 'Recibido por', value: g.receptorNombre ?? '—' },
+              { label: 'Registrada', value: new Date(g.createdAt).toLocaleString('es-ES') },
+              { label: 'Hora llegada', value: g.horaLlegada ?? '—' },
+              { label: 'Hora salida', value: g.horaSalida ?? '—' },
+              { label: 'Temperatura', value: g.temperatura ?? '—' },
+              { label: 'Observaciones', value: g.observaciones ?? '—' },
+              { label: 'Incidencias', value: formatNovedades(g.novedades) },
+            ],
+            imageUrls: [
+              buildStaticMapUrl(g.stop?.lat, g.stop?.lng, g.stop?.direccion),
+              ...g.fotos.filter((f) => f.tipo === 'GUIA').map((f) => f.urlPreview),
+            ].filter(Boolean),
+          },
+        })),
+      )
+      .sort((a, b) => a.routeId.localeCompare(b.routeId))
+      .map((item) => item.card)
+    await exportToPDF(
       'Reporte por Cliente', 
-      ['Cliente', 'Tipo', 'Total guías', 'Entregados', 'Pendientes', 'Incidencias'],
+      ['Nombre del cliente', 'Tipo de cliente', 'Total de guías', 'Guías entregadas', 'Guías pendientes', 'Guías con incidencia'],
       dataCliente.map((r) => [
         r.nombre, 
         r.tipo === 'PRINCIPAL' ? 'Principal' : `Secundario (${r.clientePrincipal?.nombre || 'Sin asignar'})`,
@@ -178,20 +300,35 @@ export function AdminReportesPage() {
         r.incidencias
       ]), 
       'reporte-por-cliente',
-      buildFilterInfo()
+      buildFilterInfo(),
+      [
+        { label: 'Clientes', value: dataCliente.length },
+        { label: 'Guias', value: totalGuias },
+        { label: 'Entregados', value: totalEntregados },
+        { label: 'Incidencias', value: totalIncidencias },
+      ],
+      undefined,
+      detalleGuiasCards,
+      { showMainTable: false },
     )
   }
 
   const buildChoferRows = () => {
     const rows: Record<string, string | number>[] = []
     dataChofer.forEach((ch) => {
-      ch.rutas.forEach((r) => {
-        r.guias.forEach((g) => {
+      ;(ch.rutas ?? []).forEach((r) => {
+        const routeStops = Array.isArray(r.stops) ? r.stops : []
+        ;(r.guias ?? []).forEach((g) => {
+          const stop = routeStops.find((s) => s.id === g.stopId)
           rows.push({
             Chofer: ch.nombre, Ruta: r.rutaId, Fecha: r.fecha, Cliente: g.cliente,
             'Nº Guía': g.numeroGuia, Estado: g.estado, 'Recibido por': g.receptorNombre ?? '—',
             'Hora llegada': g.horaLlegada ?? '—', 'Hora salida': g.horaSalida ?? '—',
-            Temperatura: g.temperatura ?? '—', Novedades: g.novedades.join(' | ') || '—',
+            Temperatura: g.temperatura ?? '—',
+            Observaciones: g.observaciones ?? '—',
+            Incidencias: formatNovedades(g.novedades ?? []),
+            'Fotos (URLs)': formatFotos(g.fotos ?? []),
+            Mapa: buildStaticMapUrl(stop?.lat ?? null, stop?.lng ?? null, stop?.direccion ?? ''),
           })
         })
       })
@@ -199,13 +336,141 @@ export function AdminReportesPage() {
     return rows
   }
   const handleExportChoferExcel = () => exportToExcel(buildChoferRows(), 'reporte-por-chofer', 'Por Chofer', buildFilterInfo())
-  const handleExportChoferPDF = () => {
+  const handleExportChoferPDF = async () => {
     const rows = buildChoferRows()
-    exportToPDF('Reporte por Chofer',
-      ['Chofer', 'Ruta', 'Fecha', 'Cliente', 'Nº Guía', 'Estado', 'Recibido por', 'H. Llegada', 'H. Salida', 'Temp.', 'Novedades'],
-      rows.map((r) => [r['Chofer'], r['Ruta'], r['Fecha'], r['Cliente'], r['Nº Guía'], r['Estado'], r['Recibido por'], r['Hora llegada'], r['Hora salida'], r['Temperatura'], r['Novedades']]),
+    const totalRutas = dataChofer.reduce((acc, ch) => acc + ch.rutas.length, 0)
+    const totalGuias = dataChofer.reduce((acc, ch) => acc + ch.rutas.reduce((n, r) => n + r.guias.length, 0), 0)
+    const totalIncidencias = dataChofer.reduce(
+      (acc, ch) => acc + ch.rutas.reduce((n, r) => n + r.guias.filter((g) => g.estado === 'INCIDENCIA').length, 0),
+      0,
+    )
+    const detalleChoferCards = dataChofer
+      .flatMap((ch) =>
+        (ch.rutas ?? []).flatMap((r) => {
+          const routeStops = Array.isArray(r.stops) ? r.stops : []
+          return (r.guias ?? []).map((g) => {
+            const stop = routeStops.find((s) => s.id === g.stopId)
+            return {
+              routeId: r.rutaId,
+              card: {
+                groupTitle: `Ruta #${r.rutaId.slice(-6).toUpperCase()} · Chofer: ${ch.nombre} · Fecha ruta: ${new Date(r.fecha).toLocaleDateString('es-ES')}`,
+                title: `${g.cliente} · Guia ${g.numeroGuia}`,
+                subtitle: `Estado de la guia: ${g.estado}`,
+                fields: [
+                  { label: 'Recibido por', value: g.receptorNombre ?? '—' },
+                  { label: 'Registrada', value: new Date(g.createdAt).toLocaleString('es-ES') },
+                  { label: 'Hora llegada', value: g.horaLlegada ?? '—' },
+                  { label: 'Hora salida', value: g.horaSalida ?? '—' },
+                  { label: 'Temperatura', value: g.temperatura ?? '—' },
+                  { label: 'Observaciones', value: g.observaciones ?? '—' },
+                  { label: 'Incidencias', value: formatNovedades(g.novedades ?? []) },
+                ],
+                imageUrls: [
+                  buildStaticMapUrl(stop?.lat ?? null, stop?.lng ?? null, stop?.direccion ?? ''),
+                  ...(g.fotos ?? []).filter((f) => f.tipo === 'GUIA').map((f) => f.urlPreview),
+                ].filter(Boolean),
+              },
+            }
+          })
+        }),
+      )
+      .sort((a, b) => a.routeId.localeCompare(b.routeId))
+      .map((item) => item.card)
+    await exportToPDF('Reporte por Chofer',
+      ['Nombre del chofer', 'Ruta', 'Fecha de ruta', 'Cliente de la guia', 'Numero de guia', 'Estado', 'Recibido por', 'Hora de llegada', 'Hora de salida', 'Temperatura', 'Observaciones', 'Incidencias reportadas', 'Fotos (enlaces)'],
+      rows.map((r) => [r['Chofer'], r['Ruta'], r['Fecha'], r['Cliente'], r['Nº Guía'], r['Estado'], r['Recibido por'], r['Hora llegada'], r['Hora salida'], r['Temperatura'], r['Observaciones'], r['Incidencias'], r['Fotos (URLs)']]),
       'reporte-por-chofer',
-      buildFilterInfo())
+      buildFilterInfo(),
+      [
+        { label: 'Choferes', value: dataChofer.length },
+        { label: 'Rutas', value: totalRutas },
+        { label: 'Guias', value: totalGuias },
+        { label: 'Incidencias', value: totalIncidencias },
+      ],
+      undefined,
+      detalleChoferCards,
+      { showMainTable: false },
+    )
+  }
+
+  const buildFechasRows = () => dataFechas.map((g) => ({
+    'Nº Guía': g.numeroGuia,
+    Estado: g.estado,
+    Fecha: new Date(g.createdAt).toLocaleString('es-ES'),
+    Cliente: g.cliente.nombre,
+    Chofer: g.ruta.chofer.nombre,
+    Ruta: g.ruta.id,
+    'Recibido por': g.receptorNombre ?? '—',
+    'Hora llegada': g.horaLlegada ?? '—',
+    'Hora salida': g.horaSalida ?? '—',
+    Temperatura: g.temperatura ?? '—',
+    Observaciones: g.observaciones ?? '—',
+    Incidencias: formatNovedades(g.novedades),
+    'Fotos (URLs)': formatFotos(g.fotos.filter((f) => f.tipo === 'GUIA')),
+    Mapa: buildStaticMapUrl(g.stop?.lat, g.stop?.lng, g.stop?.direccion),
+  }))
+
+  const handleExportFechasExcel = () =>
+    exportToExcel(buildFechasRows(), 'reporte-por-fechas-detallado', 'Por Fechas', buildFilterInfo())
+
+  const handleExportFechasPDF = async () => {
+    const rows = buildFechasRows()
+    const entregadas = dataFechas.filter((g) => g.estado === 'ENTREGADO').length
+    const incidencias = dataFechas.filter((g) => g.estado === 'INCIDENCIA').length
+    const detalleFechasCards = dataFechas
+      .map((g) => ({
+        routeId: g.ruta.id,
+        card: {
+          groupTitle: `Ruta #${g.ruta.id.slice(-6).toUpperCase()} · Chofer: ${g.ruta.chofer.nombre} · Fecha ruta: ${new Date(g.ruta.fecha).toLocaleDateString('es-ES')}`,
+          title: `${g.cliente.nombre} · Guia ${g.numeroGuia}`,
+          subtitle: `Estado de la guia: ${g.estado}`,
+          fields: [
+            { label: 'Recibido por', value: g.receptorNombre ?? '—' },
+            { label: 'Registrada', value: new Date(g.createdAt).toLocaleString('es-ES') },
+            { label: 'Hora llegada', value: g.horaLlegada ?? '—' },
+            { label: 'Hora salida', value: g.horaSalida ?? '—' },
+            { label: 'Temperatura', value: g.temperatura ?? '—' },
+            { label: 'Observaciones', value: g.observaciones ?? '—' },
+            { label: 'Incidencias', value: formatNovedades(g.novedades ?? []) },
+          ],
+          imageUrls: [
+            buildStaticMapUrl(g.stop?.lat, g.stop?.lng, g.stop?.direccion),
+            ...(g.fotos ?? []).filter((f) => f.tipo === 'GUIA').map((f) => f.urlPreview),
+          ].filter(Boolean),
+        },
+      }))
+      .sort((a, b) => a.routeId.localeCompare(b.routeId))
+      .map((item) => item.card)
+    await exportToPDF(
+      'Reporte detallado por fechas',
+      ['Numero de guia', 'Estado', 'Fecha de registro', 'Cliente de la guia', 'Chofer', 'Ruta', 'Recibido por', 'Hora de llegada', 'Hora de salida', 'Temperatura', 'Observaciones', 'Incidencias reportadas', 'Fotos (enlaces)'],
+      rows.map((r) => [
+        r['Nº Guía'],
+        r['Estado'],
+        r['Fecha'],
+        r['Cliente'],
+        r['Chofer'],
+        r['Ruta'],
+        r['Recibido por'],
+        r['Hora llegada'],
+        r['Hora salida'],
+        r['Temperatura'],
+        r['Observaciones'],
+        r['Incidencias'],
+        r['Fotos (URLs)'],
+      ]),
+      'reporte-por-fechas-detallado',
+      buildFilterInfo(),
+      [
+        { label: 'Guias', value: dataFechas.length },
+        { label: 'Entregadas', value: entregadas },
+        { label: 'Incidencias', value: incidencias },
+        { label: 'Rango', value: `${fechaDesde || 'Inicio'} - ${fechaHasta || 'Hoy'}` },
+      ],
+      undefined,
+      detalleFechasCards,
+      { showMainTable: false },
+    )
   }
 
   return (
@@ -328,6 +593,16 @@ export function AdminReportesPage() {
                 <span className="material-symbols-outlined text-sm">table_view</span>Excel
               </button>
               <button type="button" onClick={handleExportChoferPDF} className="flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100">
+                <span className="material-symbols-outlined text-sm">picture_as_pdf</span>PDF
+              </button>
+            </>
+          )}
+          {tab === 'fechas' && (
+            <>
+              <button type="button" onClick={handleExportFechasExcel} className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100">
+                <span className="material-symbols-outlined text-sm">table_view</span>Excel
+              </button>
+              <button type="button" onClick={handleExportFechasPDF} className="flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100">
                 <span className="material-symbols-outlined text-sm">picture_as_pdf</span>PDF
               </button>
             </>
@@ -527,9 +802,11 @@ export function AdminReportesPage() {
                           <div className="border-t border-slate-100 bg-slate-50">
                             {ch.rutas.map((ruta) => (
                               <div key={ruta.rutaId} className="border-b border-slate-100 px-12 py-3 last:border-0">
-                                <p className="mb-2 text-xs font-bold uppercase tracking-wider text-primary">
-                                  RUTA #{ruta.rutaId.slice(-6).toUpperCase()} • {ruta.fecha} • <span className="normal-case font-normal text-slate-500">{ruta.estado}</span>
-                                </p>
+                                <div className="flex items-center justify-between mb-2">
+                                  <p className="text-xs font-bold uppercase tracking-wider text-primary">
+                                    RUTA #{ruta.rutaId.slice(-6).toUpperCase()} • {ruta.fecha} • <span className="normal-case font-normal text-slate-500">{ruta.estado}</span>
+                                  </p>
+                                </div>
                                 <div className="space-y-2">
                                   {ruta.guias.map((g) => (
                                     <div key={g.guiaId} className="rounded-lg border border-slate-200 bg-white p-3">
@@ -552,8 +829,24 @@ export function AdminReportesPage() {
                                           {g.temperatura && <span className="whitespace-nowrap">Temperatura: {g.temperatura}</span>}
                                         </div>
                                       )}
+                                      {g.observaciones && (
+                                        <div className="mt-1.5 text-xs text-slate-500 break-words overflow-hidden">
+                                          Observaciones: {trunc(g.observaciones, 130)}
+                                        </div>
+                                      )}
                                       {g.novedades.length > 0 && (
-                                        <div className="mt-1.5 text-xs text-amber-600 break-words overflow-hidden">Novedades: {g.novedades.map(n => trunc(n)).join(' · ')}</div>
+                                        <div className="mt-1.5 text-xs text-amber-600 break-words overflow-hidden">
+                                          Incidencias: {g.novedades.map((n) => trunc(`${n.tipo}: ${n.descripcion}`, 100)).join(' · ')}
+                                        </div>
+                                      )}
+                                      {g.fotos.length > 0 && (
+                                        <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+                                          {g.fotos.slice(0, 3).map((foto) => (
+                                            <a key={foto.id} href={foto.urlPreview} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-md border border-slate-200">
+                                              <img src={foto.urlPreview} alt="Foto de entrega" className="h-20 w-full object-cover" />
+                                            </a>
+                                          ))}
+                                        </div>
                                       )}
                                     </div>
                                   ))}

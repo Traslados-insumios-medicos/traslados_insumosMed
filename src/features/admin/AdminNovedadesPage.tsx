@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ModalMotion } from '../../components/ui/ModalMotion'
 import { api } from '../../services/api'
@@ -14,6 +13,7 @@ interface NovedadApi {
     numeroGuia: string; 
     clienteId: string; 
     descripcion: string; 
+    observaciones?: string | null;
     estado: string;
     receptorNombre?: string | null;
     ruta: {
@@ -42,7 +42,6 @@ const itemVariants = {
 }
 
 export function AdminNovedadesPage() {
-  const navigate = useNavigate()
   const addToast = useToastStore((s) => s.addToast)
 
   const [novedades, setNovedades] = useState<NovedadApi[]>([])
@@ -54,8 +53,6 @@ export function AdminNovedadesPage() {
   const [fechaHasta, setFechaHasta] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
   const [filtroTipo, setFiltroTipo] = useState<string>('')
-  const [notaInput, setNotaInput] = useState<Record<string, string>>({})
-  const [submitting, setSubmitting] = useState<string | null>(null)
   const [modalNovedadId, setModalNovedadId] = useState<string | null>(null)
 
   const modalNovedad = novedades.find((n) => n.id === modalNovedadId)
@@ -108,26 +105,6 @@ export function AdminNovedadesPage() {
     return true
   }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 
-  const handleAddSeguimiento = async (novedadId: string) => {
-    const nota = notaInput[novedadId]?.trim()
-    if (!nota) return
-    if (nota.length > 250) {
-      addToast('El comentario no puede exceder 250 caracteres', 'error')
-      return
-    }
-    setSubmitting(novedadId)
-    try {
-      await api.post(`/novedades/${novedadId}/seguimiento`, { nota })
-      setNotaInput((prev) => ({ ...prev, [novedadId]: '' }))
-      await fetchNovedades()
-      addToast('Seguimiento agregado', 'success')
-    } catch {
-      addToast('Error al agregar seguimiento', 'error')
-    } finally {
-      setSubmitting(null)
-    }
-  }
-
   return (
     <div className="space-y-6">
       <div>
@@ -162,6 +139,8 @@ export function AdminNovedadesPage() {
                 </div>
                 <p className="text-sm font-semibold text-slate-900 mb-2">Descripción:</p>
                 <p className="text-sm text-slate-700 break-words">{modalNovedad.descripcion}</p>
+                <p className="mt-3 text-sm font-semibold text-slate-900 mb-2">Observaciones de la guía:</p>
+                <p className="text-sm text-slate-700 break-words">{modalNovedad.guia.observaciones?.trim() || '—'}</p>
               </div>
 
               {/* Detalles de la guía y ruta */}
@@ -194,73 +173,6 @@ export function AdminNovedadesPage() {
                 </div>
               </div>
 
-              {/* Historial de seguimiento */}
-              <div className="rounded-lg border border-slate-200 bg-white p-4">
-                <h4 className="mb-3 text-sm font-bold uppercase tracking-wider text-slate-500">
-                  Historial de Seguimiento ({modalNovedad.seguimientos.length})
-                </h4>
-                {modalNovedad.seguimientos.length > 0 ? (
-                  <div className="space-y-3 max-h-64 overflow-y-auto">
-                    {modalNovedad.seguimientos.map((s) => (
-                      <div key={s.id} className="rounded-lg bg-slate-50 p-3 border-l-4 border-primary">
-                        <p className="text-sm text-slate-900 break-words">{s.nota}</p>
-                        <p className="mt-1.5 text-xs text-slate-500">
-                          {new Date(s.createdAt).toLocaleString('es-ES')}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-slate-400 italic">No hay seguimientos registrados</p>
-                )}
-              </div>
-
-              {/* Agregar nuevo seguimiento */}
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                <label className="mb-2 block text-sm font-semibold text-slate-700">Agregar Seguimiento</label>
-                <div className="flex flex-col gap-2">
-                  <div className="relative">
-                    <textarea
-                      value={notaInput[modalNovedad.id] ?? ''}
-                      onChange={(e) => {
-                        const val = e.target.value
-                        if (val.length <= 250) {
-                          setNotaInput((prev) => ({ ...prev, [modalNovedad.id]: val }))
-                        }
-                      }}
-                      placeholder="Escribe una nota de seguimiento..."
-                      rows={3}
-                      maxLength={250}
-                      className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm resize-none focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-                    />
-                    <span className={`absolute bottom-2 right-2 text-xs ${(notaInput[modalNovedad.id]?.length || 0) > 230 ? 'text-amber-600' : 'text-slate-400'}`}>
-                      {notaInput[modalNovedad.id]?.length || 0}/250
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleAddSeguimiento(modalNovedad.id)}
-                    disabled={!notaInput[modalNovedad.id]?.trim() || submitting === modalNovedad.id}
-                    className="flex items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary/90 disabled:opacity-50"
-                  >
-                    {submitting === modalNovedad.id && <span className="material-symbols-outlined animate-spin text-sm">progress_activity</span>}
-                    Agregar Seguimiento
-                  </button>
-                </div>
-              </div>
-
-              {/* Botón para ir a la ruta */}
-              <button
-                type="button"
-                onClick={() => {
-                  setModalNovedadId(null)
-                  navigate(`/admin/rutas?rutaId=${modalNovedad.guia.ruta.id}`)
-                }}
-                className="w-full flex items-center justify-center gap-2 rounded-lg border-2 border-primary bg-white px-4 py-2.5 text-sm font-semibold text-primary hover:bg-primary/5"
-              >
-                <span className="material-symbols-outlined text-base">route</span>
-                Ver Ruta Completa
-              </button>
             </div>
           </>
         )}
@@ -422,6 +334,10 @@ export function AdminNovedadesPage() {
                     
                     <p className="mt-2 text-sm text-slate-900 break-words overflow-hidden">
                       {n.descripcion.length > 200 ? n.descripcion.slice(0, 197) + '...' : n.descripcion}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-600 break-words overflow-hidden">
+                      <span className="font-semibold">Observaciones:</span>{' '}
+                      {n.guia.observaciones?.trim() || '—'}
                     </p>
 
                     {/* Detalles adicionales */}
