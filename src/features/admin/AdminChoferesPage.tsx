@@ -331,7 +331,31 @@ export function AdminChoferesPage() {
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-amber-700">Contraseña temporal</p>
                 <div className="flex items-center gap-3">
                   <code className="flex-1 rounded-lg bg-white px-3 py-2 font-mono text-sm font-bold text-slate-900 shadow-sm">{passwordModal.password}</code>
-                  <button type="button" onClick={async () => { await navigator.clipboard.writeText(passwordModal.password); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
+                  <button type="button" onClick={async () => {
+                    try {
+                      if (navigator.clipboard && navigator.clipboard.writeText) {
+                        await navigator.clipboard.writeText(passwordModal.password)
+                        setCopied(true)
+                        setTimeout(() => setCopied(false), 2000)
+                        addToast('Contraseña copiada', 'success')
+                      } else {
+                        const textArea = document.createElement('textarea')
+                        textArea.value = passwordModal.password
+                        textArea.style.position = 'fixed'
+                        textArea.style.left = '-999999px'
+                        document.body.appendChild(textArea)
+                        textArea.select()
+                        document.execCommand('copy')
+                        document.body.removeChild(textArea)
+                        setCopied(true)
+                        setTimeout(() => setCopied(false), 2000)
+                        addToast('Contraseña copiada', 'success')
+                      }
+                    } catch (err) {
+                      console.error('Error al copiar:', err)
+                      addToast('No se pudo copiar la contraseña', 'error')
+                    }
+                  }}
                     className="flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-white hover:bg-primary-dark">
                     <span className="material-symbols-outlined text-sm">{copied ? 'check' : 'content_copy'}</span>
                     {copied ? 'Copiado' : 'Copiar'}

@@ -339,9 +339,30 @@ export function AdminClientesPage() {
   const handleCopyPassword = async () => {
     if (!passwordModal) return
     try {
-      await navigator.clipboard.writeText(passwordModal.password)
-      setCopied(true); setTimeout(() => setCopied(false), 2000)
-    } catch { addToast('No se pudo copiar', 'error') }
+      // Intentar usar la API moderna del portapapeles
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(passwordModal.password)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+        addToast('Contraseña copiada', 'success')
+      } else {
+        // Fallback para navegadores que no soportan clipboard API
+        const textArea = document.createElement('textarea')
+        textArea.value = passwordModal.password
+        textArea.style.position = 'fixed'
+        textArea.style.left = '-999999px'
+        document.body.appendChild(textArea)
+        textArea.select()
+        document.execCommand('copy')
+        document.body.removeChild(textArea)
+        setCopied(true)
+        setTimeout(() => setCopied(false), 2000)
+        addToast('Contraseña copiada', 'success')
+      }
+    } catch (err) {
+      console.error('Error al copiar:', err)
+      addToast('No se pudo copiar la contraseña', 'error')
+    }
   }
 
   const totalActivos = clientes.filter((c) => c.activo).length

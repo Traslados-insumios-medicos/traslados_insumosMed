@@ -240,25 +240,29 @@ export function ChoferRutaDetallePage() {
     // Primero intentar obtener posición actual una vez
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        console.log('Ubicación obtenida:', pos.coords)
-        setMiUbicacion({
+        console.log('✅ Ubicación obtenida:', pos.coords)
+        const ubicacion = {
           lat: pos.coords.latitude,
           lng: pos.coords.longitude,
-        })
+        }
+        setMiUbicacion(ubicacion)
+        miUbicacionRef.current = ubicacion
         setUbicacionActiva(true)
-        addToast('Ubicación activa: el mapa sigue tu ruta hacia las paradas pendientes', 'success')
+        addToast('Ubicación GPS activada correctamente', 'success')
         
         // Luego iniciar el watch
         geoWatchRef.current = navigator.geolocation.watchPosition(
           (pos) => {
-            console.log('Ubicación actualizada:', pos.coords)
-            setMiUbicacion({
+            console.log('📍 Ubicación actualizada:', pos.coords)
+            const nuevaUbicacion = {
               lat: pos.coords.latitude,
               lng: pos.coords.longitude,
-            })
+            }
+            setMiUbicacion(nuevaUbicacion)
+            miUbicacionRef.current = nuevaUbicacion
           },
           (error) => {
-            console.error('Error de geolocalización (watch):', error)
+            console.error('⚠️ Error de geolocalización (watch):', error)
             // No detener si ya tenemos una posición inicial
           },
           { 
@@ -269,7 +273,7 @@ export function ChoferRutaDetallePage() {
         )
       },
       (error) => {
-        console.error('Error de geolocalización (inicial):', error)
+        console.error('❌ Error de geolocalización (inicial):', error)
         
         // Detener ubicación activa cuando hay error
         detenerUbicacion()
@@ -312,27 +316,101 @@ export function ChoferRutaDetallePage() {
 
   // Enviar posición al servidor (cliente en tiempo real) mientras la ruta está en curso
   useEffect(() => {
-    if (!ubicacionActiva || ruta?.estado !== 'EN_CURSO' || !id) return
+    if (!ubicacionActiva || ruta?.estado !== 'EN_CURSO' || !id) {
+      console.log('❌ No se envía ubicación:', { ubicacionActiva, rutaEstado: ruta?.estado, rutaId: id })
+      return
+    }
     const token = localStorage.getItem('token')
-    if (!token) return
+    if (!token) {
+      console.log('❌ No hay token para socket')
+      return
+    }
+    
+    console.log('🔌 Conectando socket para enviar ubicación...')
     const socket = io(import.meta.env.VITE_WS_URL ?? 'http://localhost:3000', {
       auth: { token },
       transports: ['websocket'],
     })
-    socket.emit('join:ruta', id)
+    
+    socket.on('connect', () => {
+      console.log('✅ Socket conectado para ubicación')
+      socket.emit('join:ruta', id)
+    })
+    
+    socket.on('connect_error', (error) => {
+      console.error('❌ Error de conexión socket:', error)
+    })
+    
     const enviar = () => {
       const p = miUbicacionRef.current
       if (p && socket.connected) {
+        console.log('📍 Enviando posición:', p)
         socket.emit('posicion_chofer', { rutaId: id, lat: p.lat, lng: p.lng })
+      } else {
+        console.log('⚠️ No se puede enviar posición:', { 
+          tienePosicion: !!p, 
+          socketConectado: socket.connected,
+          posicion: p 
+        })
       }
     }
-    socket.on('connect', enviar)
+    
+    // Enviar inmediatamente al conectar
+    enviar()
+    
     const interval = window.setInterval(enviar, 4000)
     return () => {
+      console.log('🔌 Desconectando socket de ubicación')
       window.clearInterval(interval)
       socket.disconnect()
     }
   }, [ubicacionActiva, ruta?.estado, id])
+
+  // Escuchar actualizaciones en tiempo real de la ruta
+  useEffect(() => {
+    if (!id) return
+    const token = localStorage.getItem('token')
+    if (!token) return
+    
+    const socket = io(import.meta.env.VITE_WS_URL ?? 'http://localhost:3000', {
+      auth: { token },
+      transports: ['websocket'],
+    })
+    
+    socket.emit('join:ruta', id)
+    
+    // Escuchar cuando cambia el estado de una guía
+    socket.on('guia:incidencia', () => {
+      console.log('🔄 Incidencia detectada, recargando ruta...')
+      void fetchRuta()
+    })
+    
+    socket.on('guia:entregada', () => {
+      console.log('🔄 Guía entregada detectada, recargando ruta...')
+      void fetchRuta()
+    })
+    
+    // Escuchar cuando se actualiza el seguimiento
+    socket.on('seguimiento_ruta', (p: { rutaId: string; seguimientoChofer: string }) => {
+      if (p.rutaId === id) {
+        console.log('🔄 Seguimiento actualizado:', p.seguimientoChofer)
+        setRuta((prev) => prev ? { ...prev, seguimientoChofer: p.seguimientoChofer } : prev)
+        setUltimaActualizacionSeguimiento(new Date().toISOString())
+      }
+    })
+    
+    // Escuchar cuando la ruta se completa
+    socket.on('ruta:completada', (p: { rutaId: string }) => {
+      if (p.rutaId === id) {
+        console.log('🔄 Ruta completada, recargando...')
+        void fetchRuta()
+      }
+    })
+    
+    return () => {
+      socket.disconnect()
+    }
+  }, [id, fetchRuta])
 
   // All guias flat from stops
   const guiasPorRuta = useMemo(() => ruta?.guias ?? [], [ruta])
