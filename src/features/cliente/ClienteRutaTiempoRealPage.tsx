@@ -196,6 +196,7 @@ export function ClienteRutaTiempoRealPage() {
       id: s.id, orden: s.orden, direccion: s.direccion,
       lat: s.lat, lng: s.lng, clienteId: s.clienteId,
       guiaIds: s.guias.map((g) => g.id),
+      tieneIncidencia: s.guias.some((g) => g.estado === 'INCIDENCIA'),
     }))
   }, [ruta])
 
@@ -348,28 +349,44 @@ export function ClienteRutaTiempoRealPage() {
               {seguimientoActualizadoAt ? new Date(seguimientoActualizadoAt).toLocaleString('es-ES') : '—'}
             </p>
 
-            <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wider text-primary">
-                {etaEsReal ? 'ETA en tiempo real' : 'ETA estimado'}
-              </p>
-              {etaMinutos != null ? (
-                <>
-                  <p className="mt-1 text-3xl font-black text-slate-900">{etaEsReal ? '' : '~'}{etaMinutos} min</p>
-                  <p className="mt-0.5 text-xs text-slate-500">
-                    {etaEsReal
-                      ? 'Calculado desde la posición actual del chofer'
-                      : stopCliente && stopsRuta.filter((s) => s.orden < stopCliente.orden).length > 0
-                        ? `${stopsRuta.filter((s) => s.orden < stopCliente.orden).length} parada${stopsRuta.filter((s) => s.orden < stopCliente.orden).length > 1 ? 's' : ''} antes de la tuya`
-                        : 'Tu parada es la próxima'}
-                  </p>
-                </>
-              ) : (
-                <div className="mt-2 flex items-center gap-2">
-                  <span className="material-symbols-outlined animate-spin text-base text-primary">progress_activity</span>
-                  <p className="text-sm text-slate-500">Calculando tiempo de llegada…</p>
+            {guiaActiva.estado === 'INCIDENCIA' ? (
+              <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-2xl text-rose-600">warning</span>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-rose-700">
+                      Incidencia reportada
+                    </p>
+                    <p className="mt-1 text-sm text-rose-600">
+                      El chofer ha reportado una incidencia con tu envío. Nos pondremos en contacto contigo.
+                    </p>
+                  </div>
                 </div>
-              )}
-            </div>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-primary">
+                  {etaEsReal ? 'ETA en tiempo real' : 'ETA estimado'}
+                </p>
+                {etaMinutos != null ? (
+                  <>
+                    <p className="mt-1 text-3xl font-black text-slate-900">{etaEsReal ? '' : '~'}{etaMinutos} min</p>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      {etaEsReal
+                        ? 'Calculado desde la posición actual del chofer'
+                        : stopCliente && stopsRuta.filter((s) => s.orden < stopCliente.orden).length > 0
+                          ? `${stopsRuta.filter((s) => s.orden < stopCliente.orden).length} parada${stopsRuta.filter((s) => s.orden < stopCliente.orden).length > 1 ? 's' : ''} antes de la tuya`
+                          : 'Tu parada es la próxima'}
+                    </p>
+                  </>
+                ) : (
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className="material-symbols-outlined animate-spin text-base text-primary">progress_activity</span>
+                    <p className="text-sm text-slate-500">Calculando tiempo de llegada…</p>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="rounded-xl border border-slate-200 bg-white p-4">
               <p className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-400">Tu envío</p>

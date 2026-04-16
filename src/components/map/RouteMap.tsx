@@ -176,26 +176,43 @@ export function RouteMap({
 
       sortedAll.forEach((stop) => {
         const done = Boolean(stop.completada)
+        const hasIncident = Boolean(stop.tieneIncidencia)
         const el = document.createElement('div')
-        el.style.cssText = done
-          ? `
-          opacity:0.85;
-          background:#16a34a;color:white;width:28px;height:28px;
-          border-radius:50%;display:flex;align-items:center;
-          justify-content:center;font-size:14px;font-weight:bold;
-          border:2px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.15);
-          cursor:pointer;
-        `
-          : `
-          background:#0f172a;color:white;width:28px;height:28px;
-          border-radius:50%;display:flex;align-items:center;
-          justify-content:center;font-size:12px;font-weight:bold;
-          border:2px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.2);
-          cursor:pointer;
-        `
-        el.textContent = done ? '✓' : String(stop.orden)
+        
+        if (hasIncident) {
+          // Marcador de incidencia
+          el.style.cssText = `
+            background:#dc2626;color:white;width:32px;height:32px;
+            border-radius:50%;display:flex;align-items:center;
+            justify-content:center;font-size:18px;font-weight:bold;
+            border:2px solid white;box-shadow:0 2px 6px rgba(220,38,38,0.4);
+            cursor:pointer;
+          `
+          el.textContent = '⚠'
+        } else if (done) {
+          // Marcador completado
+          el.style.cssText = `
+            opacity:0.85;
+            background:#16a34a;color:white;width:28px;height:28px;
+            border-radius:50%;display:flex;align-items:center;
+            justify-content:center;font-size:14px;font-weight:bold;
+            border:2px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.15);
+            cursor:pointer;
+          `
+          el.textContent = '✓'
+        } else {
+          // Marcador pendiente
+          el.style.cssText = `
+            background:#0f172a;color:white;width:28px;height:28px;
+            border-radius:50%;display:flex;align-items:center;
+            justify-content:center;font-size:12px;font-weight:bold;
+            border:2px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.2);
+            cursor:pointer;
+          `
+          el.textContent = String(stop.orden)
+        }
 
-        const estadoTxt = done ? 'Completada' : 'Pendiente'
+        const estadoTxt = hasIncident ? 'Incidencia' : done ? 'Completada' : 'Pendiente'
         const popup = new mapboxgl.Popup({ offset: 16 }).setHTML(
           `<strong>Parada ${stop.orden}</strong> (${estadoTxt})<br/>${stop.direccion}`,
         )
