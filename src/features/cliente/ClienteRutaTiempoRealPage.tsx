@@ -153,37 +153,44 @@ export function ClienteRutaTiempoRealPage() {
       setChoferGpsAt(p.timestamp ? new Date(p.timestamp).toISOString() : new Date().toISOString())
     })
     
-    // Escuchar cuando hay incidencia - recargar datos y mostrar notificación
+    // Escuchar cuando hay incidencia - recargar datos y redirigir
     socket.on('guia:incidencia', async (p: { guiaId: string; numeroGuia: string; rutaId: string }) => {
       console.log('⚠️ Incidencia detectada:', p)
-      // Recargar la ruta para mostrar el cambio
-      try {
-        const res = await api.get<RutaApi>(`/rutas/${rutaId}`)
-        setRuta(res.data)
-      } catch (error) {
-        console.error('Error al recargar ruta:', error)
-      }
-      
-      // Si es la guía del cliente, mostrar mensaje pero NO cerrar
-      if (p.guiaId === guiaActiva.id) {
-        addToast('Se ha reportado una incidencia en tu envío', 'error')
-      }
-    })
-    
-    // Escuchar cuando la guía se entrega - recargar datos y cerrar después
-    socket.on('guia:entregada', async (p: { guiaId: string; numeroGuia: string; rutaId: string }) => {
-      console.log('✅ Guía entregada:', p)
       
       // Si es la guía del cliente, mostrar mensaje y redirigir
       if (p.guiaId === guiaActiva.id) {
-        // Recargar la lista de candidatos para actualizar el estado
-        await fetchActivos(true)
+        addToast('Se ha reportado una incidencia en tu envío. Nos pondremos en contacto contigo.', 'error')
         
-        addToast('¡Tu envío ha sido entregado exitosamente!', 'success')
-        
-        // Desconectar socket antes de redirigir para evitar errores
+        // Desconectar socket antes de redirigir
         socket.disconnect()
         
+        // Redirigir después de un momento
+        setTimeout(() => {
+          window.location.href = '/cliente/envios'
+        }, 2500)
+      } else {
+        // Si no es la guía del cliente, solo recargar la ruta
+        try {
+          const res = await api.get<RutaApi>(`/rutas/${rutaId}`)
+          setRuta(res.data)
+        } catch (error) {
+          console.error('Error al recargar ruta:', error)
+        }
+      }
+    })
+    
+    // Escuchar cuando la guía se entrega - recargar datos y redirigir si ya no hay activos
+    socket.on('guia:entregada', async (p: { guiaId: string; numeroGuia: string; rutaId: string }) => {
+      console.log('✅ Guía entregada:', p)
+      
+      // Si es la guía del cliente, recargar y redirigir
+      if (p.guiaId === guiaActiva.id) {
+        addToast('¡Tu envío ha sido entregado exitosamente!', 'success')
+        
+        // Desconectar socket antes de redirigir
+        socket.disconnect()
+        
+        // Redirigir después de un momento
         setTimeout(() => {
           window.location.href = '/cliente/envios'
         }, 2500)
@@ -325,17 +332,13 @@ export function ClienteRutaTiempoRealPage() {
                   <h3 className="mt-1 text-lg font-bold text-slate-900">{guia.numeroGuia}</h3>
                 </div>
                 <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${
-                  guia.estado === 'INCIDENCIA' 
-                    ? 'bg-rose-100 text-rose-700' 
-                    : guia.ruta?.estado === 'EN_CURSO'
-                      ? 'bg-emerald-100 text-emerald-700'
-                      : 'bg-amber-100 text-amber-700'
+                  guia.ruta?.estado === 'EN_CURSO'
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'bg-amber-100 text-amber-700'
                 }`}>
-                  {guia.estado === 'INCIDENCIA' 
-                    ? '⚠️ Incidencia' 
-                    : guia.ruta?.estado === 'EN_CURSO'
-                      ? '🚚 En camino'
-                      : '📦 Pendiente'}
+                  {guia.ruta?.estado === 'EN_CURSO'
+                    ? '🚚 En camino'
+                    : '📦 Pendiente'}
                 </span>
               </div>
 
@@ -430,44 +433,28 @@ export function ClienteRutaTiempoRealPage() {
               {seguimientoActualizadoAt ? new Date(seguimientoActualizadoAt).toLocaleString('es-ES') : '—'}
             </p>
 
-            {guiaActiva.estado === 'INCIDENCIA' ? (
-              <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
-                <div className="flex items-center gap-2">
-                  <span className="material-symbols-outlined text-2xl text-rose-600">warning</span>
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-rose-700">
-                      Incidencia reportada
-                    </p>
-                    <p className="mt-1 text-sm text-rose-600">
-                      El chofer ha reportado una incidencia con tu envío. Nos pondremos en contacto contigo.
-                    </p>
-                  </div>
+            <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wider text-primary">
+                {etaEsReal ? 'ETA en tiempo real' : 'ETA estimado'}
+              </p>
+              {etaMinutos != null ? (
+                <>
+                  <p className="mt-1 text-3xl font-black text-slate-900">{etaEsReal ? '' : '~'}{etaMinutos} min</p>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    {etaEsReal
+                      ? 'Calculado desde la posición actual del chofer'
+                      : stopCliente && stopsRuta.filter((s) => s.orden < stopCliente.orden).length > 0
+                        ? `${stopsRuta.filter((s) => s.orden < stopCliente.orden).length} parada${stopsRuta.filter((s) => s.orden < stopCliente.orden).length > 1 ? 's' : ''} antes de la tuya`
+                        : 'Tu parada es la próxima'}
+                  </p>
+                </>
+              ) : (
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="material-symbols-outlined animate-spin text-base text-primary">progress_activity</span>
+                  <p className="text-sm text-slate-500">Calculando tiempo de llegada…</p>
                 </div>
-              </div>
-            ) : (
-              <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
-                <p className="text-xs font-semibold uppercase tracking-wider text-primary">
-                  {etaEsReal ? 'ETA en tiempo real' : 'ETA estimado'}
-                </p>
-                {etaMinutos != null ? (
-                  <>
-                    <p className="mt-1 text-3xl font-black text-slate-900">{etaEsReal ? '' : '~'}{etaMinutos} min</p>
-                    <p className="mt-0.5 text-xs text-slate-500">
-                      {etaEsReal
-                        ? 'Calculado desde la posición actual del chofer'
-                        : stopCliente && stopsRuta.filter((s) => s.orden < stopCliente.orden).length > 0
-                          ? `${stopsRuta.filter((s) => s.orden < stopCliente.orden).length} parada${stopsRuta.filter((s) => s.orden < stopCliente.orden).length > 1 ? 's' : ''} antes de la tuya`
-                          : 'Tu parada es la próxima'}
-                    </p>
-                  </>
-                ) : (
-                  <div className="mt-2 flex items-center gap-2">
-                    <span className="material-symbols-outlined animate-spin text-base text-primary">progress_activity</span>
-                    <p className="text-sm text-slate-500">Calculando tiempo de llegada…</p>
-                  </div>
-                )}
-              </div>
-            )}
+              )}
+            </div>
 
             <div className="rounded-xl border border-slate-200 bg-white p-4">
               <p className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-400">Tu envío</p>
@@ -478,8 +465,8 @@ export function ClienteRutaTiempoRealPage() {
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-slate-500">Estado</span>
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${guiaActiva.estado === 'INCIDENCIA' ? 'bg-rose-100 text-rose-700' : 'bg-blue-100 text-blue-700'}`}>
-                    {guiaActiva.estado === 'INCIDENCIA' ? 'Incidencia' : 'En camino'}
+                  <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700">
+                    {ruta.estado === 'EN_CURSO' ? 'En camino' : 'Pendiente'}
                   </span>
                 </div>
                 {stopCliente && (
