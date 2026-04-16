@@ -57,38 +57,38 @@ export function PhotoUploader({
 
   // Cargar fotos existentes del servidor
   useEffect(() => {
-    if (draftMode && initialDraftFiles.length === 0) return // En modo borrador sin fotos previas, no cargamos del servidor
-    
     const url = scope === 'guia' && guiaId
       ? `/fotos/guia/${guiaId}`
       : scope === 'hoja_ruta' && rutaId
         ? `/fotos/ruta/${rutaId}`
         : null
     if (!url) return
-    api.get<FotoApi[]>(url).then((r) => setFotos(r.data)).catch(() => {})
-  }, [scope, guiaId, rutaId, draftMode, initialDraftFiles.length])
-
-  // Cargar fotos iniciales en modo borrador
-  useEffect(() => {
-    if (!draftMode || initialDraftFiles.length === 0) return
     
-    const borradores: FotoBorrador[] = initialDraftFiles.map(file => ({
-      file,
-      preview: URL.createObjectURL(file),
-      isLocal: true as const
-    }))
-    
-    // Si hay fotos del servidor, agregarlas también
-    api.get<FotoApi[]>(
-      scope === 'guia' && guiaId
-        ? `/fotos/guia/${guiaId}`
-        : `/fotos/ruta/${rutaId}`
-    ).then((r) => {
-      setFotos([...r.data, ...borradores])
+    // Siempre cargar fotos del servidor
+    api.get<FotoApi[]>(url).then((r) => {
+      // Si hay fotos en borrador, combinarlas con las del servidor
+      if (draftMode && initialDraftFiles.length > 0) {
+        const borradores: FotoBorrador[] = initialDraftFiles.map(file => ({
+          file,
+          preview: URL.createObjectURL(file),
+          isLocal: true as const
+        }))
+        setFotos([...r.data, ...borradores])
+      } else {
+        setFotos(r.data)
+      }
     }).catch(() => {
-      setFotos(borradores)
+      // Si falla la carga del servidor pero hay borradores, mostrar solo borradores
+      if (draftMode && initialDraftFiles.length > 0) {
+        const borradores: FotoBorrador[] = initialDraftFiles.map(file => ({
+          file,
+          preview: URL.createObjectURL(file),
+          isLocal: true as const
+        }))
+        setFotos(borradores)
+      }
     })
-  }, [draftMode, initialDraftFiles, scope, guiaId, rutaId])
+  }, [scope, guiaId, rutaId, draftMode, initialDraftFiles])
 
   // Sin límite si max no está definido
   const hasLimit = max !== undefined
