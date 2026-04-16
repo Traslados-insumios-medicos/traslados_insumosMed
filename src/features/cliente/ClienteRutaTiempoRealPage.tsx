@@ -41,6 +41,7 @@ export function ClienteRutaTiempoRealPage() {
   const [choferGpsAt, setChoferGpsAt] = useState<string | null>(null)
   const [etaReal, setEtaReal] = useState<number | null>(null)
   const [selectedGuiaId, setSelectedGuiaId] = useState<string | null>(null)
+  const [showSelection, setShowSelection] = useState(true) // Nueva: mostrar pantalla de selección
 
   const fetchActivos = useCallback(async (silent = false) => {
     if (!silent) setLoadingList(true)
@@ -69,12 +70,28 @@ export function ClienteRutaTiempoRealPage() {
       if (selected) return selected
     }
     
-    // Si no, usar la lógica automática
-    const enCurso = candidates.find(
-      (g) => (g.estado === 'PENDIENTE' || g.estado === 'INCIDENCIA') && g.ruta?.estado === 'EN_CURSO',
-    )
-    return enCurso ?? candidates.find((g) => g.estado === 'PENDIENTE' || g.estado === 'INCIDENCIA')
+    // Si solo hay una, seleccionarla automáticamente
+    if (candidates.length === 1) {
+      return candidates[0]
+    }
+    
+    // Si no hay selección y hay múltiples, no seleccionar ninguna (mostrar pantalla de selección)
+    return null
   }, [candidates, selectedGuiaId])
+  
+  // Función para seleccionar una guía y mostrar el rastreo
+  const handleSelectGuia = (guiaId: string) => {
+    setSelectedGuiaId(guiaId)
+    setShowSelection(false)
+  }
+  
+  // Función para volver a la pantalla de selección
+  const handleBackToSelection = () => {
+    setShowSelection(true)
+    setSelectedGuiaId(null)
+    setRuta(null)
+    setChoferPosicion(null)
+  }
 
   useEffect(() => {
     if (!guiaActiva?.rutaId) {
@@ -271,32 +288,81 @@ export function ClienteRutaTiempoRealPage() {
     )
   }
 
+  // Pantalla de selección de envíos (cuando hay múltiples)
+  if (showSelection && candidates.length > 1) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">Ruta en tiempo real</h1>
+          <p className="text-sm text-slate-500">Selecciona el envío que deseas rastrear</p>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {candidates.map((guia) => (
+            <button
+              key={guia.id}
+              onClick={() => handleSelectGuia(guia.id)}
+              className="flex flex-col rounded-xl border border-slate-200 bg-white p-5 text-left shadow-sm transition-all hover:border-primary hover:shadow-lg"
+            >
+              <div className="mb-3 flex items-start justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Guía de envío</p>
+                  <h3 className="mt-1 text-lg font-bold text-slate-900">{guia.numeroGuia}</h3>
+                </div>
+                <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${
+                  guia.estado === 'INCIDENCIA' 
+                    ? 'bg-rose-100 text-rose-700' 
+                    : guia.ruta?.estado === 'EN_CURSO'
+                      ? 'bg-emerald-100 text-emerald-700'
+                      : 'bg-amber-100 text-amber-700'
+                }`}>
+                  {guia.estado === 'INCIDENCIA' 
+                    ? '⚠️ Incidencia' 
+                    : guia.ruta?.estado === 'EN_CURSO'
+                      ? '🚚 En camino'
+                      : '📦 Pendiente'}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2 text-sm text-slate-600">
+                <span className="material-symbols-outlined text-base">location_on</span>
+                <span className="line-clamp-2">Rastreo en tiempo real disponible</span>
+              </div>
+
+              <div className="mt-4 flex items-center justify-end gap-2 text-sm font-semibold text-primary">
+                Ver rastreo
+                <span className="material-symbols-outlined text-base">arrow_forward</span>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  // Si solo hay un envío, continuar automáticamente al rastreo
+  if (candidates.length === 1 && !selectedGuiaId) {
+    setSelectedGuiaId(candidates[0].id)
+    setShowSelection(false)
+  }
+
   return (
     <div className="space-y-6">
+      {/* Botón para volver si hay múltiples envíos */}
+      {candidates.length > 1 && (
+        <button
+          onClick={handleBackToSelection}
+          className="flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-primary"
+        >
+          <span className="material-symbols-outlined text-base">arrow_back</span>
+          Volver a selección de envíos
+        </button>
+      )}
+      
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Ruta en tiempo real</h1>
         <p className="text-sm text-slate-500">Seguimiento de tu envío (posición simulada hasta conexión en vivo)</p>
       </div>
-
-      {/* Selector de envíos si hay múltiples activos */}
-      {candidates.length > 1 && (
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-          <label className="mb-2 block text-sm font-semibold text-slate-700">
-            Selecciona el envío que deseas rastrear:
-          </label>
-          <select
-            value={selectedGuiaId || guiaActiva?.id || ''}
-            onChange={(e) => setSelectedGuiaId(e.target.value || null)}
-            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-          >
-            {candidates.map((g) => (
-              <option key={g.id} value={g.id}>
-                Guía {g.numeroGuia} - {g.estado === 'INCIDENCIA' ? '⚠️ Con incidencia' : g.ruta?.estado === 'EN_CURSO' ? '🚚 En camino' : '📦 Pendiente'}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
 
       {!guiaActiva || !ruta || loadingRuta ? (
         <div className="rounded-xl border border-slate-200 bg-white p-8 text-center">
