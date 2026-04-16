@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
+import { io } from 'socket.io-client'
 import { api } from '../../services/api'
 import { useAuthStore } from '../../store/authStore'
 import { useToastStore } from '../../store/toastStore'
@@ -101,6 +102,38 @@ export function ChoferRutasPage() {
     // Recargar cuando cambie el filtro de fecha
     fetchRutas(1)
   }, [filtroFecha, fechaDesde, fechaHasta, filtroEstado, debouncedSearch, fetchRutas])
+
+  // Escuchar actualizaciones en tiempo real
+  useEffect(() => {
+    const token = localStorage.getItem('token')
+    if (!token) return
+    
+    const socket = io(import.meta.env.VITE_WS_URL ?? 'http://localhost:3000', {
+      auth: { token },
+      transports: ['websocket'],
+    })
+    
+    // Escuchar cuando cambia el estado de una guía
+    socket.on('guia:incidencia', () => {
+      console.log('🔄 Incidencia detectada, recargando lista de rutas...')
+      void fetchRutas(page)
+    })
+    
+    socket.on('guia:entregada', () => {
+      console.log('🔄 Guía entregada detectada, recargando lista de rutas...')
+      void fetchRutas(page)
+    })
+    
+    // Escuchar cuando la ruta se completa
+    socket.on('ruta:completada', () => {
+      console.log('🔄 Ruta completada, recargando lista...')
+      void fetchRutas(page)
+    })
+    
+    return () => {
+      socket.disconnect()
+    }
+  }, [fetchRutas, page])
 
   const rutasFiltradas = rutas.filter((r) => {
     if (filtro === 'activas') return r.estado === 'PENDIENTE' || r.estado === 'EN_CURSO'

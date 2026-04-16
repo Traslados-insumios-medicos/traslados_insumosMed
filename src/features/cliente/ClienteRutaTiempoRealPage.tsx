@@ -40,6 +40,7 @@ export function ClienteRutaTiempoRealPage() {
   const [choferPosicion, setChoferPosicion] = useState<{ lat: number; lng: number } | null>(null)
   const [choferGpsAt, setChoferGpsAt] = useState<string | null>(null)
   const [etaReal, setEtaReal] = useState<number | null>(null)
+  const [selectedGuiaId, setSelectedGuiaId] = useState<string | null>(null)
 
   const fetchActivos = useCallback(async (silent = false) => {
     if (!silent) setLoadingList(true)
@@ -62,11 +63,18 @@ export function ClienteRutaTiempoRealPage() {
   }, [fetchActivos])
 
   const guiaActiva = useMemo(() => {
+    // Si hay una guía seleccionada manualmente, usarla
+    if (selectedGuiaId) {
+      const selected = candidates.find((g) => g.id === selectedGuiaId)
+      if (selected) return selected
+    }
+    
+    // Si no, usar la lógica automática
     const enCurso = candidates.find(
       (g) => (g.estado === 'PENDIENTE' || g.estado === 'INCIDENCIA') && g.ruta?.estado === 'EN_CURSO',
     )
     return enCurso ?? candidates.find((g) => g.estado === 'PENDIENTE' || g.estado === 'INCIDENCIA')
-  }, [candidates])
+  }, [candidates, selectedGuiaId])
 
   useEffect(() => {
     if (!guiaActiva?.rutaId) {
@@ -89,24 +97,98 @@ export function ClienteRutaTiempoRealPage() {
 
   useEffect(() => {
     const rutaId = ruta?.id
-    if (!rutaId || !guiaActiva) return
+    if (!rutaId || !guiaActiva) {
+      console.log('❌ No se conecta socket cliente:', { rutaId, guiaActiva: !!guiaActiva })
+      return
+    }
     const token = localStorage.getItem('token')
-    if (!token) return
+    if (!token) {
+      console.log('❌ No hay token para socket cliente')
+      return
+    }
+    
+    console.log('🔌 Conectando socket cliente para ruta:', rutaId)
     const socket = io(import.meta.env.VITE_WS_URL ?? 'http://localhost:3000', {
-      auth: { token }, transports: ['websocket'],
+      auth: { token }, 
+      transports: ['websocket'],
     })
-    socket.emit('join:ruta', rutaId)
+    
+    socket.on('connect', () => {
+      console.log('✅ Cliente conectado al socket, uniéndose a ruta:', rutaId)
+      socket.emit('join:ruta', rutaId)
+      console.log('📨 Evento join:ruta emitido para:', rutaId)
+    })
+    
+    socket.on('connect_error', (error) => {
+      console.error('❌ Error de conexión socket cliente:', error)
+    })
+    
     socket.on('seguimiento_ruta', (p: { rutaId: string; seguimientoChofer: string }) => {
       if (p.rutaId !== rutaId) return
+      console.log('🔄 Seguimiento actualizado:', p.seguimientoChofer)
       setRuta((prev) => prev ? { ...prev, seguimientoChofer: p.seguimientoChofer } : prev)
       setSeguimientoActualizadoAt(new Date().toISOString())
     })
+    
     socket.on('posicion_chofer', (p: { lat: number; lng: number; timestamp?: number }) => {
+      console.log('📍 Posición del chofer recibida:', p)
       setChoferPosicion({ lat: p.lat, lng: p.lng })
       setChoferGpsAt(p.timestamp ? new Date(p.timestamp).toISOString() : new Date().toISOString())
     })
-    return () => { socket.disconnect() }
-  }, [ruta?.id, guiaActiva?.id])
+    
+    // Escuchar cuando hay incidencia - recargar datos y mostrar notificación
+    socket.on('guia:incidencia', async (p: { guiaId: string; numeroGuia: string; rutaId: string }) => {
+      console.log('⚠️ Incidencia detectada:', p)
+      // Recargar la ruta para mostrar el cambio
+      try {
+        const res = await api.get<RutaApi>(`/rutas/${rutaId}`)
+        setRuta(res.data)
+      } catch (error) {
+        console.error('Error al recargar ruta:', error)
+      }
+      
+      // Si es la guía del cliente, mostrar mensaje pero NO cerrar
+      if (p.guiaId === guiaActiva.id) {
+        addToast('Se ha reportado una incidencia en tu envío', 'error')
+      }
+    })
+    
+    // Escuchar cuando la guía se entrega - recargar datos y cerrar después
+    socket.on('guia:entregada', async (p: { guiaId: string; numeroGuia: string; rutaId: string }) => {
+      console.log('✅ Guía entregada:', p)
+      // Recargar la ruta para mostrar el cambio
+      try {
+        const res = await api.get<RutaApi>(`/rutas/${rutaId}`)
+        setRuta(res.data)
+      } catch (error) {
+        console.error('Error al recargar ruta:', error)
+      }
+      
+      // Si es la guía del cliente, mostrar mensaje y cerrar después
+      if (p.guiaId === guiaActiva.id) {
+        addToast('¡Tu envío ha sido entregado exitosamente!', 'success')
+        setTimeout(() => {
+          window.location.href = '/cliente/mis-envios'
+        }, 3000)
+      }
+    })
+    
+    // Escuchar cuando la ruta se completa
+    socket.on('ruta:completada', (p: { rutaId: string; estado: string }) => {
+      console.log('🏁 Ruta completada:', p)
+      if (p.rutaId === rutaId) {
+        addToast('La ruta ha sido completada. Gracias por usar nuestro servicio.', 'success')
+        setTimeout(() => {
+          window.location.href = '/cliente/mis-envios'
+        }, 3000)
+      }
+    })
+    
+    return () => { 
+      console.log('🔌 Desconectando socket del cliente')
+      socket.disconnect() 
+    }
+  }, [ruta?.id, guiaActiva?.id, guiaActiva, addToast])
 
   const stopsRuta: Stop[] = useMemo(() => {
     if (!ruta?.stops?.length) return []
@@ -194,6 +276,26 @@ export function ClienteRutaTiempoRealPage() {
         <h1 className="text-2xl font-bold text-slate-900">Ruta en tiempo real</h1>
         <p className="text-sm text-slate-500">Seguimiento de tu envío (posición simulada hasta conexión en vivo)</p>
       </div>
+
+      {/* Selector de envíos si hay múltiples activos */}
+      {candidates.length > 1 && (
+        <div className="rounded-xl border border-slate-200 bg-white p-4">
+          <label className="mb-2 block text-sm font-semibold text-slate-700">
+            Selecciona el envío que deseas rastrear:
+          </label>
+          <select
+            value={selectedGuiaId || guiaActiva?.id || ''}
+            onChange={(e) => setSelectedGuiaId(e.target.value || null)}
+            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
+          >
+            {candidates.map((g) => (
+              <option key={g.id} value={g.id}>
+                Guía {g.numeroGuia} - {g.estado === 'INCIDENCIA' ? '⚠️ Con incidencia' : g.ruta?.estado === 'EN_CURSO' ? '🚚 En camino' : '📦 Pendiente'}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {!guiaActiva || !ruta || loadingRuta ? (
         <div className="rounded-xl border border-slate-200 bg-white p-8 text-center">
