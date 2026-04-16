@@ -12,6 +12,7 @@ const STEPS: { label: string; icon: string; value: SeguimientoChoferValue | null
   { label: 'Ruta en curso', icon: 'route', value: null },
   { label: 'En camino', icon: 'local_shipping', value: 'EN_CAMINO' },
   { label: 'Cerca de tu entrega', icon: 'location_on', value: 'CERCA_DESTINO' },
+  { label: 'Entregado', icon: 'check_circle', value: null },
 ]
 
 export interface SeguimientoChoferStepperProps {
@@ -38,6 +39,8 @@ export function SeguimientoChoferStepper({
   const doneAt = (i: number) => {
     if (forzarCompleto) return true
     if (i === 0) return rutaEstado === 'EN_CURSO' || rutaEstado === 'COMPLETADA'
+    // El último paso (Entregado) solo se marca cuando la guía está entregada
+    if (i === STEPS.length - 1) return entregaCerrada
     return level >= i
   }
 
@@ -45,8 +48,11 @@ export function SeguimientoChoferStepper({
   for (let i = 0; i < STEPS.length; i++) {
     if (!doneAt(i)) { activeIndex = i; break }
   }
-  if (!forzarCompleto && activeIndex === -1 && rutaEstado === 'EN_CURSO' && level >= STEPS.length - 1) {
+  // Si la guía está entregada, el paso activo es el último
+  if (entregaCerrada) {
     activeIndex = STEPS.length - 1
+  } else if (!forzarCompleto && activeIndex === -1 && rutaEstado === 'EN_CURSO' && level >= STEPS.length - 2) {
+    activeIndex = STEPS.length - 2
   }
 
   return (
@@ -101,11 +107,15 @@ export function SeguimientoChoferStepper({
       <p className="mt-2 text-center text-[9px] text-slate-500">
         {rutaEstado === 'PENDIENTE'
           ? 'La ruta aún no ha iniciado.'
-          : rutaTerminada
-            ? 'Ruta finalizada.'
-            : seguimiento === 'NINGUNO' && rutaEstado === 'EN_CURSO'
-              ? 'El chofer puede ir actualizando su avance; aquí verás cada etapa.'
-              : '\u00a0'}
+          : entregaCerrada
+            ? guiaEstado === 'ENTREGADO' 
+              ? '¡Tu envío ha sido entregado exitosamente!'
+              : 'Se reportó una incidencia con tu envío.'
+            : rutaTerminada
+              ? 'Ruta finalizada.'
+              : seguimiento === 'NINGUNO' && rutaEstado === 'EN_CURSO'
+                ? 'El chofer puede ir actualizando su avance; aquí verás cada etapa.'
+                : '\u00a0'}
       </p>
     </div>
   )
