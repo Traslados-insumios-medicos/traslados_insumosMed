@@ -1075,7 +1075,7 @@ export function ChoferRutaDetallePage() {
                                     </div>
 
                                     <PhotoUploader 
-                                      key={`photo-uploader-${g.id}`}
+                                      key={`photo-uploader-${g.id}-${guiaIdsEnEdicion.has(g.id) ? 'edit' : 'view'}`}
                                       scope="guia" 
                                       guiaId={g.id} 
                                       label="Fotos de la incidencia" 
@@ -1089,6 +1089,8 @@ export function ChoferRutaDetallePage() {
                                       initialDraftFiles={fotosBorradorPorGuia[g.id]}
                                       onUploaded={fetchRuta}
                                       readOnly={guiaIdsDetalleGuardado.has(g.id) && !guiaIdsEnEdicion.has(g.id)}
+                                      onProcessingStart={handleFotosStart}
+                                      onProcessingEnd={handleFotosEnd}
                                     />
 
                                     <div className="border-t border-slate-200 pt-4">
@@ -1262,7 +1264,7 @@ export function ChoferRutaDetallePage() {
                                 </div>
 
                                 <PhotoUploader 
-                                  key={`photo-uploader-${g.id}`}
+                                  key={`photo-uploader-${g.id}-${guiaIdsEnEdicion.has(g.id) ? 'edit' : 'view'}`}
                                   scope="guia" 
                                   guiaId={g.id} 
                                   label="Fotos de entrega" 
@@ -1276,6 +1278,8 @@ export function ChoferRutaDetallePage() {
                                   initialDraftFiles={fotosBorradorPorGuia[g.id]}
                                   onUploaded={fetchRuta}
                                   readOnly={guiaIdsDetalleGuardado.has(g.id) && !guiaIdsEnEdicion.has(g.id)}
+                                  onProcessingStart={handleFotosStart}
+                                  onProcessingEnd={handleFotosEnd}
                                 />
 
                                 <div className="border-t border-slate-200 pt-4">
