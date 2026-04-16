@@ -1075,7 +1075,7 @@ export function ChoferRutaDetallePage() {
                                     </div>
 
                                     <PhotoUploader 
-                                      key={`photo-uploader-${g.id}-${guiaIdsEnEdicion.has(g.id) ? 'edit' : 'view'}`}
+                                      key={`photo-uploader-${g.id}`}
                                       scope="guia" 
                                       guiaId={g.id} 
                                       label="Fotos de la incidencia" 
@@ -1264,7 +1264,7 @@ export function ChoferRutaDetallePage() {
                                 </div>
 
                                 <PhotoUploader 
-                                  key={`photo-uploader-${g.id}-${guiaIdsEnEdicion.has(g.id) ? 'edit' : 'view'}`}
+                                  key={`photo-uploader-${g.id}`}
                                   scope="guia" 
                                   guiaId={g.id} 
                                   label="Fotos de entrega" 

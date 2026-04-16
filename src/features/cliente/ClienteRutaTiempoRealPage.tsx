@@ -325,17 +325,21 @@ export function ClienteRutaTiempoRealPage() {
                   <h3 className="mt-1 text-lg font-bold text-slate-900">{guia.numeroGuia}</h3>
                 </div>
                 <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${
-                  guia.estado === 'INCIDENCIA' 
-                    ? 'bg-rose-100 text-rose-700' 
-                    : guia.ruta?.estado === 'EN_CURSO'
-                      ? 'bg-emerald-100 text-emerald-700'
-                      : 'bg-amber-100 text-amber-700'
+                  guia.estado === 'ENTREGADO'
+                    ? 'bg-emerald-100 text-emerald-700'
+                    : guia.estado === 'INCIDENCIA' 
+                      ? 'bg-rose-100 text-rose-700' 
+                      : guia.ruta?.estado === 'EN_CURSO'
+                        ? 'bg-blue-100 text-blue-700'
+                        : 'bg-amber-100 text-amber-700'
                 }`}>
-                  {guia.estado === 'INCIDENCIA' 
-                    ? '⚠️ Incidencia' 
-                    : guia.ruta?.estado === 'EN_CURSO'
-                      ? '🚚 En camino'
-                      : '📦 Pendiente'}
+                  {guia.estado === 'ENTREGADO'
+                    ? '✓ Entregado'
+                    : guia.estado === 'INCIDENCIA' 
+                      ? '⚠️ Incidencia' 
+                      : guia.ruta?.estado === 'EN_CURSO'
+                        ? '🚚 En camino'
+                        : '📦 Pendiente'}
                 </span>
               </div>
 
@@ -430,7 +434,21 @@ export function ClienteRutaTiempoRealPage() {
               {seguimientoActualizadoAt ? new Date(seguimientoActualizadoAt).toLocaleString('es-ES') : '—'}
             </p>
 
-            {guiaActiva.estado === 'INCIDENCIA' ? (
+            {guiaActiva.estado === 'ENTREGADO' ? (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                <div className="flex items-center gap-2">
+                  <span className="material-symbols-outlined text-2xl text-emerald-600">check_circle</span>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">
+                      ¡Envío entregado!
+                    </p>
+                    <p className="mt-1 text-sm text-emerald-600">
+                      Tu envío ha sido entregado exitosamente. Gracias por confiar en nosotros.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : guiaActiva.estado === 'INCIDENCIA' ? (
               <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
                 <div className="flex items-center gap-2">
                   <span className="material-symbols-outlined text-2xl text-rose-600">warning</span>
@@ -478,8 +496,18 @@ export function ClienteRutaTiempoRealPage() {
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-slate-500">Estado</span>
-                  <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${guiaActiva.estado === 'INCIDENCIA' ? 'bg-rose-100 text-rose-700' : 'bg-blue-100 text-blue-700'}`}>
-                    {guiaActiva.estado === 'INCIDENCIA' ? 'Incidencia' : 'En camino'}
+                  <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                    guiaActiva.estado === 'ENTREGADO' 
+                      ? 'bg-emerald-100 text-emerald-700' 
+                      : guiaActiva.estado === 'INCIDENCIA' 
+                        ? 'bg-rose-100 text-rose-700' 
+                        : 'bg-blue-100 text-blue-700'
+                  }`}>
+                    {guiaActiva.estado === 'ENTREGADO' 
+                      ? 'Entregado' 
+                      : guiaActiva.estado === 'INCIDENCIA' 
+                        ? 'Incidencia' 
+                        : 'En camino'}
                   </span>
                 </div>
                 {stopCliente && (
