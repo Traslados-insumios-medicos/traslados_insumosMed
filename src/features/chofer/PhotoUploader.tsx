@@ -95,15 +95,6 @@ export function PhotoUploader({
   const remaining = hasLimit ? Math.max(max - fotos.length, 0) : Infinity
   // Permitir subir si NO estamos en modo solo lectura
   const canUpload = !readOnly
-  
-  // Limpiar fotos en borrador cuando se pasa a modo readOnly
-  useEffect(() => {
-    if (readOnly && draftMode) {
-      // Si está en readOnly pero draftMode es true, hay un conflicto
-      // Limpiar fotos en borrador locales
-      setFotos((prev) => prev.filter((f) => !isFotoBorrador(f)))
-    }
-  }, [readOnly, draftMode])
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = hasLimit 
