@@ -185,7 +185,7 @@ export function ClienteRutaTiempoRealPage() {
       if (p.guiaId === guiaActiva.id) {
         addToast('¡Tu envío ha sido entregado exitosamente!', 'success')
         setTimeout(() => {
-          window.location.href = '/cliente/mis-envios'
+          window.location.href = '/cliente/envios'
         }, 3000)
       }
     })
@@ -196,7 +196,7 @@ export function ClienteRutaTiempoRealPage() {
       if (p.rutaId === rutaId) {
         addToast('La ruta ha sido completada. Gracias por usar nuestro servicio.', 'success')
         setTimeout(() => {
-          window.location.href = '/cliente/mis-envios'
+          window.location.href = '/cliente/envios'
         }, 3000)
       }
     })

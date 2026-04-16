@@ -1088,6 +1088,7 @@ export function ChoferRutaDetallePage() {
                                       }}
                                       initialDraftFiles={fotosBorradorPorGuia[g.id]}
                                       onUploaded={fetchRuta}
+                                      readOnly={guiaIdsDetalleGuardado.has(g.id) && !guiaIdsEnEdicion.has(g.id)}
                                     />
 
                                     <div className="border-t border-slate-200 pt-4">
@@ -1274,6 +1275,7 @@ export function ChoferRutaDetallePage() {
                                   }}
                                   initialDraftFiles={fotosBorradorPorGuia[g.id]}
                                   onUploaded={fetchRuta}
+                                  readOnly={guiaIdsDetalleGuardado.has(g.id) && !guiaIdsEnEdicion.has(g.id)}
                                 />
 
                                 <div className="border-t border-slate-200 pt-4">
