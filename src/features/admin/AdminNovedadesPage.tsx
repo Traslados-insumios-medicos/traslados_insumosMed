@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { ModalMotion } from '../../components/ui/ModalMotion'
 import { api } from '../../services/api'
@@ -43,7 +42,6 @@ const itemVariants = {
 }
 
 export function AdminNovedadesPage() {
-  const navigate = useNavigate()
   const addToast = useToastStore((s) => s.addToast)
 
   const [novedades, setNovedades] = useState<NovedadApi[]>([])
@@ -55,8 +53,6 @@ export function AdminNovedadesPage() {
   const [fechaHasta, setFechaHasta] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
   const [filtroTipo, setFiltroTipo] = useState<string>('')
-  const [notaInput, setNotaInput] = useState<Record<string, string>>({})
-  const [submitting, setSubmitting] = useState<string | null>(null)
   const [modalNovedadId, setModalNovedadId] = useState<string | null>(null)
 
   const modalNovedad = novedades.find((n) => n.id === modalNovedadId)
@@ -108,32 +104,6 @@ export function AdminNovedadesPage() {
     
     return true
   }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-
-  const handleAddSeguimiento = async (novedadId: string) => {
-    const nota = notaInput[novedadId]?.trim()
-    if (!nota) return
-    if (nota.length > 250) {
-      addToast('El comentario no puede exceder 250 caracteres', 'error')
-      return
-    }
-    setSubmitting(novedadId)
-    try {
-      const res = await api.post<SeguimientoApi>(`/novedades/${novedadId}/seguimiento`, { nota })
-      setNovedades((prev) =>
-        prev.map((n) =>
-          n.id === novedadId
-            ? { ...n, seguimientos: [...n.seguimientos, res.data] }
-            : n,
-        ),
-      )
-      setNotaInput((prev) => ({ ...prev, [novedadId]: '' }))
-      addToast('Seguimiento agregado', 'success')
-    } catch {
-      addToast('Error al agregar seguimiento', 'error')
-    } finally {
-      setSubmitting(null)
-    }
-  }
 
   return (
     <div className="space-y-6">
