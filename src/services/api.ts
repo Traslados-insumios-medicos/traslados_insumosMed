@@ -22,12 +22,20 @@ api.interceptors.response.use(
     const hadToken = !!localStorage.getItem('token')
     const backendMessage = String(error?.response?.data?.message ?? '')
     const isInactive = backendMessage.toLowerCase().includes('inactivo')
+    const isSessionExpired = backendMessage.toLowerCase().includes('sesión ha expirado') || 
+                             backendMessage.toLowerCase().includes('otra sesión')
     const status = error.response?.status
     
-    console.log('🔴 Interceptor de error:', { status, isLoginEndpoint, hadToken, backendMessage, isInactive })
+    console.log('🔴 Interceptor de error:', { status, isLoginEndpoint, hadToken, backendMessage, isInactive, isSessionExpired })
     
     if (status === 401 && !isLoginEndpoint && hadToken) {
       console.log('🚪 401 detectado - limpiando sesión y redirigiendo a login')
+      
+      // Si es por sesión expirada, mostrar mensaje específico
+      if (isSessionExpired) {
+        sessionStorage.setItem('session_expired_notice', backendMessage || 'Su sesión ha expirado. Otra sesión ha sido iniciada con esta cuenta.')
+      }
+      
       localStorage.clear()
       window.location.href = '/login'
     }

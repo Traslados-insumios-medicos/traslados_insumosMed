@@ -56,13 +56,22 @@ export function LoginPage() {
   const [requiredErrors, setRequiredErrors] = useState({ email: '', password: '' })
   const [showInactiveModal, setShowInactiveModal] = useState(false)
   const [inactiveMsg, setInactiveMsg] = useState('Su acceso está inactivo. Contacte al administrador de la empresa.')
+  const [showSessionExpiredModal, setShowSessionExpiredModal] = useState(false)
+  const [sessionExpiredMsg, setSessionExpiredMsg] = useState('Su sesión ha expirado. Otra sesión ha sido iniciada con esta cuenta.')
 
   useEffect(() => {
-    const msg = sessionStorage.getItem('inactive_access_notice')
-    if (msg) {
-      setInactiveMsg(msg)
+    const inactiveNotice = sessionStorage.getItem('inactive_access_notice')
+    if (inactiveNotice) {
+      setInactiveMsg(inactiveNotice)
       setShowInactiveModal(true)
       sessionStorage.removeItem('inactive_access_notice')
+    }
+    
+    const sessionExpiredNotice = sessionStorage.getItem('session_expired_notice')
+    if (sessionExpiredNotice) {
+      setSessionExpiredMsg(sessionExpiredNotice)
+      setShowSessionExpiredModal(true)
+      sessionStorage.removeItem('session_expired_notice')
     }
   }, [])
 
@@ -274,6 +283,36 @@ export function LoginPage() {
             <button
               type="button"
               onClick={() => setShowInactiveModal(false)}
+              className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover"
+            >
+              Entendido
+            </button>
+          </div>
+        </div>
+      </ModalMotion>
+
+      <ModalMotion
+        show={showSessionExpiredModal}
+        backdropClassName="bg-black/45"
+        panelClassName="w-full max-w-md rounded-2xl bg-white shadow-2xl"
+      >
+        <div className="border-b border-slate-100 px-6 py-4">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-amber-500">warning</span>
+            <h3 className="text-base font-bold text-slate-900">Sesión cerrada</h3>
+          </div>
+        </div>
+        <div className="space-y-4 px-6 py-5">
+          <p className="text-sm text-slate-600">
+            {sessionExpiredMsg}
+          </p>
+          <p className="text-xs text-slate-400">
+            Solo puede haber una sesión activa por cuenta. Si necesita acceder desde múltiples dispositivos, contacte al administrador.
+          </p>
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => setShowSessionExpiredModal(false)}
               className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover"
             >
               Entendido

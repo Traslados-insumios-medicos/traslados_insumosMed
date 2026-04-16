@@ -47,14 +47,42 @@ interface RutaApi {
 }
 
 function guiaTieneDetallePersistido(g: GuiaApi) {
-  return !!(
-    (g.receptorNombre?.trim() ||
-    g.temperatura?.trim() ||
-    g.horaLlegada?.trim() ||
-    g.horaSalida?.trim() ||
-    g.observaciones?.trim()) &&
-    g.fotos && g.fotos.length > 0
-  )
+  // Para incidencias: verificar que tenga tipo de incidencia en receptorNombre
+  const esIncidencia = g.estado === 'INCIDENCIA'
+  
+  const tieneFotos = !!(g.fotos && g.fotos.length > 0)
+  const tieneTemperatura = !!g.temperatura?.trim()
+  const tieneHoraLlegada = !!g.horaLlegada?.trim()
+  const tieneHoraSalida = !!g.horaSalida?.trim()
+  
+  if (esIncidencia) {
+    // Para incidencias: debe tener temperatura, horas y al menos 1 foto
+    const resultado = tieneFotos && tieneTemperatura && tieneHoraLlegada && tieneHoraSalida
+    console.log(`[VALIDACIÓN INCIDENCIA] Guía ${g.numeroGuia}:`, {
+      resultado,
+      tieneFotos,
+      tieneTemperatura,
+      tieneHoraLlegada,
+      tieneHoraSalida,
+      cantidadFotos: g.fotos?.length ?? 0
+    })
+    return resultado
+  }
+  
+  // Para entregas normales: debe tener receptor, temperatura, horas y al menos 1 foto
+  const tieneReceptor = !!g.receptorNombre?.trim()
+  const resultado = tieneReceptor && tieneFotos && tieneTemperatura && tieneHoraLlegada && tieneHoraSalida
+  console.log(`[VALIDACIÓN ENTREGA] Guía ${g.numeroGuia}:`, {
+    resultado,
+    tieneReceptor,
+    tieneFotos,
+    tieneTemperatura,
+    tieneHoraLlegada,
+    tieneHoraSalida,
+    cantidadFotos: g.fotos?.length ?? 0,
+    receptorNombre: g.receptorNombre
+  })
+  return resultado
 }
 
 export function ChoferRutaDetallePage() {
@@ -89,6 +117,7 @@ export function ChoferRutaDetallePage() {
   const [ultimaActualizacionSeguimiento, setUltimaActualizacionSeguimiento] = useState<string | null>(null)
   const [showUbicacionErrorModal, setShowUbicacionErrorModal] = useState(false)
   const ubicacionErrorShownRef = useRef(false)
+  const [procesandoFotos, setProcesandoFotos] = useState(false)
 
   const fetchRuta = useCallback(async () => {
     if (!id) return
@@ -99,8 +128,17 @@ export function ChoferRutaDetallePage() {
       addToast('Error al cargar la ruta', 'error')
     } finally {
       setLoading(false)
+      setProcesandoFotos(false) // Terminar procesamiento después de recargar
     }
   }, [id, addToast])
+
+  const handleFotosStart = useCallback(() => {
+    setProcesandoFotos(true)
+  }, [])
+
+  const handleFotosEnd = useCallback(() => {
+    // fetchRuta ya maneja setProcesandoFotos(false)
+  }, [])
 
   useEffect(() => { fetchRuta() }, [fetchRuta])
 
@@ -192,24 +230,71 @@ export function ChoferRutaDetallePage() {
       }
       return
     }
-    geoWatchRef.current = navigator.geolocation.watchPosition(
+    
+    // Limpiar watch anterior si existe
+    if (geoWatchRef.current != null) {
+      navigator.geolocation.clearWatch(geoWatchRef.current)
+      geoWatchRef.current = null
+    }
+    
+    // Primero intentar obtener posición actual una vez
+    navigator.geolocation.getCurrentPosition(
       (pos) => {
+        console.log('Ubicación obtenida:', pos.coords)
         setMiUbicacion({
           lat: pos.coords.latitude,
           lng: pos.coords.longitude,
         })
+        setUbicacionActiva(true)
+        addToast('Ubicación activa: el mapa sigue tu ruta hacia las paradas pendientes', 'success')
+        
+        // Luego iniciar el watch
+        geoWatchRef.current = navigator.geolocation.watchPosition(
+          (pos) => {
+            console.log('Ubicación actualizada:', pos.coords)
+            setMiUbicacion({
+              lat: pos.coords.latitude,
+              lng: pos.coords.longitude,
+            })
+          },
+          (error) => {
+            console.error('Error de geolocalización (watch):', error)
+            // No detener si ya tenemos una posición inicial
+          },
+          { 
+            enableHighAccuracy: true, 
+            maximumAge: 10000,
+            timeout: 10000
+          },
+        )
       },
-      () => {
+      (error) => {
+        console.error('Error de geolocalización (inicial):', error)
+        
+        // Detener ubicación activa cuando hay error
+        detenerUbicacion()
+        
         if (!ubicacionErrorShownRef.current) {
           ubicacionErrorShownRef.current = true
           setShowUbicacionErrorModal(true)
         }
+        
+        // Mostrar mensaje específico según el tipo de error
+        if (error.code === error.PERMISSION_DENIED) {
+          addToast('Permisos de ubicación denegados', 'error')
+        } else if (error.code === error.POSITION_UNAVAILABLE) {
+          addToast('Ubicación no disponible. Verifica que el GPS esté activado.', 'error')
+        } else if (error.code === error.TIMEOUT) {
+          addToast('Tiempo de espera agotado al obtener ubicación', 'error')
+        }
       },
-      { enableHighAccuracy: true, maximumAge: 5000, timeout: 20000 },
+      { 
+        enableHighAccuracy: true, 
+        maximumAge: 0, // No usar caché para la primera posición
+        timeout: 15000 // Más tiempo para la primera obtención
+      },
     )
-    setUbicacionActiva(true)
-    addToast('Ubicación activa: el mapa sigue tu ruta hacia las paradas pendientes', 'success')
-  }, [addToast])
+  }, [addToast, detenerUbicacion])
 
   useEffect(() => () => {
     if (geoWatchRef.current != null) navigator.geolocation.clearWatch(geoWatchRef.current)
@@ -261,15 +346,47 @@ export function ChoferRutaDetallePage() {
   
   // Verificar que todas las guías tengan datos guardados (lo que implica que tienen fotos)
   const todasLasGuiasTienenDatosGuardados = guiasPorRuta.every((g) => {
-    return guiaTieneDetallePersistido(g)
+    const tieneDatos = guiaTieneDetallePersistido(g)
+    console.log(`Guía ${g.numeroGuia}:`, {
+      tieneDatos,
+      estado: g.estado,
+      receptorNombre: g.receptorNombre,
+      temperatura: g.temperatura,
+      horaLlegada: g.horaLlegada,
+      horaSalida: g.horaSalida,
+      observaciones: g.observaciones,
+      cantidadFotos: g.fotos?.length ?? 0,
+      fotosArray: g.fotos
+    })
+    return tieneDatos
   })
   
+  console.log('=== RESUMEN VALIDACIÓN ===')
+  console.log('Total guías:', total)
+  console.log('Guías con datos guardados:', guiasPorRuta.filter(g => guiaTieneDetallePersistido(g)).length)
+  console.log('Guías SIN datos guardados:', guiasPorRuta.filter(g => !guiaTieneDetallePersistido(g)).map(g => g.numeroGuia))
+  
+  console.log('Validación finalizar jornada:', {
+    total,
+    totalFotos,
+    todasConEstadoFinal: guiasPorRuta.every((g) => g.estado === 'ENTREGADO' || g.estado === 'INCIDENCIA'),
+    todasLasGuiasTienenDatosGuardados,
+    guiasEnEdicion: guiaIdsEnEdicion.size,
+    puedeFinalizar: total > 0 &&
+      guiasPorRuta.every((g) => g.estado === 'ENTREGADO' || g.estado === 'INCIDENCIA') &&
+      todasLasGuiasTienenDatosGuardados &&
+      totalFotos > 0 &&
+      guiaIdsEnEdicion.size === 0
+  })
+  
+  // La hoja de ruta es OBLIGATORIA para finalizar
   const puedeFinalizar =
     total > 0 &&
     guiasPorRuta.every((g) => g.estado === 'ENTREGADO' || g.estado === 'INCIDENCIA') &&
-    totalFotos > 0 &&
     todasLasGuiasTienenDatosGuardados &&
-    guiaIdsEnEdicion.size === 0 // No debe haber guías en modo edición
+    totalFotos > 0 && // Debe tener al menos 1 foto de hoja de ruta
+    guiaIdsEnEdicion.size === 0 && // No debe haber guías en modo edición
+    !procesandoFotos // No debe estar procesando fotos
 
   const handleMarkIncidencia = (guiaId: string) => {
     // Solo cambiar el estado localmente, no llamar al API
@@ -281,6 +398,15 @@ export function ChoferRutaDetallePage() {
         guias: s.guias.map((g) => g.id === guiaId ? { ...g, estado: 'INCIDENCIA' } : g),
       })),
     } : prev)
+    
+    // Limpiar errores del campo receptorNombre cuando cambias a incidencia
+    setErroresDetallePorGuia((prev) => {
+      const next = { ...prev }
+      if (next[guiaId]) {
+        next[guiaId] = { ...next[guiaId], receptorNombre: '' }
+      }
+      return next
+    })
   }
 
   const handleMarkEntregado = (guiaId: string) => {
@@ -434,11 +560,8 @@ export function ChoferRutaDetallePage() {
       
       addToast('Datos y fotos guardados. El administrador los ve en Rutas • expandir ruta.', 'success')
       
-      // Recargar para mostrar las fotos subidas
+      // Recargar para mostrar las fotos subidas y actualizar validaciones
       await fetchRuta()
-      
-      // Después de recargar, asegurarse de que el ID esté en guiaIdsDetalleGuardado
-      setGuiaIdsDetalleGuardado((prev) => new Set(prev).add(guiaId))
     } catch {
       addToast('No se pudieron guardar los datos de entrega', 'error')
     } finally {
@@ -695,8 +818,8 @@ export function ChoferRutaDetallePage() {
                       className="flex w-full items-start justify-between gap-3 p-4 text-left hover:bg-slate-50/80">
                       <div className="min-w-0">
                         <p className="text-xs font-bold uppercase text-primary">Parada #{stop.orden}</p>
-                        <h5 className="font-bold text-slate-900">{stop.direccion}</h5>
-                        <p className="text-xs text-slate-500">{stop.cliente.nombre}</p>
+                        <h5 className="text-base font-bold text-slate-900">{stop.cliente.nombre}</h5>
+                        <p className="text-xs text-slate-500">{stop.direccion}</p>
                         {stop.notas && <p className="text-xs text-slate-400">{stop.notas}</p>}
                       </div>
                       <div className="flex shrink-0 flex-col items-end gap-1">
@@ -874,6 +997,7 @@ export function ChoferRutaDetallePage() {
                                     </div>
 
                                     <PhotoUploader 
+                                      key={`photo-uploader-${g.id}`}
                                       scope="guia" 
                                       guiaId={g.id} 
                                       label="Fotos de la incidencia" 
@@ -1059,6 +1183,7 @@ export function ChoferRutaDetallePage() {
                                 </div>
 
                                 <PhotoUploader 
+                                  key={`photo-uploader-${g.id}`}
                                   scope="guia" 
                                   guiaId={g.id} 
                                   label="Fotos de entrega" 
@@ -1162,13 +1287,6 @@ export function ChoferRutaDetallePage() {
                 <PhotoUploader scope="hoja_ruta" rutaId={id} label="Fotos del documento" onUploaded={fetchRuta} readOnly={true} />
                 <p className="mt-1.5 text-[9px] text-slate-500 dark:text-slate-400">La ruta está finalizada. No se pueden agregar o eliminar fotos.</p>
               </>
-            ) : guiaIdsDetalleGuardado.size === 0 ? (
-              <div className="rounded-lg border border-amber-200 bg-amber-50 p-2.5">
-                <p className="flex items-center gap-1.5 text-[10px] font-medium text-amber-800">
-                  <span className="material-symbols-outlined text-sm">lock</span>
-                  Debes guardar al menos una guía para subir fotos de la hoja de ruta
-                </p>
-              </div>
             ) : !todasLasGuiasTienenDatosGuardados ? (
               <div className="rounded-lg border border-amber-200 bg-amber-50 p-2.5">
                 <p className="flex items-center gap-1.5 text-[10px] font-medium text-amber-800">
@@ -1178,8 +1296,17 @@ export function ChoferRutaDetallePage() {
               </div>
             ) : (
               <>
-                <PhotoUploader scope="hoja_ruta" rutaId={id} label="Fotos del documento" onUploaded={fetchRuta} />
-                <p className="mt-1.5 text-[9px] text-slate-500 dark:text-slate-400">Sube la foto del documento firmado (opcional).</p>
+                <PhotoUploader 
+                  scope="hoja_ruta" 
+                  rutaId={id} 
+                  label="Fotos del documento" 
+                  onUploaded={fetchRuta}
+                  onProcessingStart={handleFotosStart}
+                  onProcessingEnd={handleFotosEnd}
+                />
+                <p className="mt-1.5 text-[9px] text-slate-500 dark:text-slate-400">
+                  Sube la foto del documento firmado (obligatorio para finalizar la jornada).
+                </p>
               </>
             )}
           </div>
@@ -1201,15 +1328,37 @@ export function ChoferRutaDetallePage() {
                   Finalizar jornada
                 </button>
                 {!puedeFinalizar && (
-                  <p className="mt-2 text-center text-xs text-slate-500 dark:text-slate-400">
-                    {totalFotos === 0 
-                      ? 'Debes subir al menos 1 foto de la hoja de ruta para finalizar.'
-                      : guiaIdsEnEdicion.size > 0
-                        ? 'Debes guardar los datos de todas las guías en edición antes de finalizar.'
-                        : !todasLasGuiasTienenDatosGuardados
-                          ? 'Todas las guías deben tener datos y fotos guardados para finalizar.'
-                          : 'Completa todas las guías para finalizar.'}
-                  </p>
+                  <div className="mt-2 space-y-1">
+                    <p className="text-center text-xs font-semibold text-slate-700">
+                      Requisitos para finalizar:
+                    </p>
+                    <ul className="space-y-0.5 text-[10px] text-slate-600">
+                      <li className={`flex items-center gap-1 ${guiasPorRuta.every((g) => g.estado === 'ENTREGADO' || g.estado === 'INCIDENCIA') ? 'text-emerald-600' : 'text-amber-600'}`}>
+                        <span className="material-symbols-outlined text-xs">
+                          {guiasPorRuta.every((g) => g.estado === 'ENTREGADO' || g.estado === 'INCIDENCIA') ? 'check_circle' : 'radio_button_unchecked'}
+                        </span>
+                        Todas las guías marcadas como Entregado o Incidencia
+                      </li>
+                      <li className={`flex items-center gap-1 ${todasLasGuiasTienenDatosGuardados ? 'text-emerald-600' : 'text-amber-600'}`}>
+                        <span className="material-symbols-outlined text-xs">
+                          {todasLasGuiasTienenDatosGuardados ? 'check_circle' : 'radio_button_unchecked'}
+                        </span>
+                        Todas las guías con datos y fotos guardados
+                      </li>
+                      <li className={`flex items-center gap-1 ${totalFotos > 0 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                        <span className="material-symbols-outlined text-xs">
+                          {totalFotos > 0 ? 'check_circle' : 'radio_button_unchecked'}
+                        </span>
+                        Al menos 1 foto de hoja de ruta subida ({totalFotos} foto{totalFotos !== 1 ? 's' : ''})
+                      </li>
+                      <li className={`flex items-center gap-1 ${guiaIdsEnEdicion.size === 0 ? 'text-emerald-600' : 'text-amber-600'}`}>
+                        <span className="material-symbols-outlined text-xs">
+                          {guiaIdsEnEdicion.size === 0 ? 'check_circle' : 'radio_button_unchecked'}
+                        </span>
+                        Ninguna guía en modo edición ({guiaIdsEnEdicion.size} en edición)
+                      </li>
+                    </ul>
+                  </div>
                 )}
               </>
             )}
