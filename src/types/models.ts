@@ -34,6 +34,8 @@ export interface Stop {
   guiaIds: string[]
   /** Si todas las guías de la parada están ENTREGADO o INCIDENCIA (panel chofer). */
   completada?: boolean
+  /** Si alguna guía de la parada tiene INCIDENCIA. */
+  tieneIncidencia?: boolean
 }
 
 export interface GuiaEntrega {
