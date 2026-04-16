@@ -175,15 +175,15 @@ export function LoginPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700">Correo electrónico</label>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700">Email o Celular</label>
               <div className="relative">
                 <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-slate-400">mail</span>
                 <input
-                  type="email"
+                  type="text"
                   value={email}
                   onChange={(e) => {
                     const value = e.target.value
-                    // Solo permitir caracteres ASCII básicos para emails (sin espacios, tildes, ñ, emojis)
+                    // Permitir números, letras, @, ., _, -
                     if (value === '' || /^[a-zA-Z0-9@._-]*$/.test(value)) {
                       setEmail(value)
                       if (value.trim()) {
@@ -202,7 +202,7 @@ export function LoginPage() {
                   }}
                   maxLength={150}
                   required
-                  placeholder="Ingresa tu correo electrónico"
+                  placeholder="Ingresa tu email o número de celular"
                   className={`w-full rounded-lg border bg-white py-2.5 pl-10 pr-4 text-sm text-slate-900 placeholder-slate-400 shadow-sm transition-shadow focus:outline-none focus:ring-2 ${
                     requiredErrors.email ? 'border-red-400 focus:border-red-400 focus:ring-red-100' : 'border-slate-300 focus:border-primary focus:ring-primary/15'
                   }`}
