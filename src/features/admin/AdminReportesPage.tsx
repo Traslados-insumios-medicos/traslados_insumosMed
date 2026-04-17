@@ -587,7 +587,7 @@ export function AdminReportesPage() {
 
       {/* Filtros globales */}
       <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
           <div className="flex flex-col gap-1.5">
             <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">Tipo de cliente</label>
             <div className="relative">
@@ -668,11 +668,11 @@ export function AdminReportesPage() {
       </div>
 
       {/* Tabs */}
-      <div className="flex items-center justify-between border-b border-slate-200">
-        <div className="flex gap-1">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-200">
+        <div className="flex gap-1 overflow-x-auto">
           {tabs.map((t) => (
             <button key={t.id} type="button" onClick={() => setTab(t.id)}
-              className={`border-b-2 px-5 py-3 text-sm font-medium transition-colors ${
+              className={`whitespace-nowrap border-b-2 px-4 py-3 text-sm font-medium transition-colors ${
                 tab === t.id ? 'border-primary text-primary' : 'border-transparent text-slate-500 hover:text-slate-700'
               }`}>
               {t.label}
@@ -681,44 +681,52 @@ export function AdminReportesPage() {
         </div>
         
         {/* Botones de exportación */}
-        <div className="flex gap-2 pb-2">
+        <div className="flex gap-2 pb-2 sm:pb-0">
           {tab === 'cliente' && (
             <>
               <button type="button" onClick={handleExportClienteExcel} className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100">
-                <span className="material-symbols-outlined text-sm">table_view</span>Excel
+                <span className="material-symbols-outlined text-sm">table_view</span>
+                <span className="hidden sm:inline">Excel</span>
               </button>
               <button type="button" onClick={handleExportClientePDF} className="flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100">
-                <span className="material-symbols-outlined text-sm">picture_as_pdf</span>PDF
+                <span className="material-symbols-outlined text-sm">picture_as_pdf</span>
+                <span className="hidden sm:inline">PDF</span>
               </button>
             </>
           )}
           {tab === 'chofer' && (
             <>
               <button type="button" onClick={handleExportChoferExcel} className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100">
-                <span className="material-symbols-outlined text-sm">table_view</span>Excel
+                <span className="material-symbols-outlined text-sm">table_view</span>
+                <span className="hidden sm:inline">Excel</span>
               </button>
               <button type="button" onClick={handleExportChoferPDF} className="flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100">
-                <span className="material-symbols-outlined text-sm">picture_as_pdf</span>PDF
+                <span className="material-symbols-outlined text-sm">picture_as_pdf</span>
+                <span className="hidden sm:inline">PDF</span>
               </button>
             </>
           )}
           {tab === 'fechas' && (
             <>
               <button type="button" onClick={handleExportFechasExcel} className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100">
-                <span className="material-symbols-outlined text-sm">table_view</span>Excel
+                <span className="material-symbols-outlined text-sm">table_view</span>
+                <span className="hidden sm:inline">Excel</span>
               </button>
               <button type="button" onClick={handleExportFechasPDF} className="flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100">
-                <span className="material-symbols-outlined text-sm">picture_as_pdf</span>PDF
+                <span className="material-symbols-outlined text-sm">picture_as_pdf</span>
+                <span className="hidden sm:inline">PDF</span>
               </button>
             </>
           )}
           {tab === 'guia' && (
             <>
               <button type="button" onClick={handleExportGuiaExcel} className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100">
-                <span className="material-symbols-outlined text-sm">table_view</span>Excel
+                <span className="material-symbols-outlined text-sm">table_view</span>
+                <span className="hidden sm:inline">Excel</span>
               </button>
               <button type="button" onClick={handleExportGuiaPDF} className="flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100">
-                <span className="material-symbols-outlined text-sm">picture_as_pdf</span>PDF
+                <span className="material-symbols-outlined text-sm">picture_as_pdf</span>
+                <span className="hidden sm:inline">PDF</span>
               </button>
             </>
           )}
