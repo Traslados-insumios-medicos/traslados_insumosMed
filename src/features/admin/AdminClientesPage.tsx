@@ -18,7 +18,7 @@ interface Cliente {
   usuarios?: { id: string; nombre: string; email: string; activo: boolean }[]
 }
 interface PaginatedResponse { data: Cliente[]; total: number; page: number; limit: number }
-interface PasswordModalData { clienteNombre: string; password: string }
+interface PasswordModalData { clienteNombre: string; email: string; password: string }
 
 function ToggleActivo({ activo, onToggle }: { activo: boolean; onToggle: () => void }) {
   const base = 'relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2'
@@ -214,7 +214,7 @@ export function AdminClientesPage() {
       
       // Mostrar el modal de contraseña
       setPasswordModal({
-        nombre: res.data.usuario.nombre,
+        clienteNombre: res.data.usuario.nombre,
         email: res.data.usuario.email,
         password: res.data.passwordTemporal,
       })
@@ -709,7 +709,10 @@ export function AdminClientesPage() {
               </button>
             </div>
             <div className="space-y-4 p-6">
-              <p className="text-sm text-slate-600">El usuario <span className="font-semibold">{passwordModal.clienteNombre}</span> fue creado exitosamente.</p>
+              <p className="text-sm text-slate-600">
+                El usuario <span className="font-semibold">{passwordModal.clienteNombre}</span> 
+                {passwordModal.email && <> (<span className="font-mono text-xs">{passwordModal.email}</span>)</>} fue creado exitosamente.
+              </p>
               <div className="rounded-xl bg-amber-50 p-4">
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-amber-700">Contraseña temporal</p>
                 <div className="flex items-center gap-3">
