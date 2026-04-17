@@ -5,6 +5,7 @@ import { SeguimientoChoferStepper } from '../../components/cliente/SeguimientoCh
 import { api } from '../../services/api'
 import { useToastStore } from '../../store/toastStore'
 import { exportToExcel, exportToPDF } from '../../utils/exportUtils'
+import { useImageDownload } from '../../hooks/useImageDownload'
 
 const tipoNovedadLabel: Record<string, string> = {
   DIRECCION_INCORRECTA: 'Dirección incorrecta',
@@ -53,6 +54,7 @@ interface GuiaDetalleApi {
 export function ClienteEnvioDetallePage() {
   const { guiaId } = useParams<{ guiaId: string }>()
   const addToast = useToastStore((s) => s.addToast)
+  const { downloadImage } = useImageDownload()
   const [guia, setGuia] = useState<GuiaDetalleApi | null>(null)
   const [loading, setLoading] = useState(true)
   const [seguimientoActualizadoAt, setSeguimientoActualizadoAt] = useState<string | null>(null)
@@ -203,11 +205,7 @@ export function ClienteEnvioDetallePage() {
   }
 
   const handleDownloadFoto = (url: string, nombre: string) => {
-    const a = document.createElement('a')
-    a.href = url
-    a.download = nombre
-    a.target = '_blank'
-    a.click()
+    downloadImage(url, nombre)
   }
 
   return (

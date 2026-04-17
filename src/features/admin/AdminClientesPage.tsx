@@ -327,7 +327,7 @@ export function AdminClientesPage() {
             const userRes = await api.post<{ usuario: object; passwordTemporal: string }>('/auth/register', {
               nombre: usuarioNombre, email: usuarioEmail, rol: 'CLIENTE', clienteId: editingId,
             })
-            setPasswordModal({ clienteNombre: usuarioNombre, password: userRes.data.passwordTemporal })
+            setPasswordModal({ clienteNombre: usuarioNombre, email: usuarioEmail, password: userRes.data.passwordTemporal })
           } catch (userErr: unknown) {
             const userMessage = (userErr as { response?: { data?: { message?: string } } })?.response?.data?.message
             addToast(userMessage || 'Error al crear usuario de acceso', 'error')
@@ -350,7 +350,7 @@ export function AdminClientesPage() {
           const userRes = await api.post<{ usuario: object; passwordTemporal: string }>('/auth/register', {
             nombre: usuarioNombre, email: usuarioEmail, rol: 'CLIENTE', clienteId: clienteRes.data.id,
           })
-          setPasswordModal({ clienteNombre: usuarioNombre, password: userRes.data.passwordTemporal })
+          setPasswordModal({ clienteNombre: usuarioNombre, email: usuarioEmail, password: userRes.data.passwordTemporal })
         }
         await fetchClientes(1); resetForm()
       }
