@@ -4,7 +4,7 @@ import { api } from '../../services/api'
 import { useToastStore } from '../../store/toastStore'
 import { useDbRefresh } from '../../hooks/useDbRefresh'
 
-interface Chofer { id: string; nombre: string; email: string; cedula?: string | null; activo: boolean }
+interface Chofer { id: string; nombre: string; email: string; cedula?: string | null; celular: string; activo: boolean }
 interface ChoferDetalle extends Chofer { rol: string; clienteId?: string | null }
 interface PaginatedResponse { data: Chofer[]; total: number; page: number; limit: number }
 interface PasswordModalData { choferNombre: string; password: string }
@@ -32,9 +32,11 @@ export function AdminChoferesPage() {
   const [submitting, setSubmitting] = useState(false)
   const [nombre, setNombre] = useState('')
   const [cedula, setCedula] = useState('')
+  const [celular, setCelular] = useState('')
   const [email, setEmail] = useState('')
   const [nombreError, setNombreError] = useState('')
   const [cedulaError, setCedulaError] = useState('')
+  const [celularError, setCelularError] = useState('')
   const [emailError, setEmailError] = useState('')
   const [passwordModal, setPasswordModal] = useState<PasswordModalData | null>(null)
   const [copied, setCopied] = useState(false)
@@ -47,6 +49,7 @@ export function AdminChoferesPage() {
 
   const NOMBRE_REGEX = /^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]*$/
   const CEDULA_REGEX = /^\d{0,10}$/
+  const CELULAR_REGEX = /^\d{0,10}$/
   const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/
 
   const handleNombreChange = (val: string) => {
@@ -68,6 +71,18 @@ export function AdminChoferesPage() {
       setCedulaError('La cédula debe tener exactamente 10 dígitos numéricos')
     } else {
       setCedulaError('')
+    }
+  }
+
+  const handleCelularChange = (val: string) => {
+    if (!CELULAR_REGEX.test(val)) return // bloquea letras y más de 10 dígitos
+    setCelular(val)
+    if (!val.trim()) {
+      setCelularError('')
+    } else if (val.length !== 10) {
+      setCelularError('El celular debe tener exactamente 10 dígitos numéricos')
+    } else {
+      setCelularError('')
     }
   }
 
@@ -95,12 +110,12 @@ export function AdminChoferesPage() {
   useDbRefresh('usuarios', () => fetchChoferes(page, true))
 
   const resetForm = () => {
-    setEditingId(null); setNombre(''); setCedula(''); setEmail('')
-    setNombreError(''); setCedulaError(''); setEmailError('')
+    setEditingId(null); setNombre(''); setCedula(''); setCelular(''); setEmail('')
+    setNombreError(''); setCedulaError(''); setCelularError(''); setEmailError('')
     setShowModal(false)
   }
 
-  const handleEdit = (ch: Chofer) => { setEditingId(ch.id); setNombre(ch.nombre); setCedula(ch.cedula ?? ''); setEmail(ch.email); setShowModal(true) }
+  const handleEdit = (ch: Chofer) => { setEditingId(ch.id); setNombre(ch.nombre); setCedula(ch.cedula ?? ''); setCelular(ch.celular); setEmail(ch.email); setShowModal(true) }
 
   const openDetail = (id: string) => {
     setDetailId(id)
@@ -155,31 +170,33 @@ export function AdminChoferesPage() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    if (!nombre.trim() || !email.trim() || !cedula.trim()) {
+    if (!nombre.trim() || !email.trim() || !cedula.trim() || !celular.trim()) {
       if (!nombre.trim()) setNombreError(REQUIRED_MESSAGE)
       if (!cedula.trim()) setCedulaError(REQUIRED_MESSAGE)
+      if (!celular.trim()) setCelularError(REQUIRED_MESSAGE)
       if (!email.trim()) setEmailError(REQUIRED_MESSAGE)
       return
     }
-    if (nombreError || cedulaError || emailError) return
+    if (nombreError || cedulaError || celularError || emailError) return
     if (cedula.length !== 10) { setCedulaError('La cédula debe tener exactamente 10 dígitos numéricos'); return }
+    if (celular.length !== 10) { setCelularError('El celular debe tener exactamente 10 dígitos numéricos'); return }
     if (!EMAIL_REGEX.test(email)) { setEmailError('El email debe contener @, dominio y extensión válida (ej. usuario@empresa.com)'); return }
     setSubmitting(true)
     try {
       if (editingId) {
-        const res = await api.put<Chofer>(`/usuarios/${editingId}`, { nombre, cedula, email })
+        const res = await api.put<Chofer>(`/usuarios/${editingId}`, { nombre, cedula, celular, email })
         setChoferes((prev) => prev.map((ch) => ch.id === editingId ? res.data : ch))
         addToast('Chofer actualizado', 'success')
         await fetchChoferes(page)
         resetForm()
       } else {
-        const res = await api.post<{ usuario: Chofer; passwordTemporal: string }>('/auth/register', { nombre, email, cedula, rol: 'CHOFER' })
+        const res = await api.post<{ usuario: Chofer; passwordTemporal: string }>('/auth/register', { nombre, email, cedula, celular, rol: 'CHOFER' })
         setPasswordModal({ choferNombre: nombre, password: res.data.passwordTemporal })
         await fetchChoferes(1); resetForm()
       }
     } catch (err: unknown) {
       const status = (err as { response?: { status?: number } })?.response?.status
-      addToast(status === 409 ? 'Ya existe un chofer con ese email' : 'Error al guardar', 'error')
+      addToast(status === 409 ? 'Ya existe un chofer con ese email o celular' : 'Error al guardar', 'error')
     } finally { setSubmitting(false) }
   }
 
@@ -193,7 +210,8 @@ export function AdminChoferesPage() {
     return (
       ch.nombre.toLowerCase().includes(search) ||
       ch.email.toLowerCase().includes(search) ||
-      ch.cedula?.toLowerCase().includes(search)
+      ch.cedula?.toLowerCase().includes(search) ||
+      ch.celular.toLowerCase().includes(search)
     )
   })
 
@@ -221,7 +239,7 @@ export function AdminChoferesPage() {
           type="text"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          placeholder="Buscar por nombre, email o cédula..."
+          placeholder="Buscar por nombre, email, cédula o celular..."
           className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-10 text-sm placeholder:text-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
         />
         {searchTerm && (
@@ -248,22 +266,22 @@ export function AdminChoferesPage() {
               </button>
             </div>
             <form onSubmit={handleSubmit} className="space-y-4 p-6">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Nombre *</label>
-                    <span className={`text-[10px] ${nombre.length > 80 ? 'text-amber-500' : 'text-slate-400'}`}>{nombre.length}/100</span>
-                  </div>
-                  <input className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20 ${nombreError ? 'border-red-400 focus:border-red-400' : 'border-slate-300 focus:border-primary'}`}
-                    value={nombre} onChange={(e) => handleNombreChange(e.target.value)} onBlur={() => {
-                      if (!nombre.trim()) {
-                        setNombreError(REQUIRED_MESSAGE)
-                        return
-                      }
-                      setNombreError('')
-                    }} required maxLength={100} />
-                  {nombreError && <p className="mt-1 text-xs text-red-500">{nombreError}</p>}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">Nombre *</label>
+                  <span className={`text-[10px] ${nombre.length > 80 ? 'text-amber-500' : 'text-slate-400'}`}>{nombre.length}/100</span>
                 </div>
+                <input className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20 ${nombreError ? 'border-red-400 focus:border-red-400' : 'border-slate-300 focus:border-primary'}`}
+                  value={nombre} onChange={(e) => handleNombreChange(e.target.value)} onBlur={() => {
+                    if (!nombre.trim()) {
+                      setNombreError(REQUIRED_MESSAGE)
+                      return
+                    }
+                    setNombreError('')
+                  }} required maxLength={100} />
+                {nombreError && <p className="mt-1 text-xs text-red-500">{nombreError}</p>}
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Cédula *</label>
                   <input className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20 ${cedulaError ? 'border-red-400 focus:border-red-400' : 'border-slate-300 focus:border-primary'}`}
@@ -279,6 +297,22 @@ export function AdminChoferesPage() {
                       setCedulaError('')
                     }} placeholder="1712345678" inputMode="numeric" required />
                   {cedulaError && <p className="mt-1 text-xs text-red-500">{cedulaError}</p>}
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Celular *</label>
+                  <input className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20 ${celularError ? 'border-red-400 focus:border-red-400' : 'border-slate-300 focus:border-primary'}`}
+                    value={celular} onChange={(e) => handleCelularChange(e.target.value)} onBlur={() => {
+                      if (!celular.trim()) {
+                        setCelularError(REQUIRED_MESSAGE)
+                        return
+                      }
+                      if (celular.length !== 10) {
+                        setCelularError('El celular debe tener exactamente 10 dígitos numéricos')
+                        return
+                      }
+                      setCelularError('')
+                    }} placeholder="0987654321" inputMode="numeric" required />
+                  {celularError && <p className="mt-1 text-xs text-red-500">{celularError}</p>}
                 </div>
               </div>
               <div>
@@ -302,7 +336,7 @@ export function AdminChoferesPage() {
               </div>
               <div className="flex justify-end gap-3 border-t border-slate-100 pt-4">
                 <button type="button" onClick={resetForm} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">Cancelar</button>
-                <button type="submit" disabled={submitting || !nombre.trim() || !cedula.trim() || !email.trim() || !!nombreError || !!cedulaError || !!emailError}
+                <button type="submit" disabled={submitting || !nombre.trim() || !cedula.trim() || !celular.trim() || !email.trim() || !!nombreError || !!cedulaError || !!celularError || !!emailError}
                   className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-dark disabled:opacity-60">
                   {submitting && <span className="material-symbols-outlined animate-spin text-base">progress_activity</span>}
                   {editingId ? 'Guardar' : 'Crear chofer'}
@@ -408,6 +442,10 @@ export function AdminChoferesPage() {
                 <div>
                   <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Cédula</dt>
                   <dd className="text-slate-900">{detailChofer.cedula ?? '—'}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Celular</dt>
+                  <dd className="text-slate-900">{detailChofer.celular}</dd>
                 </div>
                 <div>
                   <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Rol</dt>
@@ -524,10 +562,10 @@ export function AdminChoferesPage() {
             </div>
 
             {/* Vista desktop */}
-            <table className="hidden w-full min-w-[600px] text-left text-sm sm:table">
+            <table className="hidden w-full min-w-[700px] text-left text-sm sm:table">
               <thead className="border-b border-slate-100 bg-slate-50">
                 <tr>
-                  {['Nombre', 'Cédula', 'Email', 'Estado', 'Acciones'].map((h) => (
+                  {['Nombre', 'Cédula', 'Celular', 'Email', 'Estado', 'Acciones'].map((h) => (
                     <th key={h} className="px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-400">{h}</th>
                   ))}
                 </tr>
@@ -544,6 +582,7 @@ export function AdminChoferesPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-slate-500">{ch.cedula ?? <span className="text-slate-300">—</span>}</td>
+                    <td className="px-4 py-3 text-slate-500">{ch.celular}</td>
                     <td className="px-4 py-3 text-slate-500">{trunc(ch.email)}</td>
                     <td className="px-4 py-3">
                       <ToggleActivo activo={ch.activo} onToggle={() => handleToggleActivo(ch.id)} />
