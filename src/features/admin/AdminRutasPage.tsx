@@ -235,8 +235,21 @@ export function AdminRutasPage() {
     const hasClienteId = !!s.clienteId
     const hasDireccion = !!s.direccion && s.lat !== null
     const allGuiasValid = s.guias.every(g => g.descripcion.trim().length > 0)
+    console.log('🔍 Validación parada:', {
+      clienteId: s.clienteId,
+      hasClienteId,
+      direccion: s.direccion,
+      lat: s.lat,
+      lng: s.lng,
+      hasDireccion,
+      guias: s.guias,
+      allGuiasValid,
+      result: hasClienteId && hasDireccion && allGuiasValid
+    })
     return hasClienteId && hasDireccion && allGuiasValid
   })
+  
+  console.log('🔍 canSubmit final:', { choferId, canSubmit, stopsForm })
 
   const handleSubmit = async () => {
     const nextStopsErrors: { [key: number]: { clienteId?: string; direccion?: string; guias?: { [guiaIdx: number]: string } } } = {}
