@@ -208,13 +208,44 @@ export function AdminRutasPage() {
     }
   }
 
-  const handleSubClienteChange = (i: number, subClienteId: string) => {
+  const handleSubClienteChange = async (i: number, subClienteId: string) => {
     const stop = stopsForm[i]
     const principal = clientes.find((c) => c.id === stop.clienteId)
     const sub = principal?.clientesSecundarios?.find((s) => s.id === subClienteId)
-    const direccion = sub?.direccion ?? ''
-    const lat = sub?.lat ?? null
-    const lng = sub?.lng ?? null
+    
+    console.log('🔍 Cliente secundario seleccionado:', {
+      subClienteId,
+      principal: principal?.nombre,
+      sub: sub,
+      direccion: sub?.direccion,
+      lat: sub?.lat,
+      lng: sub?.lng
+    })
+    
+    let direccion = sub?.direccion ?? ''
+    let lat = sub?.lat ?? null
+    let lng = sub?.lng ?? null
+    
+    // Si el cliente secundario tiene dirección pero no coordenadas, geocodificar automáticamente
+    if (direccion && (lat === null || lng === null)) {
+      console.log('🗺️ Geocodificando dirección automáticamente:', direccion)
+      try {
+        const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN
+        const response = await fetch(
+          `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(direccion)}.json?access_token=${MAPBOX_TOKEN}&limit=1`
+        )
+        const data = await response.json()
+        if (data.features && data.features.length > 0) {
+          const [lng_result, lat_result] = data.features[0].center
+          lat = lat_result
+          lng = lng_result
+          console.log('✅ Coordenadas obtenidas:', { lat, lng })
+        }
+      } catch (error) {
+        console.error('❌ Error al geocodificar:', error)
+      }
+    }
+    
     setStopsForm((p) => p.map((s, idx) => idx === i ? { ...s, subClienteId, direccion, lat, lng } : s))
   }
 
@@ -568,7 +599,7 @@ export function AdminRutasPage() {
                         <div>
                           <label className="mb-1 block text-xs font-medium text-slate-600">Dirección *</label>
                           <MapboxAddressInput
-                            key={`stop-${i}`}
+                            key={`stop-${i}-${s.lat}-${s.lng}`}
                             value={s.direccion}
                             coords={s.lat !== null && s.lng !== null ? { lat: s.lat, lng: s.lng } : null}
                             onChange={(dir, coords) => handleDireccionChange(i, dir, coords)}
