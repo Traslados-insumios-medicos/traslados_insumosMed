@@ -880,11 +880,19 @@ export function AdminRutasPage() {
                         ) : (
                           <div className="flex flex-wrap gap-3">
                             {ruta.fotos.map((f, idx) => (
-                              <div key={f.id} className="group relative overflow-hidden rounded-lg border border-slate-200 transition-all hover:border-primary hover:shadow-md">
-                                <img src={f.urlPreview} alt="Hoja de ruta" className="h-40 w-auto max-w-full object-cover transition-transform duration-200 group-hover:scale-105" />
+                              <div key={f.id} className="group relative overflow-hidden rounded-lg border border-slate-200 transition-all hover:border-primary hover:shadow-md cursor-pointer">
+                                <img 
+                                  src={f.urlPreview} 
+                                  alt="Hoja de ruta" 
+                                  className="h-40 w-auto max-w-full object-cover transition-transform duration-200 group-hover:scale-105"
+                                  onClick={() => window.open(f.urlPreview, '_blank')}
+                                />
                                 <button
                                   type="button"
-                                  onClick={() => downloadImage(f.urlPreview, `hoja-ruta-${ruta.id.slice(-6)}-${idx + 1}.jpg`)}
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    downloadImage(f.urlPreview, `hoja-ruta-${ruta.id.slice(-6)}-${idx + 1}.jpg`)
+                                  }}
                                   className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100"
                                   title="Descargar imagen"
                                 >
@@ -1013,12 +1021,19 @@ export function AdminRutasPage() {
                         </p>
                         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                           {fotos.map((f, idx) => (
-                            <div key={f.id} className="group relative overflow-hidden rounded-lg border border-slate-200 transition-all hover:border-primary hover:shadow-md">
-                              <img src={f.urlPreview} alt="Foto entrega"
-                                className="h-32 w-full object-cover transition-transform duration-200 group-hover:scale-105" />
+                            <div key={f.id} className="group relative overflow-hidden rounded-lg border border-slate-200 transition-all hover:border-primary hover:shadow-md cursor-pointer">
+                              <img 
+                                src={f.urlPreview} 
+                                alt="Foto entrega"
+                                className="h-32 w-full object-cover transition-transform duration-200 group-hover:scale-105"
+                                onClick={() => window.open(f.urlPreview, '_blank')}
+                              />
                               <button
                                 type="button"
-                                onClick={() => downloadImage(f.urlPreview, `entrega-${g.numeroGuia}-${idx + 1}.jpg`)}
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  downloadImage(f.urlPreview, `entrega-${g.numeroGuia}-${idx + 1}.jpg`)
+                                }}
                                 className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100"
                                 title="Descargar imagen"
                               >
