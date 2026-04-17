@@ -56,6 +56,10 @@ interface PaginatedRutas {
 interface ClienteOption { id: string; nombre: string; tipo: string; clientePrincipalId?: string | null; clientesSecundarios?: { id: string; nombre: string; direccion?: string; lat?: number | null; lng?: number | null; ruc?: string; activo?: boolean }[] }
 interface ChoferOption { id: string; nombre: string }
 
+interface GuiaForm {
+  descripcion: string
+}
+
 interface StopForm {
   clienteId: string       // principal seleccionado
   subClienteId: string    // secundario seleccionado (opcional)
@@ -63,10 +67,11 @@ interface StopForm {
   lat: number | null
   lng: number | null
   notas: string
-  guiaDescripcion: string
+  guias: GuiaForm[]       // cada parada tiene múltiples guías
 }
 
-const stopVacio = (): StopForm => ({ clienteId: '', subClienteId: '', direccion: '', lat: null, lng: null, notas: '', guiaDescripcion: '' })
+const guiaVacia = (): GuiaForm => ({ descripcion: '' })
+const stopVacio = (): StopForm => ({ clienteId: '', subClienteId: '', direccion: '', lat: null, lng: null, notas: '', guias: [guiaVacia()] })
 const LIMIT = 10
 
 export function AdminRutasPage() {
@@ -109,7 +114,7 @@ export function AdminRutasPage() {
   const [stopsForm, setStopsForm] = useState<StopForm[]>([stopVacio()])
   const REQUIRED_MESSAGE = 'Este campo es obligatorio'
   const [choferError, setChoferError] = useState('')
-  const [stopsErrors, setStopsErrors] = useState<{ [key: number]: { clienteId?: string; direccion?: string; guiaDescripcion?: string } }>({})
+  const [stopsErrors, setStopsErrors] = useState<{ [key: number]: { clienteId?: string; direccion?: string; guias?: { [guiaIdx: number]: string } } }>({})
 
   const totalPages = Math.max(1, Math.ceil(total / LIMIT))
 
@@ -168,8 +173,28 @@ export function AdminRutasPage() {
 
   const handleAddStop = () => setStopsForm((p) => [...p, stopVacio()])
   const handleRemoveStop = (i: number) => setStopsForm((p) => p.filter((_, idx) => idx !== i))
-  const handleStopChange = (i: number, field: keyof StopForm, value: string) =>
+  const handleStopChange = (i: number, field: keyof Omit<StopForm, 'guias'>, value: string) =>
     setStopsForm((p) => p.map((s, idx) => (idx === i ? { ...s, [field]: value } : s)))
+  
+  const handleAddGuia = (stopIdx: number) => {
+    setStopsForm((p) => p.map((s, idx) => idx === stopIdx ? { ...s, guias: [...s.guias, guiaVacia()] } : s))
+  }
+  
+  const handleRemoveGuia = (stopIdx: number, guiaIdx: number) => {
+    setStopsForm((p) => p.map((s, idx) => {
+      if (idx !== stopIdx) return s
+      // Mantener al menos 1 guía
+      if (s.guias.length <= 1) return s
+      return { ...s, guias: s.guias.filter((_, gIdx) => gIdx !== guiaIdx) }
+    }))
+  }
+  
+  const handleGuiaChange = (stopIdx: number, guiaIdx: number, value: string) => {
+    setStopsForm((p) => p.map((s, idx) => {
+      if (idx !== stopIdx) return s
+      return { ...s, guias: s.guias.map((g, gIdx) => gIdx === guiaIdx ? { descripcion: value } : g) }
+    }))
+  }
   const handleClienteChange = (i: number, clienteId: string) => {
     setStopsForm((p) => p.map((s, idx) => idx === i ? { ...s, clienteId, subClienteId: '', direccion: '', lat: null, lng: null } : s))
     if (clienteId) {
@@ -206,14 +231,21 @@ export function AdminRutasPage() {
     }
   }
 
-  const canSubmit = choferId && stopsForm.every((s) => s.clienteId && s.direccion && s.lat !== null)
+  const canSubmit = choferId && stopsForm.every((s) => s.clienteId && s.direccion && s.lat !== null && s.guias.every(g => g.descripcion.trim()))
 
   const handleSubmit = async () => {
-    const nextStopsErrors: { [key: number]: { clienteId?: string; direccion?: string; guiaDescripcion?: string } } = {}
+    const nextStopsErrors: { [key: number]: { clienteId?: string; direccion?: string; guias?: { [guiaIdx: number]: string } } } = {}
     stopsForm.forEach((s, i) => {
       if (!s.clienteId) nextStopsErrors[i] = { ...(nextStopsErrors[i] ?? {}), clienteId: REQUIRED_MESSAGE }
       if (!s.direccion || s.lat === null) nextStopsErrors[i] = { ...(nextStopsErrors[i] ?? {}), direccion: REQUIRED_MESSAGE }
-      if (!s.guiaDescripcion.trim()) nextStopsErrors[i] = { ...(nextStopsErrors[i] ?? {}), guiaDescripcion: REQUIRED_MESSAGE }
+      
+      const guiasErrors: { [guiaIdx: number]: string } = {}
+      s.guias.forEach((g, gIdx) => {
+        if (!g.descripcion.trim()) guiasErrors[gIdx] = REQUIRED_MESSAGE
+      })
+      if (Object.keys(guiasErrors).length > 0) {
+        nextStopsErrors[i] = { ...(nextStopsErrors[i] ?? {}), guias: guiasErrors }
+      }
     })
 
     setStopsErrors(nextStopsErrors)
@@ -222,18 +254,23 @@ export function AdminRutasPage() {
     if (!canSubmit || !choferId || Object.keys(nextStopsErrors).length > 0) return
     setSubmitting(true)
     try {
-      await api.post('/rutas', {
-        fecha,
-        choferId,
-        stops: stopsForm.map((s, i) => ({
+      // Crear una guía por cada guía en cada parada
+      const guiasPayload = stopsForm.flatMap((s, i) => 
+        s.guias.map((g) => ({
           orden: i + 1,
           direccion: s.direccion,
           lat: s.lat,
           lng: s.lng,
           clienteId: s.subClienteId || s.clienteId,
           notas: s.notas || undefined,
-          guiaDescripcion: s.guiaDescripcion || 'Insumos médicos',
-        })),
+          guiaDescripcion: g.descripcion || 'Insumos médicos',
+        }))
+      )
+      
+      await api.post('/rutas', {
+        fecha,
+        choferId,
+        stops: guiasPayload,
       })
       addToast('Ruta creada', 'success')
       resetForm()
@@ -438,6 +475,7 @@ export function AdminRutasPage() {
                   type="date"
                   value={fecha}
                   onChange={(e) => setFecha(e.target.value)}
+                  min={new Date().toISOString().split('T')[0]}
                   className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
                 />
               </div>
@@ -452,115 +490,85 @@ export function AdminRutasPage() {
                 </div>
                 <div className="space-y-4">
                   {stopsForm.map((s, i) => (
-                    <div key={i} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <div key={i} className="rounded-xl border-2 border-slate-300 bg-white p-4 shadow-sm">
                       <div className="mb-3 flex items-center justify-between">
-                        <span className="text-xs font-bold uppercase tracking-wider text-primary">Parada #{i + 1}</span>
+                        <span className="flex items-center gap-2 text-sm font-bold text-slate-900">
+                          <span className="material-symbols-outlined text-primary">location_on</span>
+                          Parada #{i + 1}
+                        </span>
                         {stopsForm.length > 1 && (
-                          <button type="button" onClick={() => handleRemoveStop(i)} className="text-slate-400 hover:text-red-500">
-                            <span className="material-symbols-outlined text-sm">delete</span>
+                          <button type="button" onClick={() => handleRemoveStop(i)} className="text-slate-400 hover:text-red-500 transition-colors">
+                            <span className="material-symbols-outlined text-[20px]">delete</span>
                           </button>
                         )}
                       </div>
                       <div className="space-y-3">
                         {/* Cliente principal */}
-                        <select
-                          value={s.clienteId}
-                          onChange={(e) => handleClienteChange(i, e.target.value)}
-                          onBlur={() => {
-                            if (!s.clienteId) {
-                              setStopsErrors(prev => ({ ...prev, [i]: { ...prev[i], clienteId: REQUIRED_MESSAGE } }))
-                            }
-                          }}
-                          className={`w-full rounded-lg border bg-white px-3 py-2 text-sm ${
-                            stopsErrors[i]?.clienteId ? 'border-red-400' : 'border-slate-200'
-                          }`}
-                        >
-                          <option value="">Seleccionar cliente...</option>
-                          {clientes.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-                        </select>
-                        {stopsErrors[i]?.clienteId && (
-                          <p className="text-xs text-red-500">{stopsErrors[i].clienteId}</p>
-                        )}
+                        <div>
+                          <label className="mb-1 block text-xs font-medium text-slate-600">Cliente *</label>
+                          <select
+                            value={s.clienteId}
+                            onChange={(e) => handleClienteChange(i, e.target.value)}
+                            onBlur={() => {
+                              if (!s.clienteId) {
+                                setStopsErrors(prev => ({ ...prev, [i]: { ...prev[i], clienteId: REQUIRED_MESSAGE } }))
+                              }
+                            }}
+                            className={`w-full rounded-lg border bg-slate-50 px-3 py-2 text-sm ${
+                              stopsErrors[i]?.clienteId ? 'border-red-400' : 'border-slate-200'
+                            }`}
+                          >
+                            <option value="">Seleccionar cliente...</option>
+                            {clientes.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
+                          </select>
+                          {stopsErrors[i]?.clienteId && (
+                            <p className="mt-1 text-xs text-red-500">{stopsErrors[i].clienteId}</p>
+                          )}
+                        </div>
+                        
                         {/* Cliente secundario — solo si el principal tiene secundarios */}
                         {s.clienteId && (() => {
                           const principal = clientes.find((c) => c.id === s.clienteId)
                           const subs = principal?.clientesSecundarios ?? []
                           if (!subs.length) return null
                           return (
-                            <select
-                              value={s.subClienteId}
-                              onChange={(e) => handleSubClienteChange(i, e.target.value)}
-                              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600"
-                            >
-                              <option value="">Punto de entrega (opcional)...</option>
-                              {subs.map((sub) => <option key={sub.id} value={sub.id}>{sub.nombre}</option>)}
-                            </select>
+                            <div>
+                              <label className="mb-1 block text-xs font-medium text-slate-600">Punto de entrega (opcional)</label>
+                              <select
+                                value={s.subClienteId}
+                                onChange={(e) => handleSubClienteChange(i, e.target.value)}
+                                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600"
+                              >
+                                <option value="">Seleccionar punto...</option>
+                                {subs.map((sub) => <option key={sub.id} value={sub.id}>{sub.nombre}</option>)}
+                              </select>
+                            </div>
                           )
                         })()}
+                        
                         {/* Dirección con autocomplete Mapbox */}
-                        <MapboxAddressInput
-                          key={`stop-${i}`}
-                          value={s.direccion}
-                          coords={s.lat !== null && s.lng !== null ? { lat: s.lat, lng: s.lng } : null}
-                          onChange={(dir, coords) => handleDireccionChange(i, dir, coords)}
-                          onBlur={() => {
-                            if (!s.direccion || s.lat === null) {
-                              setStopsErrors(prev => ({ ...prev, [i]: { ...prev[i], direccion: REQUIRED_MESSAGE } }))
-                            }
-                          }}
-                        />
-                        {stopsErrors[i]?.direccion && (
-                          <p className="text-xs text-red-500">{stopsErrors[i].direccion}</p>
-                        )}
-                        {s.lat !== null && (
-                          <p className="flex items-center gap-1 text-[11px] text-emerald-600">
-                            <span className="material-symbols-outlined text-sm">check_circle</span>
-                            Coordenadas guardadas
-                          </p>
-                        )}
-                        <div className="space-y-1.5">
-                          <div className="flex items-center justify-between">
-                            <label className="text-xs font-medium text-slate-600">Descripción de guía *</label>
-                            <span className={`text-[10px] ${s.guiaDescripcion.length > 130 ? 'text-amber-500' : 'text-slate-400'}`}>
-                              {s.guiaDescripcion.length}/150
-                            </span>
-                          </div>
-                          <input
-                            type="text"
-                            placeholder="Ej: Insumos médicos"
-                            value={s.guiaDescripcion}
-                            onChange={(e) => {
-                              handleStopChange(i, 'guiaDescripcion', e.target.value)
-                              if (e.target.value.trim()) {
-                                setStopsErrors(prev => {
-                                  const newErrors = { ...prev }
-                                  if (newErrors[i]) {
-                                    delete newErrors[i].guiaDescripcion
-                                    if (Object.keys(newErrors[i]).length === 0) delete newErrors[i]
-                                  }
-                                  return newErrors
-                                })
-                              }
-                            }}
-                            onBlur={() => {
-                              if (!s.guiaDescripcion.trim()) {
-                                setStopsErrors(prev => ({
-                                  ...prev,
-                                  [i]: { ...prev[i], guiaDescripcion: REQUIRED_MESSAGE }
-                                }))
-                              }
-                            }}
-                            maxLength={150}
-                            className={`w-full rounded-lg border bg-white px-3 py-2 text-sm ${
-                              stopsErrors[i]?.guiaDescripcion ? 'border-red-400' : 'border-slate-200'
-                            }`}
+                        <div>
+                          <label className="mb-1 block text-xs font-medium text-slate-600">Dirección *</label>
+                          <MapboxAddressInput
+                            key={`stop-${i}`}
+                            value={s.direccion}
+                            coords={s.lat !== null && s.lng !== null ? { lat: s.lat, lng: s.lng } : null}
+                            onChange={(dir, coords) => handleDireccionChange(i, dir, coords)}
                           />
-                          {stopsErrors[i]?.guiaDescripcion && (
-                            <p className="text-xs text-red-500">{stopsErrors[i].guiaDescripcion}</p>
+                          {stopsErrors[i]?.direccion && (
+                            <p className="mt-1 text-xs text-red-500">{stopsErrors[i].direccion}</p>
+                          )}
+                          {s.lat !== null && (
+                            <p className="mt-1 flex items-center gap-1 text-[11px] text-emerald-600">
+                              <span className="material-symbols-outlined text-sm">check_circle</span>
+                              Coordenadas guardadas
+                            </p>
                           )}
                         </div>
-                        <div className="space-y-1.5">
-                          <div className="flex items-center justify-between">
+                        
+                        {/* Notas */}
+                        <div>
+                          <div className="mb-1 flex items-center justify-between">
                             <label className="text-xs font-medium text-slate-600">Notas (opcional)</label>
                             <span className={`text-[10px] ${s.notas.length > 230 ? 'text-amber-500' : 'text-slate-400'}`}>
                               {s.notas.length}/250
@@ -572,8 +580,98 @@ export function AdminRutasPage() {
                             value={s.notas}
                             onChange={(e) => handleStopChange(i, 'notas', e.target.value)}
                             maxLength={250}
-                            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm"
+                            className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
                           />
+                        </div>
+
+                        {/* Sección de Guías */}
+                        <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                          <div className="mb-2 flex items-center justify-between">
+                            <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-700">
+                              <span className="material-symbols-outlined text-[16px] text-primary">inventory_2</span>
+                              Guías de esta parada
+                            </label>
+                            <button 
+                              type="button" 
+                              onClick={() => handleAddGuia(i)} 
+                              className="flex items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-[11px] font-semibold text-primary hover:bg-primary/20 transition-colors"
+                            >
+                              <span className="material-symbols-outlined text-[14px]">add</span>
+                              Agregar guía
+                            </button>
+                          </div>
+                          
+                          <div className="space-y-2">
+                            {s.guias.map((guia, gIdx) => (
+                              <div key={gIdx} className="rounded-lg border border-slate-200 bg-white p-2.5">
+                                <div className="mb-1.5 flex items-center justify-between">
+                                  <span className="text-[11px] font-semibold text-slate-500">Guía #{gIdx + 1}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleRemoveGuia(i, gIdx)}
+                                    disabled={s.guias.length <= 1}
+                                    className="text-slate-400 hover:text-red-500 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                                    title={s.guias.length <= 1 ? 'Debe haber al menos 1 guía' : 'Eliminar guía'}
+                                  >
+                                    <span className="material-symbols-outlined text-[16px]">close</span>
+                                  </button>
+                                </div>
+                                <div>
+                                  <div className="mb-1 flex items-center justify-between">
+                                    <label className="text-[10px] font-medium text-slate-600">Descripción *</label>
+                                    <span className={`text-[9px] ${guia.descripcion.length > 130 ? 'text-amber-500' : 'text-slate-400'}`}>
+                                      {guia.descripcion.length}/150
+                                    </span>
+                                  </div>
+                                  <input
+                                    type="text"
+                                    placeholder="Ej: Insumos médicos"
+                                    value={guia.descripcion}
+                                    onChange={(e) => {
+                                      handleGuiaChange(i, gIdx, e.target.value)
+                                      if (e.target.value.trim()) {
+                                        setStopsErrors(prev => {
+                                          const newErrors = { ...prev }
+                                          if (newErrors[i]?.guias?.[gIdx]) {
+                                            const guiasErrors = { ...newErrors[i].guias }
+                                            delete guiasErrors[gIdx]
+                                            if (Object.keys(guiasErrors).length === 0) {
+                                              delete newErrors[i].guias
+                                            } else {
+                                              newErrors[i] = { ...newErrors[i], guias: guiasErrors }
+                                            }
+                                            if (Object.keys(newErrors[i]).length === 0) delete newErrors[i]
+                                          }
+                                          return newErrors
+                                        })
+                                      }
+                                    }}
+                                    onBlur={() => {
+                                      if (!guia.descripcion.trim()) {
+                                        setStopsErrors(prev => ({
+                                          ...prev,
+                                          [i]: { 
+                                            ...prev[i], 
+                                            guias: { 
+                                              ...(prev[i]?.guias ?? {}), 
+                                              [gIdx]: REQUIRED_MESSAGE 
+                                            } 
+                                          }
+                                        }))
+                                      }
+                                    }}
+                                    maxLength={150}
+                                    className={`w-full rounded-md border bg-white px-2.5 py-1.5 text-xs ${
+                                      stopsErrors[i]?.guias?.[gIdx] ? 'border-red-400' : 'border-slate-200'
+                                    }`}
+                                  />
+                                  {stopsErrors[i]?.guias?.[gIdx] && (
+                                    <p className="mt-1 text-[10px] text-red-500">{stopsErrors[i].guias![gIdx]}</p>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
                         </div>
                       </div>
                     </div>
