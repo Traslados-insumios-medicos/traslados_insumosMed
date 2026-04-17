@@ -113,24 +113,36 @@ export function PhotoUploader({
     }
 
     if (draftMode) {
-      // Modo borrador: crear previews inmediatamente
-      const nuevasFotos: FotoBorrador[] = files.map(file => ({
-        file,
-        preview: URL.createObjectURL(file),
-        isLocal: true as const
-      }))
+      // Modo borrador: mostrar overlay mientras se crean los previews
+      showLoading()
       
-      // Actualizar estado inmediatamente para mostrar previews
-      const todasLasFotos = [...fotos, ...nuevasFotos]
-      setFotos(todasLasFotos)
+      // Delay para asegurar que el overlay se muestre antes de procesar
+      await new Promise(resolve => setTimeout(resolve, 300))
       
-      // Notificar al padre con todos los archivos
-      const todosLosArchivos = todasLasFotos
-        .filter(isFotoBorrador)
-        .map(f => f.file)
-      onDraftChange?.(todosLosArchivos)
-      
-      e.target.value = ''
+      try {
+        // Crear previews inmediatamente
+        const nuevasFotos: FotoBorrador[] = files.map(file => ({
+          file,
+          preview: URL.createObjectURL(file),
+          isLocal: true as const
+        }))
+        
+        // Actualizar estado inmediatamente para mostrar previews
+        const todasLasFotos = [...fotos, ...nuevasFotos]
+        setFotos(todasLasFotos)
+        
+        // Notificar al padre con todos los archivos
+        const todosLosArchivos = todasLasFotos
+          .filter(isFotoBorrador)
+          .map(f => f.file)
+        onDraftChange?.(todosLosArchivos)
+        
+        // Mantener el overlay un poco más para que se vea la foto
+        await new Promise(resolve => setTimeout(resolve, 500))
+      } finally {
+        hideLoading()
+        e.target.value = ''
+      }
       return
     }
 
@@ -152,6 +164,9 @@ export function PhotoUploader({
       }
       addToast('Foto(s) subida(s)', 'success')
       onUploaded?.()
+      
+      // Esperar un poco más para que se refleje la foto en la UI
+      await new Promise(resolve => setTimeout(resolve, 800))
     } catch (err: unknown) {
       const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
       addToast(message || 'Error al subir foto', 'error')

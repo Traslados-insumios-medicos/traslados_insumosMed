@@ -5,6 +5,7 @@ import { Link, useParams } from 'react-router-dom'
 import { api } from '../../services/api'
 import { useAuthStore } from '../../store/authStore'
 import { useToastStore } from '../../store/toastStore'
+import { useGlobalLoadingStore } from '../../store/globalLoadingStore'
 import { RouteMap } from '../../components/map/RouteMap'
 import { PhotoUploader } from './PhotoUploader'
 import { SeguimientoChoferStepper } from '../../components/cliente/SeguimientoChoferStepper'
@@ -674,12 +675,18 @@ export function ChoferRutaDetallePage() {
 
   const handleFinalizarRuta = async () => {
     if (!id || !puedeFinalizar) return
+    const showLoading = useGlobalLoadingStore.getState().show
+    const hideLoading = useGlobalLoadingStore.getState().hide
+    
+    showLoading()
     try {
       const res = await api.patch<RutaApi>(`/rutas/${id}/estado`, { estado: 'COMPLETADA' })
       setRuta(res.data)
       addToast('Ruta finalizada', 'success')
     } catch {
       addToast('Error al finalizar ruta', 'error')
+    } finally {
+      hideLoading()
     }
   }
 
