@@ -195,19 +195,27 @@ export function AdminClientesPage() {
   }
 
   const handleGenerateTempPassword = async (c: Cliente) => {
-    // Para clientes principales, debe tener un usuario asociado
-    const usuario = c.usuarios?.[0]
-    if (!usuario) {
-      addToast('Este cliente no tiene un usuario asociado', 'error')
-      return
-    }
-    
     const showLoading = useGlobalLoadingStore.getState().show
     const hideLoading = useGlobalLoadingStore.getState().hide
     
     showLoading()
     try {
-      const res = await api.post<{ passwordTemporal: string; usuario: { nombre: string; email: string } }>(`/auth/generate-temp-password/${usuario.id}`)
+      // Si tenemos el usuario en la respuesta, usarlo directamente
+      let usuarioId = c.usuarios?.[0]?.id
+      
+      // Si no tenemos el usuario, obtenerlo del backend
+      if (!usuarioId) {
+        const clienteDetalle = await api.get<Cliente>(`/clientes/${c.id}`)
+        usuarioId = clienteDetalle.data.usuarios?.[0]?.id
+      }
+      
+      if (!usuarioId) {
+        addToast('Este cliente no tiene un usuario asociado', 'error')
+        hideLoading()
+        return
+      }
+      
+      const res = await api.post<{ passwordTemporal: string; usuario: { nombre: string; email: string } }>(`/auth/generate-temp-password/${usuarioId}`)
       
       // Cerrar el modal de editar
       resetForm()
@@ -661,10 +669,7 @@ export function AdminClientesPage() {
               </label>
             </div>
           )}
-          {editingId && tipo === 'PRINCIPAL' && (() => {
-            const cliente = clientes.find(c => c.id === editingId)
-            return cliente?.usuarios && cliente.usuarios.length > 0
-          })() && (
+          {editingId && tipo === 'PRINCIPAL' && (
             <div className="border-t border-slate-200 pt-4">
               <button
                 type="button"
