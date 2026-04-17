@@ -461,9 +461,9 @@ export function AdminClientesPage() {
         <form onSubmit={handleSubmit} className="space-y-5 p-6">
           <div className="space-y-2">
             <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Tipo *</label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {(['PRINCIPAL', 'SECUNDARIO'] as TipoCliente[]).map((t) => (
-                <label key={t} className={['flex cursor-pointer items-center gap-3 rounded-xl border-2 px-4 py-3 transition-all', tipo === t ? 'border-primary bg-primary/5' : 'border-slate-200 hover:border-slate-300'].join(' ')}>
+                <label key={t} className={['flex cursor-pointer items-center gap-3 rounded-xl border-2 px-3 py-3 transition-all', tipo === t ? 'border-primary bg-primary/5' : 'border-slate-200 hover:border-slate-300'].join(' ')}>
                   <input type="radio" name="tipo" value={t} checked={tipo === t} onChange={() => setTipo(t)} className="sr-only" />
                   <div className={['flex size-9 shrink-0 items-center justify-center rounded-lg', tipo === t ? 'bg-primary/10' : 'bg-slate-100'].join(' ')}>
                     <span className={['material-symbols-outlined text-[18px]', tipo === t ? 'text-primary' : 'text-slate-400'].join(' ')}>
@@ -475,7 +475,7 @@ export function AdminClientesPage() {
                       {t === 'PRINCIPAL' ? 'Principal' : 'Secundario'}
                     </p>
                     <p className="text-xs text-slate-400 truncate">
-                      {t === 'PRINCIPAL' ? 'Empresa contratante' : 'Punto de entrega'}
+                      {t === 'PRINCIPAL' ? 'Empresa' : 'Punto entrega'}
                     </p>
                   </div>
                   {tipo === t && (
@@ -508,7 +508,7 @@ export function AdminClientesPage() {
                     return
                   }
                   setNombreError('')
-                }} required maxLength={100} size={50} />
+                }} required maxLength={100} />
               {nombreError && <p className="text-xs text-red-500">{nombreError}</p>}
             </div>
             <div className="space-y-2">
