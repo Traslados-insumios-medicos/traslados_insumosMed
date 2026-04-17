@@ -301,6 +301,7 @@ export function AdminRutasPage() {
     setChoferError(choferId ? '' : REQUIRED_MESSAGE)
 
     if (!canSubmit || !choferId || Object.keys(nextStopsErrors).length > 0) return
+    
     setSubmitting(true)
     try {
       // Crear una guía por cada guía en cada parada

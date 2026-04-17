@@ -110,13 +110,14 @@ export function PhotoUploader({
     }
 
     if (draftMode) {
-      // Modo borrador: guardar localmente (sin toast)
+      // Modo borrador: crear previews inmediatamente
       const nuevasFotos: FotoBorrador[] = files.map(file => ({
         file,
         preview: URL.createObjectURL(file),
         isLocal: true as const
       }))
       
+      // Actualizar estado inmediatamente para mostrar previews
       const todasLasFotos = [...fotos, ...nuevasFotos]
       setFotos(todasLasFotos)
       
@@ -131,6 +132,7 @@ export function PhotoUploader({
     }
 
     // Modo normal: subir inmediatamente
+    // El overlay de carga se mostrará automáticamente por el interceptor de API
     onProcessingStart?.()
     setUploading(true)
     try {

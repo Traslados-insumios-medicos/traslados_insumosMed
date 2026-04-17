@@ -4,6 +4,7 @@ import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useGsapOutletTransition } from '../../hooks/useGsapOutletTransition'
 import { useAuthStore } from '../../store/authStore'
 import { ToastContainer } from '../ui/ToastContainer'
+import { GlobalLoadingOverlay } from '../ui/GlobalLoadingOverlay'
 import { useAdminNotifications } from '../../hooks/useAdminNotifications'
 import { AccountDeactivatedModal } from '../AccountDeactivatedModal'
 import logo from '../../assets/logo.png'
@@ -298,6 +299,7 @@ export function MainLayout() {
 
       <ToastContainer />
       <AccountDeactivatedModal />
+      <GlobalLoadingOverlay />
     </div>
   )
 }
