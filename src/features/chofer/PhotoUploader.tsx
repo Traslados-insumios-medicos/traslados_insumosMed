@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { api } from '../../services/api'
 import { useToastStore } from '../../store/toastStore'
+import { useGlobalLoadingStore } from '../../store/globalLoadingStore'
 
 type Scope = 'guia' | 'hoja_ruta'
 
@@ -51,6 +52,8 @@ export function PhotoUploader({
   const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/jpg', 'image/png', 'image/webp'])
   const inputRef = useRef<HTMLInputElement>(null)
   const addToast = useToastStore((s) => s.addToast)
+  const showLoading = useGlobalLoadingStore((s) => s.show)
+  const hideLoading = useGlobalLoadingStore((s) => s.hide)
 
   const [fotos, setFotos] = useState<FotoDisplay[]>([])
   const [uploading, setUploading] = useState(false)
@@ -132,7 +135,7 @@ export function PhotoUploader({
     }
 
     // Modo normal: subir inmediatamente
-    // El overlay de carga se mostrará automáticamente por el interceptor de API
+    showLoading()
     onProcessingStart?.()
     setUploading(true)
     try {
@@ -154,6 +157,7 @@ export function PhotoUploader({
       addToast(message || 'Error al subir foto', 'error')
     } finally {
       setUploading(false)
+      hideLoading()
       onProcessingEnd?.()
       e.target.value = ''
     }
@@ -181,6 +185,7 @@ export function PhotoUploader({
     }
 
     // Foto del servidor: eliminar del servidor
+    showLoading()
     onProcessingStart?.()
     setUploading(true) // Bloquear mientras se elimina
     try {
@@ -192,6 +197,7 @@ export function PhotoUploader({
       addToast('Error al eliminar foto', 'error')
     } finally {
       setUploading(false)
+      hideLoading()
       onProcessingEnd?.()
     }
   }
