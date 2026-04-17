@@ -1,23 +1,47 @@
 import axios from 'axios'
 import { getSharedSocketId } from '../shared/socket'
+import { useGlobalLoadingStore } from '../store/globalLoadingStore'
 
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api',
 })
 
-// Adjunta el JWT y socketId en cada request
+// Contador de peticiones activas
+let activeRequests = 0
+
+// Adjunta el JWT y socketId en cada request + muestra loading
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token')
   if (token) config.headers.Authorization = `Bearer ${token}`
   const socketId = getSharedSocketId()
   if (socketId) config.headers['x-socket-id'] = socketId
+  
+  // Mostrar loading solo si es la primera petición
+  activeRequests++
+  if (activeRequests === 1) {
+    useGlobalLoadingStore.getState().show('Cargando...')
+  }
+  
   return config
 })
 
 // Si el backend devuelve 401, limpia sesión y redirige — solo si había token activo
 api.interceptors.response.use(
-  (res) => res,
+  (res) => {
+    // Ocultar loading cuando termina la petición
+    activeRequests--
+    if (activeRequests === 0) {
+      useGlobalLoadingStore.getState().hide()
+    }
+    return res
+  },
   (error) => {
+    // Ocultar loading también en caso de error
+    activeRequests--
+    if (activeRequests === 0) {
+      useGlobalLoadingStore.getState().hide()
+    }
+    
     const isLoginEndpoint = error.config?.url?.includes('/auth/login')
     const hadToken = !!localStorage.getItem('token')
     const backendMessage = String(error?.response?.data?.message ?? '')
