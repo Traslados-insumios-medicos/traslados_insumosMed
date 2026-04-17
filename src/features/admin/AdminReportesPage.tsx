@@ -3,7 +3,7 @@ import { api } from '../../services/api'
 import { useToastStore } from '../../store/toastStore'
 import { exportToExcel, exportToPDF } from '../../utils/exportUtils'
 
-type TabId = 'cliente' | 'fechas' | 'chofer'
+type TabId = 'cliente' | 'fechas' | 'chofer' | 'guia'
 
 interface ResumenCliente {
   clienteId: string; nombre: string; total: number
@@ -68,6 +68,7 @@ const tabs: { id: TabId; label: string }[] = [
   { id: 'cliente', label: 'Por cliente' },
   { id: 'fechas', label: 'Por rango de fechas' },
   { id: 'chofer', label: 'Por chofer' },
+  { id: 'guia', label: 'Por guía' },
 ]
 
 const LIMIT = 10
@@ -111,6 +112,7 @@ export function AdminReportesPage() {
   const [dataCliente, setDataCliente] = useState<ResumenCliente[]>([])
   const [dataFechas, setDataFechas] = useState<GuiaFecha[]>([])
   const [dataChofer, setDataChofer] = useState<ResumenChofer[]>([])
+  const [dataGuia, setDataGuia] = useState<GuiaFecha[]>([]) // Reutilizamos el mismo tipo que fechas
 
   const [loading, setLoading] = useState(false)
   const [choferExpandidoId, setChoferExpandidoId] = useState<string | null>(null)
@@ -119,14 +121,17 @@ export function AdminReportesPage() {
   const [pageCliente, setPageCliente] = useState(1)
   const [pageFechas, setPageFechas] = useState(1)
   const [pageChofer, setPageChofer] = useState(1)
+  const [pageGuia, setPageGuia] = useState(1)
 
   const totalPagesCliente = Math.max(1, Math.ceil(dataCliente.length / LIMIT))
   const totalPagesFechas = Math.max(1, Math.ceil(dataFechas.length / LIMIT))
   const totalPagesChofer = Math.max(1, Math.ceil(dataChofer.length / LIMIT))
+  const totalPagesGuia = Math.max(1, Math.ceil(dataGuia.length / LIMIT))
 
   const dataClientePaginada = dataCliente.slice((pageCliente - 1) * LIMIT, pageCliente * LIMIT)
   const dataFechasPaginada = dataFechas.slice((pageFechas - 1) * LIMIT, pageFechas * LIMIT)
   const dataChoferPaginada = dataChofer.slice((pageChofer - 1) * LIMIT, pageChofer * LIMIT)
+  const dataGuiaPaginada = dataGuia.slice((pageGuia - 1) * LIMIT, pageGuia * LIMIT)
 
   // Load filter options
   useEffect(() => {
@@ -157,13 +162,22 @@ export function AdminReportesPage() {
         if (choferId) params.set('choferId', choferId)
         const res = await api.get<GuiaFecha[]>(`/reportes/fechas?${params}`)
         setDataFechas(res.data)
-      } else {
+      } else if (tab === 'chofer') {
         const params = new URLSearchParams()
         if (choferId) params.set('choferId', choferId)
         if (fechaDesde) params.set('desde', fechaDesde)
         if (fechaHasta) params.set('hasta', fechaHasta)
         const res = await api.get<ResumenChofer[]>(`/reportes/choferes?${params}`)
         setDataChofer(res.data)
+      } else if (tab === 'guia') {
+        const params = new URLSearchParams()
+        if (fechaDesde) params.set('desde', fechaDesde)
+        if (fechaHasta) params.set('hasta', fechaHasta)
+        if (clienteId) params.set('clienteId', clienteId)
+        if (choferId) params.set('choferId', choferId)
+        if (tipoCliente) params.set('tipo', tipoCliente)
+        const res = await api.get<GuiaFecha[]>(`/reportes/guias?${params}`)
+        setDataGuia(res.data)
       }
     } catch {
       addToast('Error al cargar reporte', 'error')
@@ -178,6 +192,7 @@ export function AdminReportesPage() {
     setPageCliente(1)
     setPageFechas(1)
     setPageChofer(1)
+    setPageGuia(1)
   }, [fetchData])
 
   // Export helpers
@@ -473,6 +488,94 @@ export function AdminReportesPage() {
     )
   }
 
+  const buildGuiaRows = () => dataGuia.map((g) => ({
+    'Nº Guía': g.numeroGuia,
+    Descripción: g.descripcion,
+    Estado: g.estado,
+    'Fecha registro': new Date(g.createdAt).toLocaleString('es-ES'),
+    Cliente: g.cliente.nombre,
+    Chofer: g.ruta.chofer.nombre,
+    'Ruta ID': g.ruta.id,
+    'Fecha ruta': new Date(g.ruta.fecha).toLocaleDateString('es-ES'),
+    'Estado ruta': g.ruta.estado,
+    'Recibido por': g.receptorNombre ?? '—',
+    'Hora llegada': g.horaLlegada ?? '—',
+    'Hora salida': g.horaSalida ?? '—',
+    Temperatura: g.temperatura ?? '—',
+    Observaciones: g.observaciones ?? '—',
+    Incidencias: formatNovedades(g.novedades),
+    'Fotos (URLs)': formatFotos(g.fotos.filter((f) => f.tipo === 'GUIA')),
+    Mapa: buildStaticMapUrl(g.stop?.lat, g.stop?.lng, g.stop?.direccion),
+  }))
+
+  const handleExportGuiaExcel = () =>
+    exportToExcel(buildGuiaRows(), 'reporte-por-guia', 'Por Guía', buildFilterInfo())
+
+  const handleExportGuiaPDF = async () => {
+    const rows = buildGuiaRows()
+    const entregadas = dataGuia.filter((g) => g.estado === 'ENTREGADO').length
+    const incidencias = dataGuia.filter((g) => g.estado === 'INCIDENCIA').length
+    const pendientes = dataGuia.filter((g) => g.estado === 'PENDIENTE').length
+    
+    const detalleGuiaCards = dataGuia
+      .map((g) => ({
+        routeId: g.ruta.id,
+        card: {
+          groupTitle: `Ruta #${g.ruta.id.slice(-6).toUpperCase()} · Chofer: ${g.ruta.chofer.nombre} · Fecha ruta: ${new Date(g.ruta.fecha).toLocaleDateString('es-ES')}`,
+          title: `${g.cliente.nombre} · Guía ${g.numeroGuia}`,
+          subtitle: `Estado: ${g.estado} · ${g.descripcion}`,
+          fields: [
+            { label: 'Recibido por', value: g.receptorNombre ?? '—' },
+            { label: 'Registrada', value: new Date(g.createdAt).toLocaleString('es-ES') },
+            { label: 'Hora llegada', value: g.horaLlegada ?? '—' },
+            { label: 'Hora salida', value: g.horaSalida ?? '—' },
+            { label: 'Temperatura', value: g.temperatura ?? '—' },
+            { label: 'Observaciones', value: g.observaciones ?? '—' },
+            { label: 'Incidencias', value: formatNovedades(g.novedades ?? []) },
+          ],
+          imageUrls: [
+            buildStaticMapUrl(g.stop?.lat, g.stop?.lng, g.stop?.direccion),
+            ...(g.fotos ?? []).filter((f) => f.tipo === 'GUIA').map((f) => f.urlPreview),
+          ].filter(Boolean),
+        },
+      }))
+      .sort((a, b) => a.routeId.localeCompare(b.routeId))
+      .map((item) => item.card)
+    
+    await exportToPDF(
+      'Reporte por Guía',
+      ['Número de guía', 'Descripción', 'Estado', 'Fecha registro', 'Cliente', 'Chofer', 'Ruta', 'Fecha ruta', 'Estado ruta', 'Recibido por', 'Hora llegada', 'Hora salida', 'Temperatura', 'Observaciones', 'Incidencias'],
+      rows.map((r) => [
+        r['Nº Guía'],
+        r['Descripción'],
+        r['Estado'],
+        r['Fecha registro'],
+        r['Cliente'],
+        r['Chofer'],
+        r['Ruta ID'],
+        r['Fecha ruta'],
+        r['Estado ruta'],
+        r['Recibido por'],
+        r['Hora llegada'],
+        r['Hora salida'],
+        r['Temperatura'],
+        r['Observaciones'],
+        r['Incidencias'],
+      ]),
+      'reporte-por-guia',
+      buildFilterInfo(),
+      [
+        { label: 'Total guías', value: dataGuia.length },
+        { label: 'Entregadas', value: entregadas },
+        { label: 'Pendientes', value: pendientes },
+        { label: 'Incidencias', value: incidencias },
+      ],
+      undefined,
+      detalleGuiaCards,
+      { showMainTable: false },
+    )
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -603,6 +706,16 @@ export function AdminReportesPage() {
                 <span className="material-symbols-outlined text-sm">table_view</span>Excel
               </button>
               <button type="button" onClick={handleExportFechasPDF} className="flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100">
+                <span className="material-symbols-outlined text-sm">picture_as_pdf</span>PDF
+              </button>
+            </>
+          )}
+          {tab === 'guia' && (
+            <>
+              <button type="button" onClick={handleExportGuiaExcel} className="flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 hover:bg-emerald-100">
+                <span className="material-symbols-outlined text-sm">table_view</span>Excel
+              </button>
+              <button type="button" onClick={handleExportGuiaPDF} className="flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100">
                 <span className="material-symbols-outlined text-sm">picture_as_pdf</span>PDF
               </button>
             </>
@@ -869,6 +982,97 @@ export function AdminReportesPage() {
                       </button>
                       <span className="text-slate-500">{pageChofer} / {totalPagesChofer}</span>
                       <button type="button" onClick={() => setPageChofer(p => p + 1)} disabled={pageChofer >= totalPagesChofer}
+                        className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40">
+                        Siguiente
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {tab === 'guia' && (
+              <div className="p-4">
+                <p className="mb-4 text-sm text-slate-500">
+                  Total de guías: <strong className="text-slate-900">{dataGuia.length}</strong>
+                  {(fechaDesde || fechaHasta) && (
+                    <span className="ml-2 text-xs">
+                      ({fechaDesde && `desde ${fechaDesde}`} {fechaHasta && `hasta ${fechaHasta}`})
+                    </span>
+                  )}
+                </p>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[640px] text-left text-sm">
+                    <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      <tr>
+                        <th className="px-4 py-3">Nº Guía</th>
+                        <th className="px-4 py-3">Descripción</th>
+                        <th className="px-4 py-3">Cliente</th>
+                        <th className="px-4 py-3">Chofer</th>
+                        <th className="px-4 py-3">Estado</th>
+                        <th className="px-4 py-3">Fecha</th>
+                        <th className="px-4 py-3">Receptor</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {dataGuiaPaginada.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="px-4 py-12 text-center text-sm text-slate-400">
+                            No hay guías para mostrar con los filtros seleccionados
+                          </td>
+                        </tr>
+                      ) : (
+                        dataGuiaPaginada.map((g) => (
+                          <tr key={g.id} className="hover:bg-slate-50 transition-colors">
+                            <td className="px-4 py-3.5">
+                              <span className="font-semibold text-primary">{trunc(g.numeroGuia, 30)}</span>
+                            </td>
+                            <td className="px-4 py-3.5">
+                              <span className="text-slate-600 text-xs">{trunc(g.descripcion, 40)}</span>
+                            </td>
+                            <td className="px-4 py-3.5">
+                              <div className="flex items-center gap-2">
+                                <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-slate-100">
+                                  <span className="material-symbols-outlined text-[14px] text-slate-400">business</span>
+                                </div>
+                                <span className="text-slate-700 text-sm">{trunc(g.cliente.nombre, 30)}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3.5">
+                              <div className="flex items-center gap-1.5 text-slate-600 text-sm">
+                                <span className="material-symbols-outlined text-[14px] text-slate-400">person</span>
+                                {trunc(g.ruta.chofer.nombre, 25)}
+                              </div>
+                            </td>
+                            <td className="px-4 py-3.5">
+                              <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
+                                g.estado === 'ENTREGADO' ? 'bg-emerald-100 text-emerald-700' :
+                                g.estado === 'INCIDENCIA' ? 'bg-amber-100 text-amber-700' :
+                                'bg-slate-100 text-slate-600'
+                              }`}>{g.estado}</span>
+                            </td>
+                            <td className="px-4 py-3.5 text-slate-500 text-xs whitespace-nowrap">
+                              {new Date(g.createdAt).toLocaleDateString('es-ES')}
+                            </td>
+                            <td className="px-4 py-3.5 text-slate-500 text-xs">
+                              {g.receptorNombre ? trunc(g.receptorNombre, 25) : '—'}
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+                {totalPagesGuia > 1 && (
+                  <div className="flex items-center justify-between border-t border-slate-100 mt-4 pt-3 text-sm">
+                    <p className="text-slate-500">{dataGuia.length} guía{dataGuia.length !== 1 ? 's' : ''}</p>
+                    <div className="flex items-center gap-2">
+                      <button type="button" onClick={() => setPageGuia(p => p - 1)} disabled={pageGuia <= 1}
+                        className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40">
+                        Anterior
+                      </button>
+                      <span className="text-slate-500">{pageGuia} / {totalPagesGuia}</span>
+                      <button type="button" onClick={() => setPageGuia(p => p + 1)} disabled={pageGuia >= totalPagesGuia}
                         className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40">
                         Siguiente
                       </button>

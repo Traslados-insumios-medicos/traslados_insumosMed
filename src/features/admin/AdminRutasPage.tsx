@@ -231,7 +231,12 @@ export function AdminRutasPage() {
     }
   }
 
-  const canSubmit = choferId && stopsForm.every((s) => s.clienteId && s.direccion && s.lat !== null && s.guias.every(g => g.descripcion.trim()))
+  const canSubmit = choferId && stopsForm.every((s) => {
+    const hasClienteId = !!s.clienteId
+    const hasDireccion = !!s.direccion && s.lat !== null
+    const allGuiasValid = s.guias.every(g => g.descripcion.trim().length > 0)
+    return hasClienteId && hasDireccion && allGuiasValid
+  })
 
   const handleSubmit = async () => {
     const nextStopsErrors: { [key: number]: { clienteId?: string; direccion?: string; guias?: { [guiaIdx: number]: string } } } = {}
