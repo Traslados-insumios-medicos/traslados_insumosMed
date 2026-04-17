@@ -19,10 +19,17 @@ api.interceptors.request.use((config) => {
   // Mostrar loading solo si es la primera petición
   activeRequests++
   if (activeRequests === 1) {
-    useGlobalLoadingStore.getState().show('Cargando...')
+    useGlobalLoadingStore.getState().show()
   }
   
   return config
+}, (error) => {
+  // Si falla el request, decrementar contador
+  activeRequests--
+  if (activeRequests === 0) {
+    useGlobalLoadingStore.getState().hide()
+  }
+  return Promise.reject(error)
 })
 
 // Si el backend devuelve 401, limpia sesión y redirige — solo si había token activo
