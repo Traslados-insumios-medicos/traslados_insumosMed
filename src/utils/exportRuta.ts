@@ -192,12 +192,11 @@ export async function exportarRutaPDF(ruta: RutaExport) {
   const incidencias = ruta.guias.filter(g => g.estado === 'INCIDENCIA').length
   const pendientes = ruta.guias.filter(g => g.estado === 'PENDIENTE').length
 
-  // Función para agregar marca de agua en cada página
-  const agregarMarcaDeAgua = (pageNum: number) => {
-    doc.setPage(pageNum)
-    doc.setGState({ opacity: 0.1 })
+  // Función para agregar marca de agua en cada página (debe llamarse ANTES de agregar contenido)
+  const agregarMarcaDeAgua = () => {
+    doc.setGState({ opacity: 0.008 })
     doc.setFontSize(50)
-    doc.setTextColor(150, 150, 150)
+    doc.setTextColor(220, 220, 220)
     doc.text('LOGISTRANS S.A.', doc.internal.pageSize.width / 2, doc.internal.pageSize.height / 2, {
       align: 'center',
       angle: 45
@@ -205,6 +204,9 @@ export async function exportarRutaPDF(ruta: RutaExport) {
     doc.setGState({ opacity: 1 })
     doc.setTextColor(0, 0, 0)
   }
+
+  // Marca de agua en primera página (ANTES de agregar contenido)
+  agregarMarcaDeAgua()
 
   // Título
   doc.setFontSize(18)
@@ -236,9 +238,6 @@ export async function exportarRutaPDF(ruta: RutaExport) {
   doc.setFont('helvetica', 'normal')
   doc.text(`Total: ${ruta.guias.length} | Entregadas: ${entregadas} | Incidencias: ${incidencias} | Pendientes: ${pendientes}`, 14, 82)
 
-  // Marca de agua en primera página
-  agregarMarcaDeAgua(1)
-
   // Tabla resumen de guías
   const guiasResumen = ruta.stops.flatMap(stop =>
     stop.guias.map(g => [
@@ -263,8 +262,11 @@ export async function exportarRutaPDF(ruta: RutaExport) {
       3: { cellWidth: 40 },
     },
     didDrawPage: (data) => {
+      // Agregar marca de agua en páginas nuevas
       if (data.pageNumber > 1) {
-        agregarMarcaDeAgua(data.pageNumber)
+        const currentPage = doc.getNumberOfPages()
+        doc.setPage(currentPage)
+        agregarMarcaDeAgua()
       }
     }
   })
@@ -273,7 +275,7 @@ export async function exportarRutaPDF(ruta: RutaExport) {
 
   // DETALLE COMPLETO DE CADA GUÍA
   doc.addPage()
-  agregarMarcaDeAgua(doc.getNumberOfPages())
+  agregarMarcaDeAgua() // Marca de agua ANTES del contenido
   
   doc.setFontSize(14)
   doc.setFont('helvetica', 'bold')
@@ -300,7 +302,7 @@ export async function exportarRutaPDF(ruta: RutaExport) {
       // Verificar si necesitamos nueva página
       if (currentY > doc.internal.pageSize.height - 80) {
         doc.addPage()
-        agregarMarcaDeAgua(doc.getNumberOfPages())
+        agregarMarcaDeAgua() // Marca de agua ANTES del contenido
         currentY = 20
       }
 
@@ -423,7 +425,7 @@ export async function exportarRutaPDF(ruta: RutaExport) {
           // Verificar si necesitamos nueva página para la foto
           if (currentY + 50 > doc.internal.pageSize.height - 20) {
             doc.addPage()
-            agregarMarcaDeAgua(doc.getNumberOfPages())
+            agregarMarcaDeAgua() // Marca de agua ANTES del contenido
             currentY = 20
           }
 
@@ -468,7 +470,7 @@ export async function exportarRutaPDF(ruta: RutaExport) {
   // SECCIÓN DE INCIDENCIAS (resumen)
   if (incidencias > 0) {
     doc.addPage()
-    agregarMarcaDeAgua(doc.getNumberOfPages())
+    agregarMarcaDeAgua() // Marca de agua ANTES del contenido
     
     doc.setFontSize(14)
     doc.setFont('helvetica', 'bold')
@@ -509,7 +511,12 @@ export async function exportarRutaPDF(ruta: RutaExport) {
         4: { cellWidth: 42 },
       },
       didDrawPage: (data) => {
-        agregarMarcaDeAgua(data.pageNumber)
+        // Agregar marca de agua en páginas nuevas
+        if (data.pageNumber > 1) {
+          const currentPage = doc.getNumberOfPages()
+          doc.setPage(currentPage)
+          agregarMarcaDeAgua()
+        }
       }
     })
 
@@ -520,7 +527,7 @@ export async function exportarRutaPDF(ruta: RutaExport) {
   const fotosHojaRuta = ruta.fotos?.filter(f => f.tipo === 'HOJA_RUTA') || []
   if (fotosHojaRuta.length > 0) {
     doc.addPage()
-    agregarMarcaDeAgua(doc.getNumberOfPages())
+    agregarMarcaDeAgua() // Marca de agua ANTES del contenido
     
     doc.setFontSize(14)
     doc.setFont('helvetica', 'bold')
@@ -535,7 +542,7 @@ export async function exportarRutaPDF(ruta: RutaExport) {
       
       if (yPos + imgHeight + 15 > doc.internal.pageSize.height - 20) {
         doc.addPage()
-        agregarMarcaDeAgua(doc.getNumberOfPages())
+        agregarMarcaDeAgua() // Marca de agua ANTES del contenido
         yPos = 20
       }
 

@@ -3,6 +3,7 @@ import { MapboxAddressInput } from '../../components/ui/MapboxAddressInput'
 import { ModalMotion } from '../../components/ui/ModalMotion'
 import { api } from '../../services/api'
 import { useToastStore } from '../../store/toastStore'
+import { useGlobalLoadingStore } from '../../store/globalLoadingStore'
 import { useDbRefresh } from '../../hooks/useDbRefresh'
 
 type TipoCliente = 'PRINCIPAL' | 'SECUNDARIO'
@@ -14,6 +15,7 @@ interface Cliente {
   activo: boolean; tipo: TipoCliente; clientePrincipalId?: string | null
   clientePrincipal?: ClientePrincipalRef | null
   clientesSecundarios?: { id: string; nombre: string; ruc: string; activo: boolean }[]
+  usuarios?: { id: string; nombre: string; email: string; activo: boolean }[]
 }
 interface PaginatedResponse { data: Cliente[]; total: number; page: number; limit: number }
 interface PasswordModalData { clienteNombre: string; password: string }
@@ -190,6 +192,39 @@ export function AdminClientesPage() {
     setClientePrincipalId(c.clientePrincipalId ?? '')
     setUsuarioNombre(''); setUsuarioEmail('')
     setShowModal(true)
+  }
+
+  const handleGenerateTempPassword = async (c: Cliente) => {
+    // Para clientes principales, debe tener un usuario asociado
+    const usuario = c.usuarios?.[0]
+    if (!usuario) {
+      addToast('Este cliente no tiene un usuario asociado', 'error')
+      return
+    }
+    
+    const showLoading = useGlobalLoadingStore.getState().show
+    const hideLoading = useGlobalLoadingStore.getState().hide
+    
+    showLoading()
+    try {
+      const res = await api.post<{ passwordTemporal: string; usuario: { nombre: string; email: string } }>(`/auth/generate-temp-password/${usuario.id}`)
+      
+      // Cerrar el modal de editar
+      resetForm()
+      
+      // Mostrar el modal de contraseña
+      setPasswordModal({
+        nombre: res.data.usuario.nombre,
+        email: res.data.usuario.email,
+        password: res.data.passwordTemporal,
+      })
+      addToast('Contraseña temporal generada', 'success')
+    } catch (err: unknown) {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      addToast(message || 'Error al generar contraseña temporal', 'error')
+    } finally {
+      hideLoading()
+    }
   }
 
   const toggleThrottleRef = useRef<Map<string, number>>(new Map())
@@ -624,6 +659,27 @@ export function AdminClientesPage() {
                 }} className="rounded" />
                 <span className="text-xs text-slate-600">Usar el mismo correo del cliente</span>
               </label>
+            </div>
+          )}
+          {editingId && tipo === 'PRINCIPAL' && (() => {
+            const cliente = clientes.find(c => c.id === editingId)
+            return cliente?.usuarios && cliente.usuarios.length > 0
+          })() && (
+            <div className="border-t border-slate-200 pt-4">
+              <button
+                type="button"
+                onClick={() => {
+                  const cliente = clientes.find(c => c.id === editingId)
+                  if (cliente) handleGenerateTempPassword(cliente)
+                }}
+                className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-amber-500 bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-700 hover:bg-amber-100 transition-colors"
+              >
+                <span className="material-symbols-outlined text-base">key</span>
+                Generar contraseña temporal
+              </button>
+              <p className="mt-2 text-xs text-slate-500 text-center">
+                Genera una nueva contraseña temporal si el cliente olvidó su contraseña
+              </p>
             </div>
           )}
           <div className="flex justify-end gap-3 border-t border-slate-200 pt-5">
