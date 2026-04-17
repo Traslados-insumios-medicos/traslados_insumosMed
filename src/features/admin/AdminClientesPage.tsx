@@ -3,6 +3,7 @@ import { MapboxAddressInput } from '../../components/ui/MapboxAddressInput'
 import { ModalMotion } from '../../components/ui/ModalMotion'
 import { api } from '../../services/api'
 import { useToastStore } from '../../store/toastStore'
+import { useGlobalLoadingStore } from '../../store/globalLoadingStore'
 import { useDbRefresh } from '../../hooks/useDbRefresh'
 
 type TipoCliente = 'PRINCIPAL' | 'SECUNDARIO'
@@ -14,9 +15,10 @@ interface Cliente {
   activo: boolean; tipo: TipoCliente; clientePrincipalId?: string | null
   clientePrincipal?: ClientePrincipalRef | null
   clientesSecundarios?: { id: string; nombre: string; ruc: string; activo: boolean }[]
+  usuarios?: { id: string; nombre: string; email: string; activo: boolean }[]
 }
 interface PaginatedResponse { data: Cliente[]; total: number; page: number; limit: number }
-interface PasswordModalData { clienteNombre: string; password: string }
+interface PasswordModalData { clienteNombre: string; email: string; password: string }
 
 function ToggleActivo({ activo, onToggle }: { activo: boolean; onToggle: () => void }) {
   const base = 'relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2'
@@ -192,6 +194,39 @@ export function AdminClientesPage() {
     setShowModal(true)
   }
 
+  const handleGenerateTempPassword = async (c: Cliente) => {
+    // Para clientes principales, debe tener un usuario asociado
+    const usuario = c.usuarios?.[0]
+    if (!usuario) {
+      addToast('Este cliente no tiene un usuario asociado', 'error')
+      return
+    }
+    
+    const showLoading = useGlobalLoadingStore.getState().show
+    const hideLoading = useGlobalLoadingStore.getState().hide
+    
+    showLoading()
+    try {
+      const res = await api.post<{ passwordTemporal: string; usuario: { nombre: string; email: string } }>(`/auth/generate-temp-password/${usuario.id}`)
+      
+      // Cerrar el modal de editar
+      resetForm()
+      
+      // Mostrar el modal de contraseña
+      setPasswordModal({
+        clienteNombre: res.data.usuario.nombre,
+        email: res.data.usuario.email,
+        password: res.data.passwordTemporal,
+      })
+      addToast('Contraseña temporal generada', 'success')
+    } catch (err: unknown) {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      addToast(message || 'Error al generar contraseña temporal', 'error')
+    } finally {
+      hideLoading()
+    }
+  }
+
   const toggleThrottleRef = useRef<Map<string, number>>(new Map())
 
   const handleToggleActivo = async (id: string) => {
@@ -292,7 +327,7 @@ export function AdminClientesPage() {
             const userRes = await api.post<{ usuario: object; passwordTemporal: string }>('/auth/register', {
               nombre: usuarioNombre, email: usuarioEmail, rol: 'CLIENTE', clienteId: editingId,
             })
-            setPasswordModal({ clienteNombre: usuarioNombre, password: userRes.data.passwordTemporal })
+            setPasswordModal({ clienteNombre: usuarioNombre, email: usuarioEmail, password: userRes.data.passwordTemporal })
           } catch (userErr: unknown) {
             const userMessage = (userErr as { response?: { data?: { message?: string } } })?.response?.data?.message
             addToast(userMessage || 'Error al crear usuario de acceso', 'error')
@@ -315,7 +350,7 @@ export function AdminClientesPage() {
           const userRes = await api.post<{ usuario: object; passwordTemporal: string }>('/auth/register', {
             nombre: usuarioNombre, email: usuarioEmail, rol: 'CLIENTE', clienteId: clienteRes.data.id,
           })
-          setPasswordModal({ clienteNombre: usuarioNombre, password: userRes.data.passwordTemporal })
+          setPasswordModal({ clienteNombre: usuarioNombre, email: usuarioEmail, password: userRes.data.passwordTemporal })
         }
         await fetchClientes(1); resetForm()
       }
@@ -626,6 +661,27 @@ export function AdminClientesPage() {
               </label>
             </div>
           )}
+          {editingId && tipo === 'PRINCIPAL' && (() => {
+            const cliente = clientes.find(c => c.id === editingId)
+            return cliente?.usuarios && cliente.usuarios.length > 0
+          })() && (
+            <div className="border-t border-slate-200 pt-4">
+              <button
+                type="button"
+                onClick={() => {
+                  const cliente = clientes.find(c => c.id === editingId)
+                  if (cliente) handleGenerateTempPassword(cliente)
+                }}
+                className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-amber-500 bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-700 hover:bg-amber-100 transition-colors"
+              >
+                <span className="material-symbols-outlined text-base">key</span>
+                Generar contraseña temporal
+              </button>
+              <p className="mt-2 text-xs text-slate-500 text-center">
+                Genera una nueva contraseña temporal si el cliente olvidó su contraseña
+              </p>
+            </div>
+          )}
           <div className="flex justify-end gap-3 border-t border-slate-200 pt-5">
             <button type="button" onClick={resetForm} className="rounded-lg border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50">Cancelar</button>
             <button type="submit" disabled={
@@ -653,7 +709,10 @@ export function AdminClientesPage() {
               </button>
             </div>
             <div className="space-y-4 p-6">
-              <p className="text-sm text-slate-600">El usuario <span className="font-semibold">{passwordModal.clienteNombre}</span> fue creado exitosamente.</p>
+              <p className="text-sm text-slate-600">
+                El usuario <span className="font-semibold">{passwordModal.clienteNombre}</span> 
+                {passwordModal.email && <> (<span className="font-mono text-xs">{passwordModal.email}</span>)</>} fue creado exitosamente.
+              </p>
               <div className="rounded-xl bg-amber-50 p-4">
                 <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-amber-700">Contraseña temporal</p>
                 <div className="flex items-center gap-3">

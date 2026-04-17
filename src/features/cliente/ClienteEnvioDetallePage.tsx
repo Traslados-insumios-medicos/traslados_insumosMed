@@ -5,6 +5,7 @@ import { SeguimientoChoferStepper } from '../../components/cliente/SeguimientoCh
 import { api } from '../../services/api'
 import { useToastStore } from '../../store/toastStore'
 import { exportToExcel, exportToPDF } from '../../utils/exportUtils'
+import { useImageDownload } from '../../hooks/useImageDownload'
 
 const tipoNovedadLabel: Record<string, string> = {
   DIRECCION_INCORRECTA: 'Dirección incorrecta',
@@ -53,6 +54,7 @@ interface GuiaDetalleApi {
 export function ClienteEnvioDetallePage() {
   const { guiaId } = useParams<{ guiaId: string }>()
   const addToast = useToastStore((s) => s.addToast)
+  const { downloadImage } = useImageDownload()
   const [guia, setGuia] = useState<GuiaDetalleApi | null>(null)
   const [loading, setLoading] = useState(true)
   const [seguimientoActualizadoAt, setSeguimientoActualizadoAt] = useState<string | null>(null)
@@ -203,11 +205,7 @@ export function ClienteEnvioDetallePage() {
   }
 
   const handleDownloadFoto = (url: string, nombre: string) => {
-    const a = document.createElement('a')
-    a.href = url
-    a.download = nombre
-    a.target = '_blank'
-    a.click()
+    downloadImage(url, nombre)
   }
 
   return (
@@ -386,16 +384,20 @@ export function ClienteEnvioDetallePage() {
                 {fotosGuia.map((f, i) => (
                   <div
                     key={f.id}
-                    className="group relative aspect-square overflow-hidden rounded-lg border border-slate-200 bg-slate-100"
+                    className="group relative aspect-square overflow-hidden rounded-lg border border-slate-200 bg-slate-100 cursor-pointer"
                   >
                     <img
                       src={f.urlPreview}
                       alt=""
                       className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                      onClick={() => window.open(f.urlPreview, '_blank')}
                     />
                     <button
                       type="button"
-                      onClick={() => handleDownloadFoto(f.urlPreview, `foto-${guia.numeroGuia}-${i + 1}.jpg`)}
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleDownloadFoto(f.urlPreview, `foto-${guia.numeroGuia}-${i + 1}.jpg`)
+                      }}
                       className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100"
                       title="Descargar foto"
                     >
@@ -406,7 +408,7 @@ export function ClienteEnvioDetallePage() {
               </div>
             )}
             <p className="mt-4 text-[10px] italic text-slate-400">
-              Pase el cursor sobre una foto y haga clic para descargarla.
+              Haga clic en la imagen para verla en tamaño completo o en el ícono de descarga para guardarla.
             </p>
           </div>
         </div>

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useDbRefresh } from '../../hooks/useDbRefresh'
+import { useImageDownload } from '../../hooks/useImageDownload'
 import { MapboxAddressInput } from '../../components/ui/MapboxAddressInput'
 import { ModalMotion } from '../../components/ui/ModalMotion'
 import { api } from '../../services/api'
@@ -76,6 +77,7 @@ const LIMIT = 10
 
 export function AdminRutasPage() {
   const addToast = useToastStore((s) => s.addToast)
+  const { downloadImage } = useImageDownload()
 
   const [rutas, setRutas] = useState<RutaApi[]>([])
   const [total, setTotal] = useState(0)
@@ -877,15 +879,30 @@ export function AdminRutasPage() {
                           </div>
                         ) : (
                           <div className="flex flex-wrap gap-3">
-                            {ruta.fotos.map((f) => (
-                              <a key={f.id} href={f.urlPreview} target="_blank" rel="noopener noreferrer"
-                                className="group overflow-hidden rounded-lg border border-slate-200 transition-all hover:border-primary hover:shadow-md">
-                                <img src={f.urlPreview} alt="Hoja de ruta" className="h-40 w-auto max-w-full object-cover transition-transform duration-200 group-hover:scale-105" />
+                            {ruta.fotos.map((f, idx) => (
+                              <div key={f.id} className="group relative overflow-hidden rounded-lg border border-slate-200 transition-all hover:border-primary hover:shadow-md cursor-pointer">
+                                <img 
+                                  src={f.urlPreview} 
+                                  alt="Hoja de ruta" 
+                                  className="h-40 w-auto max-w-full object-cover transition-transform duration-200 group-hover:scale-105"
+                                  onClick={() => window.open(f.urlPreview, '_blank')}
+                                />
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    downloadImage(f.urlPreview, `hoja-ruta-${ruta.id.slice(-6)}-${idx + 1}.jpg`)
+                                  }}
+                                  className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100"
+                                  title="Descargar imagen"
+                                >
+                                  <span className="material-symbols-outlined text-3xl text-white">download</span>
+                                </button>
                                 <p className="border-t border-slate-100 bg-slate-50 px-2 py-1.5 text-[10px] text-slate-500 flex items-center gap-1">
-                                  <span className="material-symbols-outlined text-[11px] text-slate-400">open_in_new</span>
+                                  <span className="material-symbols-outlined text-[11px] text-slate-400">image</span>
                                   {new Date(f.createdAt).toLocaleString('es-ES')}
                                 </p>
-                              </a>
+                              </div>
                             ))}
                           </div>
                         )}
@@ -1003,15 +1020,29 @@ export function AdminRutasPage() {
                           Fotos de entrega ({fotos.length})
                         </p>
                         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                          {fotos.map((f) => (
-                            <a key={f.id} href={f.urlPreview} target="_blank" rel="noopener noreferrer"
-                              className="group overflow-hidden rounded-lg border border-slate-200 transition-all hover:border-primary hover:shadow-md">
-                              <img src={f.urlPreview} alt="Foto entrega"
-                                className="h-32 w-full object-cover transition-transform duration-200 group-hover:scale-105" />
+                          {fotos.map((f, idx) => (
+                            <div key={f.id} className="group relative overflow-hidden rounded-lg border border-slate-200 transition-all hover:border-primary hover:shadow-md cursor-pointer">
+                              <img 
+                                src={f.urlPreview} 
+                                alt="Foto entrega"
+                                className="h-32 w-full object-cover transition-transform duration-200 group-hover:scale-105"
+                                onClick={() => window.open(f.urlPreview, '_blank')}
+                              />
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  downloadImage(f.urlPreview, `entrega-${g.numeroGuia}-${idx + 1}.jpg`)
+                                }}
+                                className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100"
+                                title="Descargar imagen"
+                              >
+                                <span className="material-symbols-outlined text-2xl text-white">download</span>
+                              </button>
                               <p className="border-t border-slate-100 bg-white px-2 py-1 text-[10px] text-slate-400">
                                 {new Date(f.createdAt).toLocaleString('es-ES', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
                               </p>
-                            </a>
+                            </div>
                           ))}
                         </div>
                       </div>

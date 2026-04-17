@@ -2,9 +2,10 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { ModalMotion } from '../../components/ui/ModalMotion'
 import { api } from '../../services/api'
 import { useToastStore } from '../../store/toastStore'
+import { useGlobalLoadingStore } from '../../store/globalLoadingStore'
 import { useDbRefresh } from '../../hooks/useDbRefresh'
 
-interface Chofer { id: string; nombre: string; email: string; cedula?: string | null; celular: string; activo: boolean }
+interface Chofer { id: string; nombre: string; email: string; cedula?: string | null; celular: string; activo: boolean; usuarioId?: string | null }
 interface ChoferDetalle extends Chofer { rol: string; clienteId?: string | null }
 interface PaginatedResponse { data: Chofer[]; total: number; page: number; limit: number }
 interface PasswordModalData { choferNombre: string; password: string }
@@ -55,7 +56,7 @@ export function AdminChoferesPage() {
   const handleNombreChange = (val: string) => {
     if (!NOMBRE_REGEX.test(val)) return // bloquea caracteres inválidos
     setNombre(val)
-    if (!val.trim()) {
+    if (!val?.trim()) {
       setNombreError('')
       return
     }
@@ -65,7 +66,7 @@ export function AdminChoferesPage() {
   const handleCedulaChange = (val: string) => {
     if (!CEDULA_REGEX.test(val)) return // bloquea letras y más de 10 dígitos
     setCedula(val)
-    if (!val.trim()) {
+    if (!val?.trim()) {
       setCedulaError('')
     } else if (val.length !== 10) {
       setCedulaError('La cédula debe tener exactamente 10 dígitos numéricos')
@@ -77,7 +78,7 @@ export function AdminChoferesPage() {
   const handleCelularChange = (val: string) => {
     if (!CELULAR_REGEX.test(val)) return // bloquea letras y más de 10 dígitos
     setCelular(val)
-    if (!val.trim()) {
+    if (!val?.trim()) {
       setCelularError('')
     } else if (val.length !== 10) {
       setCelularError('El celular debe tener exactamente 10 dígitos numéricos')
@@ -88,7 +89,7 @@ export function AdminChoferesPage() {
 
   const handleEmailChange = (val: string) => {
     setEmail(val)
-    if (!val.trim()) {
+    if (!val?.trim()) {
       setEmailError('')
       return
     }
@@ -116,6 +117,35 @@ export function AdminChoferesPage() {
   }
 
   const handleEdit = (ch: Chofer) => { setEditingId(ch.id); setNombre(ch.nombre); setCedula(ch.cedula ?? ''); setCelular(ch.celular); setEmail(ch.email); setShowModal(true) }
+
+  const handleGenerateTempPassword = async (ch: Chofer) => {
+    // Los choferes son usuarios, así que usamos su id directamente
+    const userId = ch.usuarioId || ch.id
+    if (!userId) return
+    
+    const showLoading = useGlobalLoadingStore.getState().show
+    const hideLoading = useGlobalLoadingStore.getState().hide
+    
+    showLoading()
+    try {
+      const res = await api.post<{ passwordTemporal: string; usuario: { nombre: string; email: string } }>(`/auth/generate-temp-password/${userId}`)
+      
+      // Cerrar el modal de editar
+      resetForm()
+      
+      // Mostrar el modal de contraseña
+      setPasswordModal({
+        choferNombre: res.data.usuario.nombre,
+        password: res.data.passwordTemporal,
+      })
+      addToast('Contraseña temporal generada', 'success')
+    } catch (err: unknown) {
+      const message = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      addToast(message || 'Error al generar contraseña temporal', 'error')
+    } finally {
+      hideLoading()
+    }
+  }
 
   const openDetail = (id: string) => {
     setDetailId(id)
@@ -170,11 +200,11 @@ export function AdminChoferesPage() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
-    if (!nombre.trim() || !email.trim() || !cedula.trim() || !celular.trim()) {
-      if (!nombre.trim()) setNombreError(REQUIRED_MESSAGE)
-      if (!cedula.trim()) setCedulaError(REQUIRED_MESSAGE)
-      if (!celular.trim()) setCelularError(REQUIRED_MESSAGE)
-      if (!email.trim()) setEmailError(REQUIRED_MESSAGE)
+    if (!nombre?.trim() || !email?.trim() || !cedula?.trim() || !celular?.trim()) {
+      if (!nombre?.trim()) setNombreError(REQUIRED_MESSAGE)
+      if (!cedula?.trim()) setCedulaError(REQUIRED_MESSAGE)
+      if (!celular?.trim()) setCelularError(REQUIRED_MESSAGE)
+      if (!email?.trim()) setEmailError(REQUIRED_MESSAGE)
       return
     }
     if (nombreError || cedulaError || celularError || emailError) return
@@ -273,7 +303,7 @@ export function AdminChoferesPage() {
                 </div>
                 <input className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20 ${nombreError ? 'border-red-400 focus:border-red-400' : 'border-slate-300 focus:border-primary'}`}
                   value={nombre} onChange={(e) => handleNombreChange(e.target.value)} onBlur={() => {
-                    if (!nombre.trim()) {
+                    if (!nombre?.trim()) {
                       setNombreError(REQUIRED_MESSAGE)
                       return
                     }
@@ -286,7 +316,7 @@ export function AdminChoferesPage() {
                   <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Cédula *</label>
                   <input className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20 ${cedulaError ? 'border-red-400 focus:border-red-400' : 'border-slate-300 focus:border-primary'}`}
                     value={cedula} onChange={(e) => handleCedulaChange(e.target.value)} onBlur={() => {
-                      if (!cedula.trim()) {
+                      if (!cedula?.trim()) {
                         setCedulaError(REQUIRED_MESSAGE)
                         return
                       }
@@ -302,7 +332,7 @@ export function AdminChoferesPage() {
                   <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Celular *</label>
                   <input className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20 ${celularError ? 'border-red-400 focus:border-red-400' : 'border-slate-300 focus:border-primary'}`}
                     value={celular} onChange={(e) => handleCelularChange(e.target.value)} onBlur={() => {
-                      if (!celular.trim()) {
+                      if (!celular?.trim()) {
                         setCelularError(REQUIRED_MESSAGE)
                         return
                       }
@@ -322,7 +352,7 @@ export function AdminChoferesPage() {
                 </div>
                 <input type="email" className={`w-full rounded-lg border bg-white px-3 py-2.5 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-primary/20 ${emailError ? 'border-red-400 focus:border-red-400' : 'border-slate-300 focus:border-primary'}`}
                   value={email} onChange={(e) => handleEmailChange(e.target.value)} onBlur={() => {
-                    if (!email.trim()) {
+                    if (!email?.trim()) {
                       setEmailError(REQUIRED_MESSAGE)
                       return
                     }
@@ -334,9 +364,27 @@ export function AdminChoferesPage() {
                   }} required maxLength={150} />
                 {emailError && <p className="mt-1 text-xs text-red-500">{emailError}</p>}
               </div>
+              {editingId && (
+                <div className="border-t border-slate-100 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const chofer = choferes.find(ch => ch.id === editingId)
+                      if (chofer) handleGenerateTempPassword(chofer)
+                    }}
+                    className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-amber-500 bg-amber-50 px-4 py-2.5 text-sm font-semibold text-amber-700 hover:bg-amber-100 transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-base">key</span>
+                    Generar contraseña temporal
+                  </button>
+                  <p className="mt-2 text-xs text-slate-500 text-center">
+                    Genera una nueva contraseña temporal si el chofer olvidó su contraseña
+                  </p>
+                </div>
+              )}
               <div className="flex justify-end gap-3 border-t border-slate-100 pt-4">
                 <button type="button" onClick={resetForm} className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50">Cancelar</button>
-                <button type="submit" disabled={submitting || !nombre.trim() || !cedula.trim() || !celular.trim() || !email.trim() || !!nombreError || !!cedulaError || !!celularError || !!emailError}
+                <button type="submit" disabled={submitting || !nombre?.trim() || !cedula?.trim() || !celular?.trim() || !email?.trim() || !!nombreError || !!cedulaError || !!celularError || !!emailError}
                   className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-dark disabled:opacity-60">
                   {submitting && <span className="material-symbols-outlined animate-spin text-base">progress_activity</span>}
                   {editingId ? 'Guardar' : 'Crear chofer'}
@@ -608,6 +656,7 @@ export function AdminChoferesPage() {
                     </td>
                   </tr>
                 ))}
+
               </tbody>
             </table>
           </>

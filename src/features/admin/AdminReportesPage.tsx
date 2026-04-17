@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { api } from '../../services/api'
 import { useToastStore } from '../../store/toastStore'
 import { exportToExcel, exportToPDF } from '../../utils/exportUtils'
+import { useImageDownload } from '../../hooks/useImageDownload'
 
 type TabId = 'cliente' | 'fechas' | 'chofer' | 'guia'
 
@@ -98,6 +99,7 @@ const buildStaticMapUrl = (lat?: number | null, lng?: number | null, direccion?:
 
 export function AdminReportesPage() {
   const addToast = useToastStore((s) => s.addToast)
+  const { downloadImage } = useImageDownload()
 
   const [tab, setTab] = useState<TabId>('cliente')
   const [clienteId, setClienteId] = useState('')
@@ -954,10 +956,26 @@ export function AdminReportesPage() {
                                       )}
                                       {g.fotos.length > 0 && (
                                         <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
-                                          {g.fotos.slice(0, 3).map((foto) => (
-                                            <a key={foto.id} href={foto.urlPreview} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-md border border-slate-200">
-                                              <img src={foto.urlPreview} alt="Foto de entrega" className="h-20 w-full object-cover" />
-                                            </a>
+                                          {g.fotos.slice(0, 3).map((foto, idx) => (
+                                            <div key={foto.id} className="group relative block overflow-hidden rounded-md border border-slate-200 cursor-pointer">
+                                              <img 
+                                                src={foto.urlPreview} 
+                                                alt="Foto de entrega" 
+                                                className="h-20 w-full object-cover transition-transform group-hover:scale-105"
+                                                onClick={() => window.open(foto.urlPreview, '_blank')}
+                                              />
+                                              <button
+                                                type="button"
+                                                onClick={(e) => {
+                                                  e.stopPropagation()
+                                                  downloadImage(foto.urlPreview, `entrega-${g.numeroGuia}-${idx + 1}.jpg`)
+                                                }}
+                                                className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100"
+                                                title="Descargar imagen"
+                                              >
+                                                <span className="material-symbols-outlined text-xl text-white">download</span>
+                                              </button>
+                                            </div>
                                           ))}
                                         </div>
                                       )}
