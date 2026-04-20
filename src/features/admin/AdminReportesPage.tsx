@@ -338,9 +338,15 @@ export function AdminReportesPage() {
         ;(r.guias ?? []).forEach((g) => {
           const stop = routeStops.find((s) => s.id === g.stopId)
           rows.push({
-            Chofer: ch.nombre, Ruta: r.rutaId, Fecha: r.fecha, Cliente: g.cliente,
-            'Nº Guía': g.numeroGuia, Estado: g.estado, 'Recibido por': g.receptorNombre ?? '—',
-            'Hora llegada': g.horaLlegada ?? '—', 'Hora salida': g.horaSalida ?? '—',
+            Chofer: ch.nombre ?? '—', 
+            Ruta: r.rutaId ?? '—', 
+            Fecha: r.fecha ?? '—', 
+            Cliente: g.cliente ?? '—',
+            'Nº Guía': g.numeroGuia ?? '—', 
+            Estado: g.estado ?? '—', 
+            'Recibido por': g.receptorNombre ?? '—',
+            'Hora llegada': g.horaLlegada ?? '—', 
+            'Hora salida': g.horaSalida ?? '—',
             Temperatura: g.temperatura ?? '—',
             Observaciones: g.observaciones ?? '—',
             Incidencias: formatNovedades(g.novedades ?? []),
@@ -411,19 +417,19 @@ export function AdminReportesPage() {
   }
 
   const buildFechasRows = () => dataFechas.map((g) => ({
-    'Nº Guía': g.numeroGuia,
-    Estado: g.estado,
-    Fecha: new Date(g.createdAt).toLocaleString('es-ES'),
-    Cliente: g.cliente.nombre,
-    Chofer: g.ruta.chofer.nombre,
-    Ruta: g.ruta.id,
+    'Nº Guía': g.numeroGuia ?? '—',
+    Estado: g.estado ?? '—',
+    Fecha: g.createdAt ? new Date(g.createdAt).toLocaleString('es-ES') : '—',
+    Cliente: g.cliente?.nombre ?? '—',
+    Chofer: g.ruta?.chofer?.nombre ?? '—',
+    Ruta: g.ruta?.id ?? '—',
     'Recibido por': g.receptorNombre ?? '—',
     'Hora llegada': g.horaLlegada ?? '—',
     'Hora salida': g.horaSalida ?? '—',
     Temperatura: g.temperatura ?? '—',
     Observaciones: g.observaciones ?? '—',
-    Incidencias: formatNovedades(g.novedades),
-    'Fotos (URLs)': formatFotos(g.fotos.filter((f) => f.tipo === 'GUIA')),
+    Incidencias: formatNovedades(g.novedades ?? []),
+    'Fotos (URLs)': formatFotos((g.fotos ?? []).filter((f) => f.tipo === 'GUIA')),
     Mapa: buildStaticMapUrl(g.stop?.lat, g.stop?.lng, g.stop?.direccion),
   }))
 
@@ -491,22 +497,22 @@ export function AdminReportesPage() {
   }
 
   const buildGuiaRows = () => dataGuia.map((g) => ({
-    'Nº Guía': g.numeroGuia,
-    Descripción: g.descripcion,
-    Estado: g.estado,
-    'Fecha registro': new Date(g.createdAt).toLocaleString('es-ES'),
-    Cliente: g.cliente.nombre,
-    Chofer: g.ruta.chofer.nombre,
-    'Ruta ID': g.ruta.id,
-    'Fecha ruta': new Date(g.ruta.fecha).toLocaleDateString('es-ES'),
-    'Estado ruta': g.ruta.estado,
+    'Nº Guía': g.numeroGuia ?? '—',
+    Descripción: g.descripcion ?? '—',
+    Estado: g.estado ?? '—',
+    'Fecha registro': g.createdAt ? new Date(g.createdAt).toLocaleString('es-ES') : '—',
+    Cliente: g.cliente?.nombre ?? '—',
+    Chofer: g.ruta?.chofer?.nombre ?? '—',
+    'Ruta ID': g.ruta?.id ?? '—',
+    'Fecha ruta': g.ruta?.fecha ? new Date(g.ruta.fecha).toLocaleDateString('es-ES') : '—',
+    'Estado ruta': g.ruta?.estado ?? '—',
     'Recibido por': g.receptorNombre ?? '—',
     'Hora llegada': g.horaLlegada ?? '—',
     'Hora salida': g.horaSalida ?? '—',
     Temperatura: g.temperatura ?? '—',
     Observaciones: g.observaciones ?? '—',
-    Incidencias: formatNovedades(g.novedades),
-    'Fotos (URLs)': formatFotos(g.fotos.filter((f) => f.tipo === 'GUIA')),
+    Incidencias: formatNovedades(g.novedades ?? []),
+    'Fotos (URLs)': formatFotos((g.fotos ?? []).filter((f) => f.tipo === 'GUIA')),
     Mapa: buildStaticMapUrl(g.stop?.lat, g.stop?.lng, g.stop?.direccion),
   }))
 
