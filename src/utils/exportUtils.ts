@@ -182,26 +182,7 @@ export function exportToExcel(
   const lastColName = XLSX.utils.encode_col(Math.max(headers.length - 1, 0))
   ws['!autofilter'] = { ref: `A${headerRowIdx + 1}:${lastColName}${lastRowIdx + 1}` }
 
-  // Si existe columna de mapa, usar formula IMAGE() para mostrar miniatura en Excel moderno
-  const mapColIndexes = headers
-    .map((h, idx) => ({ h: h.toLowerCase(), idx }))
-    .filter((item) => item.h.includes('mapa'))
-    .map((item) => item.idx)
-  if (mapColIndexes.length > 0 && rows.length > 0) {
-    for (let r = 0; r < rows.length; r++) {
-      const excelRow = headerRowIdx + 2 + r
-      const rowObj = rows[r]
-      for (const c of mapColIndexes) {
-        const key = headers[c]
-        const raw = rowObj[key]
-        const url = typeof raw === 'string' ? raw : ''
-        if (url.startsWith('http')) {
-          const ref = `${XLSX.utils.encode_col(c)}${excelRow}`
-          ws[ref] = { f: `IMAGE("${url.replace(/"/g, '""')}")`, t: 'n' }
-        }
-      }
-    }
-  }
+  // Columna de mapa: dejar como URL de texto (IMAGE() corrompe archivos en Excel no-365)
 
   // Estilos de encabezado (xlsx-js-style)
   const titleCell = ws['A1']
@@ -266,23 +247,7 @@ export function exportToExcel(
       const detailLastCol = XLSX.utils.encode_col(Math.max(sheet.headers.length - 1, 0))
       detailWs['!autofilter'] = { ref: `A4:${detailLastCol}${Math.max(4, detailAoa.length)}` }
 
-      const detailMapCols = sheet.headers
-        .map((h, idx) => ({ h: h.toLowerCase(), idx }))
-        .filter((item) => item.h.includes('mapa'))
-        .map((item) => item.idx)
-      if (detailMapCols.length > 0 && sheet.rows.length > 0) {
-        for (let r = 0; r < sheet.rows.length; r++) {
-          const excelRow = 5 + r
-          for (const c of detailMapCols) {
-            const raw = sheet.rows[r]?.[c]
-            const url = typeof raw === 'string' ? raw : ''
-            if (url.startsWith('http')) {
-              const ref = `${XLSX.utils.encode_col(c)}${excelRow}`
-              detailWs[ref] = { f: `IMAGE("${url.replace(/"/g, '""')}")`, t: 'n' }
-            }
-          }
-        }
-      }
+      // Columna de mapa en hoja de detalle: dejar como URL de texto
 
       const dTitle = detailWs['A1']
       if (dTitle) {
