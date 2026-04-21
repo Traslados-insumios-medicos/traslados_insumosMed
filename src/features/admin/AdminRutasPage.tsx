@@ -59,6 +59,13 @@ interface ChoferOption { id: string; nombre: string }
 
 interface GuiaForm {
   descripcion: string
+  numeroGuia: string
+}
+
+const generateNumeroGuia = () => {
+  const ts = String(Date.now()).slice(-6)
+  const rand = Math.random().toString(36).slice(2, 5).toUpperCase()
+  return `G-${ts}-${rand}`
 }
 
 interface StopForm {
@@ -71,7 +78,7 @@ interface StopForm {
   guias: GuiaForm[]       // cada parada tiene múltiples guías
 }
 
-const guiaVacia = (): GuiaForm => ({ descripcion: '' })
+const guiaVacia = (): GuiaForm => ({ descripcion: '', numeroGuia: '' })
 const stopVacio = (): StopForm => ({ clienteId: '', subClienteId: '', direccion: '', lat: null, lng: null, notas: '', guias: [guiaVacia()] })
 const LIMIT = 10
 
@@ -194,8 +201,19 @@ export function AdminRutasPage() {
   const handleGuiaChange = (stopIdx: number, guiaIdx: number, value: string) => {
     setStopsForm((p) => p.map((s, idx) => {
       if (idx !== stopIdx) return s
-      return { ...s, guias: s.guias.map((g, gIdx) => gIdx === guiaIdx ? { descripcion: value } : g) }
+      return { ...s, guias: s.guias.map((g, gIdx) => gIdx === guiaIdx ? { ...g, descripcion: value } : g) }
     }))
+  }
+
+  const handleGuiaNumeroChange = (stopIdx: number, guiaIdx: number, value: string) => {
+    setStopsForm((p) => p.map((s, idx) => {
+      if (idx !== stopIdx) return s
+      return { ...s, guias: s.guias.map((g, gIdx) => gIdx === guiaIdx ? { ...g, numeroGuia: value } : g) }
+    }))
+  }
+
+  const handleGenerarNumeroGuia = (stopIdx: number, guiaIdx: number) => {
+    handleGuiaNumeroChange(stopIdx, guiaIdx, generateNumeroGuia())
   }
   const handleClienteChange = (i: number, clienteId: string) => {
     setStopsForm((p) => p.map((s, idx) => idx === i ? { ...s, clienteId, subClienteId: '', direccion: '', lat: null, lng: null } : s))
@@ -267,7 +285,7 @@ export function AdminRutasPage() {
   const canSubmit = choferId && stopsForm.every((s) => {
     const hasClienteId = !!s.clienteId
     const hasDireccion = !!s.direccion && s.lat !== null
-    const allGuiasValid = s.guias.every(g => g.descripcion.trim().length > 0)
+    const allGuiasValid = s.guias.every(g => g.descripcion.trim().length > 0 && g.numeroGuia.trim().length > 0)
     console.log('🔍 Validación parada:', {
       clienteId: s.clienteId,
       hasClienteId,
@@ -293,6 +311,7 @@ export function AdminRutasPage() {
       const guiasErrors: { [guiaIdx: number]: string } = {}
       s.guias.forEach((g, gIdx) => {
         if (!g.descripcion.trim()) guiasErrors[gIdx] = REQUIRED_MESSAGE
+        if (!g.numeroGuia.trim()) guiasErrors[gIdx] = guiasErrors[gIdx] ? guiasErrors[gIdx] + ' / Nº guía requerido' : 'Nº de guía requerido'
       })
       if (Object.keys(guiasErrors).length > 0) {
         nextStopsErrors[i] = { ...(nextStopsErrors[i] ?? {}), guias: guiasErrors }
@@ -316,6 +335,7 @@ export function AdminRutasPage() {
           clienteId: s.subClienteId || s.clienteId,
           notas: s.notas || undefined,
           guiaDescripcion: g.descripcion || 'Insumos médicos',
+          guias: [{ descripcion: g.descripcion || 'Insumos médicos', numeroGuia: g.numeroGuia.trim() }],
         }))
       )
       
@@ -669,6 +689,30 @@ export function AdminRutasPage() {
                                   </button>
                                 </div>
                                 <div>
+                                  {/* Número de guía */}
+                                  <div className="mb-2">
+                                    <label className="mb-1 block text-[10px] font-medium text-slate-600">Nº de guía *</label>
+                                    <div className="flex gap-1.5">
+                                      <input
+                                        type="text"
+                                        placeholder="Ej: G-123456"
+                                        value={guia.numeroGuia}
+                                        onChange={(e) => handleGuiaNumeroChange(i, gIdx, e.target.value.toUpperCase())}
+                                        maxLength={50}
+                                        className={`w-full rounded-md border bg-white px-2.5 py-1.5 text-xs font-mono ${
+                                          stopsErrors[i]?.guias?.[gIdx] ? 'border-red-400' : 'border-slate-200'
+                                        }`}
+                                      />
+                                      <button
+                                        type="button"
+                                        onClick={() => handleGenerarNumeroGuia(i, gIdx)}
+                                        title="Generar número aleatorio"
+                                        className="flex shrink-0 items-center justify-center rounded-md border border-slate-200 bg-slate-50 px-2 hover:bg-primary/10 hover:border-primary/30 transition-colors"
+                                      >
+                                        <span className="material-symbols-outlined text-[16px] text-slate-500">casino</span>
+                                      </button>
+                                    </div>
+                                  </div>
                                   <div className="mb-1 flex items-center justify-between">
                                     <label className="text-[10px] font-medium text-slate-600">Descripción *</label>
                                     <span className={`text-[9px] ${guia.descripcion.length > 130 ? 'text-amber-500' : 'text-slate-400'}`}>

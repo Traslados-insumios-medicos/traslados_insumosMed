@@ -178,20 +178,16 @@ export function ClienteEnvioDetallePage() {
   }
 
   const handleExportPDF = () => {
+    const estadoLabel =
+      guia.estado === 'ENTREGADO' ? 'Entregado' : guia.estado === 'INCIDENCIA' ? 'Incidencia' : 'En camino'
+
     exportToPDF(
       `Reporte de Envío · ${guia.numeroGuia}`,
       ['Campo', 'Valor'],
       [
         ['Nº Guía', guia.numeroGuia],
         ['Descripción', guia.descripcion],
-        [
-          'Estado',
-          guia.estado === 'ENTREGADO'
-            ? 'Entregado'
-            : guia.estado === 'INCIDENCIA'
-              ? 'Incidencia'
-              : 'En camino',
-        ],
+        ['Estado', estadoLabel],
         ['Recibido por', guia.receptorNombre ?? '—'],
         ['Hora llegada', guia.horaLlegada ?? '—'],
         ['Hora salida', guia.horaSalida ?? '—'],
@@ -201,6 +197,25 @@ export function ClienteEnvioDetallePage() {
         ['Fecha creación', new Date(guia.createdAt).toLocaleString('es-ES')],
       ],
       `reporte-guia-${guia.numeroGuia}`,
+      undefined,
+      undefined,
+      undefined,
+      [
+        {
+          title: `${guia.numeroGuia} · ${estadoLabel}`,
+          subtitle: guia.descripcion,
+          fields: [
+            { label: 'Recibido por', value: guia.receptorNombre ?? '—' },
+            { label: 'Hora llegada', value: guia.horaLlegada ?? '—' },
+            { label: 'Hora salida', value: guia.horaSalida ?? '—' },
+            { label: 'Temperatura', value: guia.temperatura ?? '—' },
+            { label: 'Observaciones', value: guia.observaciones ?? '—' },
+            { label: 'Novedades', value: novedadesGuia.map((n) => n.descripcion).join(' | ') || '—' },
+          ],
+          imageUrls: fotosGuia.map((f) => f.urlPreview),
+        },
+      ],
+      { showMainTable: false },
     )
   }
 
