@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useDbRefresh } from '../../hooks/useDbRefresh'
 import { useImageDownload } from '../../hooks/useImageDownload'
 import { MapboxAddressInput } from '../../components/ui/MapboxAddressInput'
@@ -836,6 +837,16 @@ export function AdminRutasPage() {
                       <div className="flex items-center justify-between gap-2">
                         <p className="font-display text-sm font-bold text-slate-900">RUTA #{ruta.id.slice(-6).toUpperCase()}</p>
                         <div className="flex items-center gap-1 shrink-0">
+                          {ruta.estado === 'EN_CURSO' && (
+                            <Link
+                              to={`/admin/rutas/${ruta.id}/tiempo-real`}
+                              className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition-colors"
+                              title="Ver en tiempo real"
+                            >
+                              <span className="size-1.5 animate-pulse rounded-full bg-emerald-500" />
+                              En vivo
+                            </Link>
+                          )}
                           <button
                             type="button"
                             onClick={(e) => { e.stopPropagation(); openDeleteRutaModal(ruta) }}
