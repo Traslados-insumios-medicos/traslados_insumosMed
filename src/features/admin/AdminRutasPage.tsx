@@ -692,7 +692,12 @@ export function AdminRutasPage() {
                                 <div>
                                   {/* Número de guía */}
                                   <div className="mb-2">
-                                    <label className="mb-1 block text-[10px] font-medium text-slate-600">Nº de guía *</label>
+                                    <div className="mb-1 flex items-center justify-between">
+                                      <label className="text-[10px] font-medium text-slate-600">Nº de guía *</label>
+                                      <span className={`text-[9px] ${guia.numeroGuia.length > 40 ? 'text-amber-500' : 'text-slate-400'}`}>
+                                        {guia.numeroGuia.length}/50
+                                      </span>
+                                    </div>
                                     <div className="flex gap-1.5">
                                       <input
                                         type="text"
