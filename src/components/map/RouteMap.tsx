@@ -86,6 +86,8 @@ export function RouteMap({
         style: 'mapbox://styles/mapbox/streets-v12',
         center,
         zoom: 12,
+        minZoom: 6,
+        maxBounds: [[-81.5, -5.2], [-74.9, 1.6]], // Ecuador
       })
       mapRef.current = map
 

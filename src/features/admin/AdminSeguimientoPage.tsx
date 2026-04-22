@@ -54,7 +54,7 @@ export function AdminSeguimientoPage() {
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return
-    const map = new mapboxgl.Map({ container: containerRef.current, style: 'mapbox://styles/mapbox/streets-v12', center: QUITO, zoom: 12 })
+    const map = new mapboxgl.Map({ container: containerRef.current, style: 'mapbox://styles/mapbox/streets-v12', center: QUITO, zoom: 6, minZoom: 6, maxBounds: [[-81.5, -5.2], [-74.9, 1.6]] })
     mapRef.current = map
     map.on('load', () => { map.addControl(new mapboxgl.NavigationControl(), 'top-right'); map.addControl(new mapboxgl.FullscreenControl(), 'top-right'); setMapLoaded(true) })
     return () => { markersRef.current.forEach((m) => m.remove()); markersRef.current.clear(); map.remove(); mapRef.current = null; setMapLoaded(false) }
@@ -271,4 +271,5 @@ export function AdminSeguimientoPage() {
     </div>
   )
 }
+
 
