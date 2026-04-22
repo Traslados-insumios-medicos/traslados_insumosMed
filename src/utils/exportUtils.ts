@@ -72,33 +72,6 @@ async function getLogoBase64(): Promise<string | null> {
   }
 }
 
-let transparentLogoCache: string | null = null
-async function getTransparentLogoBase64(): Promise<string | null> {
-  if (transparentLogoCache) return transparentLogoCache
-  const base = await getLogoBase64()
-  if (!base) return null
-  try {
-    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
-      const el = new Image()
-      el.onload = () => resolve(el)
-      el.onerror = reject
-      el.src = base
-    })
-    const canvas = document.createElement('canvas')
-    canvas.width = img.width
-    canvas.height = img.height
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return base
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-    ctx.globalAlpha = 0.07
-    ctx.drawImage(img, 0, 0)
-    transparentLogoCache = canvas.toDataURL('image/png')
-    return transparentLogoCache
-  } catch {
-    return base
-  }
-}
-
 let whiteLogoCache: string | null = null
 async function getWhiteLogoBase64(): Promise<string | null> {
   if (whiteLogoCache) return whiteLogoCache
