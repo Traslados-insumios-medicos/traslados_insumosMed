@@ -105,6 +105,7 @@ export function MainLayout() {
             <NavItem to="/admin/rutas" icon="map" label="Rutas" onClick={close} />
             <NavItem to="/admin/reportes" icon="analytics" label="Reportes" onClick={close} />
             <NavItem to="/admin/novedades" icon="warning" label="Novedades" onClick={close} />
+            <NavItem to="/admin/seguimiento" icon="location_on" label="Seguimiento" onClick={close} />
           </>)}
           {role === 'CHOFER' && (<>
             <NavItem to="/chofer/rutas" icon="route" label="Mis Rutas" onClick={close} />
