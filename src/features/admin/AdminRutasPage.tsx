@@ -40,6 +40,7 @@ interface FotoApi {
 
 interface RutaApi {
   id: string
+  nombre?: string | null
   fecha: string
   estado: string
   chofer: { id: string; nombre: string; cedula: string }
@@ -67,6 +68,12 @@ const generateNumeroGuia = () => {
   const ts = String(Date.now()).slice(-6)
   const rand = Math.random().toString(36).slice(2, 5).toUpperCase()
   return `G-${ts}-${rand}`
+}
+
+const generateNombreRuta = () => {
+  const ts = String(Date.now()).slice(-6)
+  const rand = Math.random().toString(36).slice(2, 4).toUpperCase()
+  return `RUTA-${ts}-${rand}`
 }
 
 interface StopForm {
@@ -119,6 +126,7 @@ export function AdminRutasPage() {
   }, [searchTerm])
 
   // form
+  const [nombreRuta, setNombreRuta] = useState('')
   const [choferId, setChoferId] = useState('')
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10))
   const [stopsForm, setStopsForm] = useState<StopForm[]>([stopVacio()])
@@ -173,6 +181,7 @@ export function AdminRutasPage() {
   useDbRefresh('rutas', () => fetchRutas(page, true))
 
   const resetForm = () => {
+    setNombreRuta('')
     setChoferId('')
     setChoferError('')
     setFecha(new Date().toISOString().slice(0, 10))
@@ -341,6 +350,7 @@ export function AdminRutasPage() {
       )
       
       await api.post('/rutas', {
+        nombre: nombreRuta.trim() || undefined,
         fecha,
         choferId,
         stops: guiasPayload,
@@ -522,6 +532,31 @@ export function AdminRutasPage() {
             </div>
 
             <div className="space-y-5 p-5">
+              <div>
+                <div className="mb-1.5 flex items-center justify-between">
+                  <label className="text-sm font-semibold text-slate-700">Nombre de ruta <span className="text-xs font-normal text-slate-400">(opcional)</span></label>
+                  <span className={`text-[10px] ${nombreRuta.length > 50 ? 'text-amber-500' : 'text-slate-400'}`}>{nombreRuta.length}/60</span>
+                </div>
+                <div className="flex gap-1.5">
+                  <input
+                    type="text"
+                    placeholder="Ej: RUTA-NORTE-01"
+                    value={nombreRuta}
+                    onChange={(e) => setNombreRuta(e.target.value.toUpperCase())}
+                    maxLength={60}
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setNombreRuta(generateNombreRuta())}
+                    title="Generar nombre aleatorio"
+                    className="flex shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-2.5 hover:bg-primary/10 hover:border-primary/30 transition-colors"
+                  >
+                    <span className="material-symbols-outlined text-[18px] text-slate-500">casino</span>
+                  </button>
+                </div>
+              </div>
+
               <div>
                 <label className="mb-1.5 block text-sm font-semibold text-slate-700">Chofer</label>
                 <select
@@ -840,7 +875,9 @@ export function AdminRutasPage() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">
-                        <p className="font-display text-sm font-bold text-slate-900">RUTA #{ruta.id.slice(-6).toUpperCase()}</p>
+                        <p className="font-display text-sm font-bold text-slate-900">
+                          {ruta.nombre ? ruta.nombre : `RUTA #${ruta.id.slice(-6).toUpperCase()}`}
+                        </p>
                         <div className="flex items-center gap-1 shrink-0">
                           {ruta.estado === 'EN_CURSO' && (
                             <Link

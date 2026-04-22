@@ -57,42 +57,9 @@ export function MainLayout() {
   useEffect(() => {
     const token = localStorage.getItem('token')
     if (token) {
-      // Importar y conectar el socket
       import('../../shared/socket').then(({ getSharedSocket }) => {
         getSharedSocket()
       })
-    }
-  }, [])
-
-  // Polling para verificar estado del usuario cada 10 segundos
-  useEffect(() => {
-    const checkUserStatus = async () => {
-      console.log('🔍 Verificando estado del usuario...')
-      try {
-        const { api } = await import('../../services/api')
-        const response = await api.get('/auth/me')
-        console.log('✅ Usuario activo:', response.data)
-      } catch (error: any) {
-        const status = error?.response?.status
-        const message = error?.response?.data?.message
-        console.error('❌ Error verificando estado:', status, message)
-        // Si el error es 403 (usuario inactivo), el interceptor ya manejará el logout
-        if (status === 403) {
-          console.log('🚫 Usuario inactivo detectado - el interceptor manejará el logout')
-        }
-      }
-    }
-
-    // Verificar inmediatamente al montar
-    checkUserStatus()
-
-    // Luego verificar cada 10 segundos
-    const interval = setInterval(checkUserStatus, 10000)
-    console.log('⏰ Polling de estado de usuario iniciado (cada 10 segundos)')
-
-    return () => {
-      clearInterval(interval)
-      console.log('🛑 Polling de estado de usuario detenido')
     }
   }, [])
 
