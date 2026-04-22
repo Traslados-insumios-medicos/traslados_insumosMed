@@ -568,7 +568,6 @@ export async function exportToPDF(
   }
 
   // Marca de agua + pie de pagina
-  const logoBase64 = await getTransparentLogoBase64()
   const totalPages = doc.getNumberOfPages()
   for (let page = 1; page <= totalPages; page++) {
     doc.setPage(page)
