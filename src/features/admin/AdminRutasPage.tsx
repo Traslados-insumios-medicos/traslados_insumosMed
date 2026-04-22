@@ -471,7 +471,7 @@ export function AdminRutasPage() {
                 setFechaDesde(e.target.value)
                 setPage(1)
               }}
-              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors" 
+              className="w-full min-w-0 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors" 
             />
           </div>
           <div className="flex flex-col gap-1.5">
@@ -483,7 +483,7 @@ export function AdminRutasPage() {
                 setFechaHasta(e.target.value)
                 setPage(1)
               }}
-              className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors" 
+              className="w-full min-w-0 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors" 
             />
           </div>
         </div>
