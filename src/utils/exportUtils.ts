@@ -573,18 +573,6 @@ export async function exportToPDF(
   for (let page = 1; page <= totalPages; page++) {
     doc.setPage(page)
     const pageHeight = doc.internal.pageSize.getHeight()
-
-    if (logoBase64) {
-      // Marca de agua tenue y desplazada a la parte baja para no competir con el contenido.
-      const wmSize = 80
-      const wmX = (pageWidth - wmSize) / 2
-      const wmY = pageHeight - wmSize - 34
-      doc.addImage(logoBase64, imageFormatFromBase64(logoBase64), wmX, wmY, wmSize, wmSize)
-      doc.setFontSize(22)
-      doc.setTextColor(239, 243, 250)
-      doc.text('LOGISTRANS S.A.', pageWidth / 2, pageHeight - 22, { align: 'center' })
-    }
-
     doc.setFontSize(8)
     doc.setTextColor(100)
     doc.text(`Pagina ${page} de ${totalPages}`, pageWidth - 35, pageHeight - 6)
@@ -592,3 +580,4 @@ export async function exportToPDF(
 
   doc.save(`${filename}.pdf`)
 }
+
