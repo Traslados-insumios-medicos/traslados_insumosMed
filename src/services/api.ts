@@ -19,23 +19,17 @@ api.interceptors.response.use(
   (res) => res,
   (error) => {
     const isLoginEndpoint = error.config?.url?.includes('/auth/login')
+    const isAuthMeEndpoint = error.config?.url?.includes('/auth/me')
     const hadToken = !!localStorage.getItem('token')
     const backendMessage = String(error?.response?.data?.message ?? '')
     const isInactive = backendMessage.toLowerCase().includes('inactivo')
-    const isSessionExpired = backendMessage.toLowerCase().includes('sesión ha expirado') || 
-                             backendMessage.toLowerCase().includes('otra sesión')
     const status = error.response?.status
     
-    console.log('🔴 Interceptor de error:', { status, isLoginEndpoint, hadToken, backendMessage, isInactive, isSessionExpired })
+    console.log('🔴 Interceptor de error:', { status, isLoginEndpoint, isAuthMeEndpoint, hadToken, backendMessage })
     
-    if (status === 401 && !isLoginEndpoint && hadToken) {
+    // No redirigir en /auth/me — restoreSession lo maneja por su cuenta
+    if (status === 401 && !isLoginEndpoint && !isAuthMeEndpoint && hadToken) {
       console.log('🚪 401 detectado - limpiando sesión y redirigiendo a login')
-      
-      // Si es por sesión expirada, mostrar mensaje específico
-      if (isSessionExpired) {
-        sessionStorage.setItem('session_expired_notice', backendMessage || 'Su sesión ha expirado. Otra sesión ha sido iniciada con esta cuenta.')
-      }
-      
       localStorage.clear()
       window.location.href = '/login'
     }

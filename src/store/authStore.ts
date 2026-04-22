@@ -79,8 +79,12 @@ export const useAuthStore = create<AuthState>((set) => ({
         mustChangePassword: !!data.mustChangePassword,
         sessionLoading: false,
       })
-    } catch {
-      localStorage.removeItem('token')
+    } catch (err: any) {
+      // Solo limpiar sesión si el servidor explícitamente rechaza el token (401)
+      // No limpiar por errores de red o timeouts
+      if (err?.response?.status === 401) {
+        localStorage.removeItem('token')
+      }
       set({ sessionLoading: false })
     }
   },
