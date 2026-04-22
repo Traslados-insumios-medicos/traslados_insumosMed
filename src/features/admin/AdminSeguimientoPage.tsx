@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import mapboxgl from 'mapbox-gl'
 import { api } from '../../services/api'
 import { getSharedSocket } from '../../shared/socket'
-import { SeguimientoChoferStepper } from '../../components/cliente/SeguimientoChoferStepper'
 import 'mapbox-gl/dist/mapbox-gl.css'
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN ?? ''
@@ -223,12 +222,6 @@ export function AdminSeguimientoPage() {
               </div>
             ) : detalleRuta ? (
               <div className="space-y-5">
-                {/* Estado del chofer */}
-                <div className="rounded-xl border border-slate-200 p-4">
-                  <p className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-400">Estado del chofer</p>
-                  <SeguimientoChoferStepper rutaEstado={detalleRuta.estado} seguimiento={detalleRuta.seguimientoChofer ?? 'NINGUNO'} guiaEstado="PENDIENTE" />
-                </div>
-
                 {/* Resumen */}
                 <div className="grid grid-cols-3 gap-2">
                   {[
@@ -278,3 +271,4 @@ export function AdminSeguimientoPage() {
     </div>
   )
 }
+
