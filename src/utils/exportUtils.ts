@@ -524,27 +524,31 @@ export async function exportToPDF(
           }
         }
 
-        // Fotos de evidencia: abajo, separadas del mapa
+        // Fotos de evidencia: una por pagina A4 completa
         if (evidenceUrls.length > 0) {
-          const maxImages = Math.min(evidenceUrls.length, 2)
           const imgY = y + cardHeight - 38
           doc.setFontSize(8)
           doc.setTextColor(71, 85, 105)
-          doc.text('Fotos de evidencia:', x + 2, imgY - 2)
-          const imageWidth = 54
-          const imageGap = 4
-          const totalEvidenceWidth = maxImages * imageWidth + (maxImages - 1) * imageGap
-          const startImgX = x + (cardWidth - totalEvidenceWidth) / 2
-          for (let i = 0; i < maxImages; i++) {
-            const imgX = startImgX + i * (imageWidth + imageGap)
+          doc.text(`Fotos de evidencia (${evidenceUrls.length}): ver paginas siguientes`, x + 2, imgY - 2)
+
+          for (let i = 0; i < evidenceUrls.length; i++) {
+            doc.addPage()
+            const pw = doc.internal.pageSize.getWidth()
+            const ph = doc.internal.pageSize.getHeight()
+            doc.setFillColor(37, 99, 235)
+            doc.rect(0, 0, pw, 18, 'F')
+            doc.setTextColor(255, 255, 255)
+            doc.setFontSize(10)
+            doc.text(`${card.title} — Foto ${i + 1} de ${evidenceUrls.length}`, 10, 11)
             try {
               const imgBase64 = await urlToBase64(evidenceUrls[i])
               const format = imageFormatFromBase64(imgBase64)
-              doc.addImage(imgBase64, format, imgX, imgY, imageWidth, 34)
+              const imgMargin = 10
+              doc.addImage(imgBase64, format, imgMargin, 22, pw - imgMargin * 2, ph - 32)
             } catch {
-              doc.setFontSize(6)
+              doc.setFontSize(10)
               doc.setTextColor(148, 163, 184)
-              doc.text('Sin vista previa', imgX + imageWidth / 2, imgY + 10, { align: 'center' })
+              doc.text('Imagen no disponible', pw / 2, ph / 2, { align: 'center' })
             }
           }
         } else {
