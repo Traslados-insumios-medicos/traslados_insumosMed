@@ -13,7 +13,7 @@ api.interceptors.request.use((config) => {
   if (socketId) config.headers['x-socket-id'] = socketId
   return config
 })
-
+//hola
 // Si el backend devuelve 401, limpia sesión y redirige — solo si había token activo
 api.interceptors.response.use(
   (res) => res,
