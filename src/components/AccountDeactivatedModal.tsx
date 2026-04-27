@@ -11,30 +11,22 @@ export function AccountDeactivatedModal() {
 
   useEffect(() => {
     const token = localStorage.getItem('token')
-    if (!token) {
-      console.log('⚠️ No hay token, no se conectará el socket')
-      return
-    }
+    if (!token) return
 
-    console.log('🔌 Conectando socket para escuchar account:deactivated...')
     const socket = getSharedSocket()
     
     const handleAccountDeactivated = () => {
-      console.log('🔴 EVENTO RECIBIDO: account:deactivated - mostrando modal')
       setShow(true)
     }
 
     socket.on('account:deactivated', handleAccountDeactivated)
-    console.log('✅ Listener de account:deactivated registrado en socket:', socket.id)
 
     return () => {
-      console.log('🧹 Limpiando listener de account:deactivated')
       socket.off('account:deactivated', handleAccountDeactivated)
     }
   }, [])
 
   const handleClose = () => {
-    console.log('👋 Usuario cerró el modal, haciendo logout...')
     setShow(false)
     logout()
     navigate('/login')

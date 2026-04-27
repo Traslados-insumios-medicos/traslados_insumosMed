@@ -243,22 +243,12 @@ export function AdminRutasPage() {
     const principal = clientes.find((c) => c.id === stop.clienteId)
     const sub = principal?.clientesSecundarios?.find((s) => s.id === subClienteId)
     
-    console.log('🔍 Cliente secundario seleccionado:', {
-      subClienteId,
-      principal: principal?.nombre,
-      sub: sub,
-      direccion: sub?.direccion,
-      lat: sub?.lat,
-      lng: sub?.lng
-    })
-    
     let direccion = sub?.direccion ?? ''
     let lat = sub?.lat ?? null
     let lng = sub?.lng ?? null
     
     // Si el cliente secundario tiene dirección pero no coordenadas, geocodificar automáticamente
     if (direccion && (lat === null || lng === null)) {
-      console.log('🗺️ Geocodificando dirección automáticamente:', direccion)
       try {
         const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN
         const response = await fetch(
@@ -269,11 +259,8 @@ export function AdminRutasPage() {
           const [lng_result, lat_result] = data.features[0].center
           lat = lat_result
           lng = lng_result
-          console.log('✅ Coordenadas obtenidas:', { lat, lng })
         }
-      } catch (error) {
-        console.error('❌ Error al geocodificar:', error)
-      }
+      } catch {}
     }
     
     setStopsForm((p) => p.map((s, idx) => idx === i ? { ...s, subClienteId, direccion, lat, lng } : s))
@@ -296,21 +283,8 @@ export function AdminRutasPage() {
     const hasClienteId = !!s.clienteId
     const hasDireccion = !!s.direccion && s.lat !== null
     const allGuiasValid = s.guias.every(g => g.descripcion.trim().length > 0 && g.numeroGuia.trim().length > 0)
-    console.log('🔍 Validación parada:', {
-      clienteId: s.clienteId,
-      hasClienteId,
-      direccion: s.direccion,
-      lat: s.lat,
-      lng: s.lng,
-      hasDireccion,
-      guias: s.guias,
-      allGuiasValid,
-      result: hasClienteId && hasDireccion && allGuiasValid
-    })
     return hasClienteId && hasDireccion && allGuiasValid
   })
-  
-  console.log('🔍 canSubmit final:', { choferId, canSubmit, stopsForm })
 
   const handleSubmit = async () => {
     const nextStopsErrors: { [key: number]: { clienteId?: string; direccion?: string; guias?: { [guiaIdx: number]: string } } } = {}
