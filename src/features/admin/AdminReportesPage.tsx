@@ -22,7 +22,17 @@ interface ResumenCliente {
     temperatura?: string | null
     observaciones?: string | null
     createdAt: string
-    ruta: { id: string; fecha: string; createdAt: string; estado: string; chofer: { id: string; nombre: string } }
+    ruta: {
+      id: string
+      fecha: string
+      createdAt: string
+      estado: string
+      nombre?: string | null
+      hojaRuta?: string | null
+      lugarOrigen?: string | null
+      lugarDestino?: string | null
+      chofer: { id: string; nombre: string }
+    }
     stop?: { id: string; direccion: string; lat: number | null; lng: number | null } | null
     novedades: { tipo: string; descripcion: string; createdAt: string }[]
     fotos: { id: string; urlPreview: string; tipo: string; createdAt: string }[]
@@ -38,7 +48,16 @@ interface GuiaFecha {
   temperatura?: string | null
   observaciones?: string | null
   cliente: { id: string; nombre: string }
-  ruta: { id: string; fecha: string; estado: string; chofer: { id: string; nombre: string } }
+  ruta: {
+    id: string
+    fecha: string
+    estado: string
+    nombre?: string | null
+    hojaRuta?: string | null
+    lugarOrigen?: string | null
+    lugarDestino?: string | null
+    chofer: { id: string; nombre: string }
+  }
   stop?: { id: string; direccion: string; lat: number | null; lng: number | null } | null
   novedades: { tipo: string; descripcion: string; createdAt: string }[]
   fotos: { id: string; urlPreview: string; tipo: string; createdAt: string }[]
@@ -57,6 +76,10 @@ interface RutaChofer {
   rutaId: string
   fecha: string
   estado: string
+  nombre?: string | null
+  hojaRuta?: string | null
+  lugarOrigen?: string | null
+  lugarDestino?: string | null
   guias: GuiaChofer[]
   stops?: { id: string; direccion: string; lat: number | null; lng: number | null }[]
 }
@@ -77,6 +100,13 @@ const LIMIT = 10
 const trunc = (str: string | undefined | null, max = 50) => {
   if (!str) return ''
   return str.length > max ? str.slice(0, max - 3) + '...' : str
+}
+
+/** Valor para columna «Hoja de ruta» en exportaciones */
+function rutaHojaLabel(r?: { hojaRuta?: string | null; nombre?: string | null } | null) {
+  const h = r?.hojaRuta?.trim()
+  const n = r?.nombre?.trim()
+  return h || n || '—'
 }
 
 const formatNovedades = (novedades: { tipo: string; descripcion: string }[]) =>
@@ -225,8 +255,12 @@ export function AdminReportesPage() {
       cliente.guias.map((g) => [
         cliente.nombre,
         g.numeroGuia,
+        g.descripcion,
         g.estado,
         new Date(g.createdAt).toLocaleString('es-ES'),
+        rutaHojaLabel(g.ruta),
+        g.ruta?.lugarOrigen ?? '—',
+        g.ruta?.lugarDestino ?? '—',
         g.ruta.id,
         g.ruta.chofer.nombre,
         g.receptorNombre ?? '—',
@@ -257,9 +291,13 @@ export function AdminReportesPage() {
           headers: [
             'Cliente',
             'Numero de guia',
+            'Descripcion guia',
             'Estado',
             'Fecha registro',
-            'Ruta',
+            'Hoja de ruta',
+            'Lugar origen',
+            'Lugar destino',
+            'ID ruta',
             'Chofer',
             'Recibido por',
             'Hora llegada',
@@ -284,7 +322,7 @@ export function AdminReportesPage() {
         cliente.guias.map((g) => ({
           routeId: g.ruta.id,
           card: {
-            groupTitle: `Ruta #${g.ruta.id.slice(-6).toUpperCase()} · Chofer: ${g.ruta.chofer.nombre} · Fecha ruta: ${new Date(g.ruta.fecha).toLocaleDateString('es-ES')} · Creada: ${new Date(g.ruta.createdAt).toLocaleString('es-ES')}`,
+            groupTitle: `${rutaHojaLabel(g.ruta) !== '—' ? `${rutaHojaLabel(g.ruta)} · ` : ''}#${g.ruta.id.slice(-6).toUpperCase()} · Chofer: ${g.ruta.chofer.nombre} · Fecha ruta: ${new Date(g.ruta.fecha).toLocaleDateString('es-ES')} · Creada: ${new Date(g.ruta.createdAt).toLocaleString('es-ES')}`,
             title: `${cliente.nombre} · Guia ${g.numeroGuia}`,
             subtitle: `Estado de la guia: ${g.estado}`,
             fields: [
@@ -338,11 +376,15 @@ export function AdminReportesPage() {
         ;(r.guias ?? []).forEach((g) => {
           const stop = routeStops.find((s) => s.id === g.stopId)
           rows.push({
-            Chofer: ch.nombre ?? '—', 
-            Ruta: r.rutaId ?? '—', 
-            Fecha: r.fecha ?? '—', 
+            Chofer: ch.nombre ?? '—',
+            'Hoja de ruta': rutaHojaLabel({ hojaRuta: r.hojaRuta, nombre: r.nombre }),
+            'Lugar origen': r.lugarOrigen?.trim() || '—',
+            'Lugar destino': r.lugarDestino?.trim() || '—',
+            'ID ruta': r.rutaId ?? '—',
+            Fecha: r.fecha ?? '—',
             Cliente: g.cliente ?? '—',
-            'Nº Guía': g.numeroGuia ?? '—', 
+            'Nº Guía': g.numeroGuia ?? '—',
+            Descripción: g.descripcion ?? '—',
             Estado: g.estado ?? '—', 
             'Recibido por': g.receptorNombre ?? '—',
             'Hora llegada': g.horaLlegada ?? '—', 
@@ -376,7 +418,7 @@ export function AdminReportesPage() {
             return {
               routeId: r.rutaId,
               card: {
-                groupTitle: `Ruta #${r.rutaId.slice(-6).toUpperCase()} · Chofer: ${ch.nombre} · Fecha ruta: ${new Date(r.fecha).toLocaleDateString('es-ES')}`,
+                groupTitle: `${rutaHojaLabel({ hojaRuta: r.hojaRuta, nombre: r.nombre }) !== '—' ? `${rutaHojaLabel({ hojaRuta: r.hojaRuta, nombre: r.nombre })} · ` : ''}#${r.rutaId.slice(-6).toUpperCase()} · Chofer: ${ch.nombre} · Fecha ruta: ${new Date(r.fecha).toLocaleDateString('es-ES')}`,
                 title: `${g.cliente} · Guia ${g.numeroGuia}`,
                 subtitle: `Estado de la guia: ${g.estado}`,
                 fields: [
@@ -400,8 +442,44 @@ export function AdminReportesPage() {
       .sort((a, b) => a.routeId.localeCompare(b.routeId))
       .map((item) => item.card)
     await exportToPDF('Reporte por Chofer',
-      ['Nombre del chofer', 'Ruta', 'Fecha de ruta', 'Cliente de la guia', 'Numero de guia', 'Estado', 'Recibido por', 'Hora de llegada', 'Hora de salida', 'Temperatura', 'Observaciones', 'Incidencias reportadas', 'Fotos (enlaces)'],
-      rows.map((r) => [r['Chofer'], r['Ruta'], r['Fecha'], r['Cliente'], r['Nº Guía'], r['Estado'], r['Recibido por'], r['Hora llegada'], r['Hora salida'], r['Temperatura'], r['Observaciones'], r['Incidencias'], r['Fotos (URLs)']]),
+      [
+        'Nombre del chofer',
+        'Hoja de ruta',
+        'Lugar origen',
+        'Lugar destino',
+        'ID ruta',
+        'Fecha de ruta',
+        'Cliente de la guia',
+        'Numero de guia',
+        'Descripcion',
+        'Estado',
+        'Recibido por',
+        'Hora de llegada',
+        'Hora de salida',
+        'Temperatura',
+        'Observaciones',
+        'Incidencias reportadas',
+        'Fotos (enlaces)',
+      ],
+      rows.map((row) => [
+        row['Chofer'],
+        row['Hoja de ruta'],
+        row['Lugar origen'],
+        row['Lugar destino'],
+        row['ID ruta'],
+        row['Fecha'],
+        row['Cliente'],
+        row['Nº Guía'],
+        row['Descripción'],
+        row['Estado'],
+        row['Recibido por'],
+        row['Hora llegada'],
+        row['Hora salida'],
+        row['Temperatura'],
+        row['Observaciones'],
+        row['Incidencias'],
+        row['Fotos (URLs)'],
+      ]),
       'reporte-por-chofer',
       buildFilterInfo(),
       [
@@ -418,11 +496,15 @@ export function AdminReportesPage() {
 
   const buildFechasRows = () => dataFechas.map((g) => ({
     'Nº Guía': g.numeroGuia ?? '—',
+    Descripción: g.descripcion ?? '—',
     Estado: g.estado ?? '—',
     Fecha: g.createdAt ? new Date(g.createdAt).toLocaleString('es-ES') : '—',
     Cliente: g.cliente?.nombre ?? '—',
     Chofer: g.ruta?.chofer?.nombre ?? '—',
-    Ruta: g.ruta?.id ?? '—',
+    'Hoja de ruta': rutaHojaLabel(g.ruta ?? null),
+    'Lugar origen': g.ruta?.lugarOrigen?.trim() || '—',
+    'Lugar destino': g.ruta?.lugarDestino?.trim() || '—',
+    'ID ruta': g.ruta?.id ?? '—',
     'Recibido por': g.receptorNombre ?? '—',
     'Hora llegada': g.horaLlegada ?? '—',
     'Hora salida': g.horaSalida ?? '—',
@@ -444,7 +526,7 @@ export function AdminReportesPage() {
       .map((g) => ({
         routeId: g.ruta.id,
         card: {
-          groupTitle: `Ruta #${g.ruta.id.slice(-6).toUpperCase()} · Chofer: ${g.ruta.chofer.nombre} · Fecha ruta: ${new Date(g.ruta.fecha).toLocaleDateString('es-ES')}`,
+          groupTitle: `${rutaHojaLabel(g.ruta) !== '—' ? `${rutaHojaLabel(g.ruta)} · ` : ''}#${g.ruta.id.slice(-6).toUpperCase()} · Chofer: ${g.ruta.chofer.nombre} · Fecha ruta: ${new Date(g.ruta.fecha).toLocaleDateString('es-ES')}`,
           title: `${g.cliente.nombre} · Guia ${g.numeroGuia}`,
           subtitle: `Estado de la guia: ${g.estado}`,
           fields: [
@@ -466,14 +548,36 @@ export function AdminReportesPage() {
       .map((item) => item.card)
     await exportToPDF(
       'Reporte detallado por fechas',
-      ['Numero de guia', 'Estado', 'Fecha de registro', 'Cliente de la guia', 'Chofer', 'Ruta', 'Recibido por', 'Hora de llegada', 'Hora de salida', 'Temperatura', 'Observaciones', 'Incidencias reportadas', 'Fotos (enlaces)'],
+      [
+        'Numero de guia',
+        'Descripcion',
+        'Estado',
+        'Fecha de registro',
+        'Cliente de la guia',
+        'Chofer',
+        'Hoja de ruta',
+        'Lugar origen',
+        'Lugar destino',
+        'ID ruta',
+        'Recibido por',
+        'Hora de llegada',
+        'Hora de salida',
+        'Temperatura',
+        'Observaciones',
+        'Incidencias reportadas',
+        'Fotos (enlaces)',
+      ],
       rows.map((r) => [
         r['Nº Guía'],
+        r['Descripción'],
         r['Estado'],
         r['Fecha'],
         r['Cliente'],
         r['Chofer'],
-        r['Ruta'],
+        r['Hoja de ruta'],
+        r['Lugar origen'],
+        r['Lugar destino'],
+        r['ID ruta'],
         r['Recibido por'],
         r['Hora llegada'],
         r['Hora salida'],
@@ -503,6 +607,9 @@ export function AdminReportesPage() {
     'Fecha registro': g.createdAt ? new Date(g.createdAt).toLocaleString('es-ES') : '—',
     Cliente: g.cliente?.nombre ?? '—',
     Chofer: g.ruta?.chofer?.nombre ?? '—',
+    'Hoja de ruta': rutaHojaLabel(g.ruta ?? null),
+    'Lugar origen': g.ruta?.lugarOrigen?.trim() || '—',
+    'Lugar destino': g.ruta?.lugarDestino?.trim() || '—',
     'Ruta ID': g.ruta?.id ?? '—',
     'Fecha ruta': g.ruta?.fecha ? new Date(g.ruta.fecha).toLocaleDateString('es-ES') : '—',
     'Estado ruta': g.ruta?.estado ?? '—',
@@ -529,7 +636,7 @@ export function AdminReportesPage() {
       .map((g) => ({
         routeId: g.ruta.id,
         card: {
-          groupTitle: `Ruta #${g.ruta.id.slice(-6).toUpperCase()} · Chofer: ${g.ruta.chofer.nombre} · Fecha ruta: ${new Date(g.ruta.fecha).toLocaleDateString('es-ES')}`,
+          groupTitle: `${rutaHojaLabel(g.ruta) !== '—' ? `${rutaHojaLabel(g.ruta)} · ` : ''}#${g.ruta.id.slice(-6).toUpperCase()} · Chofer: ${g.ruta.chofer.nombre} · Fecha ruta: ${new Date(g.ruta.fecha).toLocaleDateString('es-ES')}`,
           title: `${g.cliente.nombre} · Guía ${g.numeroGuia}`,
           subtitle: `Estado: ${g.estado} · ${g.descripcion}`,
           fields: [
@@ -552,7 +659,26 @@ export function AdminReportesPage() {
     
     await exportToPDF(
       'Reporte por Guía',
-      ['Número de guía', 'Descripción', 'Estado', 'Fecha registro', 'Cliente', 'Chofer', 'Ruta', 'Fecha ruta', 'Estado ruta', 'Recibido por', 'Hora llegada', 'Hora salida', 'Temperatura', 'Observaciones', 'Incidencias'],
+      [
+        'Número de guía',
+        'Descripción',
+        'Estado',
+        'Fecha registro',
+        'Cliente',
+        'Chofer',
+        'Hoja de ruta',
+        'Lugar origen',
+        'Lugar destino',
+        'ID ruta',
+        'Fecha ruta',
+        'Estado ruta',
+        'Recibido por',
+        'Hora llegada',
+        'Hora salida',
+        'Temperatura',
+        'Observaciones',
+        'Incidencias',
+      ],
       rows.map((r) => [
         r['Nº Guía'],
         r['Descripción'],
@@ -560,6 +686,9 @@ export function AdminReportesPage() {
         r['Fecha registro'],
         r['Cliente'],
         r['Chofer'],
+        r['Hoja de ruta'],
+        r['Lugar origen'],
+        r['Lugar destino'],
         r['Ruta ID'],
         r['Fecha ruta'],
         r['Estado ruta'],
@@ -853,12 +982,13 @@ export function AdminReportesPage() {
                   )}
                 </p>
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[480px] text-left text-sm">
+                  <table className="w-full min-w-[640px] text-left text-sm">
                     <thead className="bg-slate-50 text-xs font-semibold uppercase text-slate-500">
                       <tr>
                         <th className="px-4 py-3">Guía</th>
                         <th className="px-4 py-3">Cliente</th>
                         <th className="px-4 py-3">Chofer</th>
+                        <th className="px-4 py-3">Hoja ruta</th>
                         <th className="px-4 py-3">Estado</th>
                         <th className="px-4 py-3">Fecha</th>
                       </tr>
@@ -869,6 +999,9 @@ export function AdminReportesPage() {
                           <td className="px-4 py-3 font-medium text-primary max-w-[120px] break-words overflow-hidden">{trunc(g.numeroGuia)}</td>
                           <td className="px-4 py-3 text-slate-600 max-w-[150px] break-words overflow-hidden">{trunc(g.cliente.nombre)}</td>
                           <td className="px-4 py-3 text-slate-500 max-w-[150px] break-words overflow-hidden">{trunc(g.ruta.chofer.nombre)}</td>
+                          <td className="px-4 py-3 text-slate-500 max-w-[140px] text-xs break-words overflow-hidden">
+                            {rutaHojaLabel(g.ruta) !== '—' ? trunc(rutaHojaLabel(g.ruta), 40) : '—'}
+                          </td>
                           <td className="px-4 py-3">
                             <span className={`rounded-full px-2 py-0.5 text-xs whitespace-nowrap ${
                               g.estado === 'ENTREGADO' ? 'bg-emerald-100 text-emerald-700' :
@@ -933,7 +1066,11 @@ export function AdminReportesPage() {
                               <div key={ruta.rutaId} className="border-b border-slate-100 px-12 py-3 last:border-0">
                                 <div className="flex items-center justify-between mb-2">
                                   <p className="text-xs font-bold uppercase tracking-wider text-primary">
-                                    RUTA #{ruta.rutaId.slice(-6).toUpperCase()} • {ruta.fecha} • <span className="normal-case font-normal text-slate-500">{ruta.estado}</span>
+                                    {rutaHojaLabel({ hojaRuta: ruta.hojaRuta, nombre: ruta.nombre }) !== '—'
+                                      ? `${rutaHojaLabel({ hojaRuta: ruta.hojaRuta, nombre: ruta.nombre })} • `
+                                      : ''}
+                                    #{ruta.rutaId.slice(-6).toUpperCase()} • {ruta.fecha} •{' '}
+                                    <span className="normal-case font-normal text-slate-500">{ruta.estado}</span>
                                   </p>
                                 </div>
                                 <div className="space-y-2">
@@ -1034,13 +1171,14 @@ export function AdminReportesPage() {
                   )}
                 </p>
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[640px] text-left text-sm">
+                  <table className="w-full min-w-[800px] text-left text-sm">
                     <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wider text-slate-500">
                       <tr>
                         <th className="px-4 py-3">Nº Guía</th>
                         <th className="px-4 py-3">Descripción</th>
                         <th className="px-4 py-3">Cliente</th>
                         <th className="px-4 py-3">Chofer</th>
+                        <th className="px-4 py-3">Hoja ruta</th>
                         <th className="px-4 py-3">Estado</th>
                         <th className="px-4 py-3">Fecha</th>
                         <th className="px-4 py-3">Receptor</th>
@@ -1049,7 +1187,7 @@ export function AdminReportesPage() {
                     <tbody className="divide-y divide-slate-100">
                       {dataGuiaPaginada.length === 0 ? (
                         <tr>
-                          <td colSpan={7} className="px-4 py-12 text-center text-sm text-slate-400">
+                          <td colSpan={8} className="px-4 py-12 text-center text-sm text-slate-400">
                             No hay guías para mostrar con los filtros seleccionados
                           </td>
                         </tr>
@@ -1075,6 +1213,9 @@ export function AdminReportesPage() {
                                 <span className="material-symbols-outlined text-[14px] text-slate-400">person</span>
                                 {trunc(g.ruta.chofer.nombre, 25)}
                               </div>
+                            </td>
+                            <td className="px-4 py-3.5 text-slate-500 text-xs max-w-[140px] break-words">
+                              {rutaHojaLabel(g.ruta) !== '—' ? trunc(rutaHojaLabel(g.ruta), 36) : '—'}
                             </td>
                             <td className="px-4 py-3.5">
                               <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${

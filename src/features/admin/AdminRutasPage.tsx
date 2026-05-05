@@ -41,6 +41,9 @@ interface FotoApi {
 interface RutaApi {
   id: string
   nombre?: string | null
+  hojaRuta?: string | null
+  lugarOrigen?: string | null
+  lugarDestino?: string | null
   fecha: string
   estado: string
   chofer: { id: string; nombre: string; cedula: string }
@@ -127,6 +130,9 @@ export function AdminRutasPage() {
 
   // form
   const [nombreRuta, setNombreRuta] = useState('')
+  const [hojaRutaField, setHojaRutaField] = useState('')
+  const [lugarOrigen, setLugarOrigen] = useState('')
+  const [lugarDestino, setLugarDestino] = useState('')
   const [choferId, setChoferId] = useState('')
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10))
   const [stopsForm, setStopsForm] = useState<StopForm[]>([stopVacio()])
@@ -182,6 +188,9 @@ export function AdminRutasPage() {
 
   const resetForm = () => {
     setNombreRuta('')
+    setHojaRutaField('')
+    setLugarOrigen('')
+    setLugarDestino('')
     setChoferId('')
     setChoferError('')
     setFecha(new Date().toISOString().slice(0, 10))
@@ -309,25 +318,27 @@ export function AdminRutasPage() {
     
     setSubmitting(true)
     try {
-      // Crear una guía por cada guía en cada parada
-      const guiasPayload = stopsForm.flatMap((s, i) => 
-        s.guias.map((g) => ({
-          orden: i + 1,
-          direccion: s.direccion,
-          lat: s.lat,
-          lng: s.lng,
-          clienteId: s.subClienteId || s.clienteId,
-          notas: s.notas || undefined,
-          guiaDescripcion: g.descripcion || 'Insumos médicos',
-          guias: [{ descripcion: g.descripcion || 'Insumos médicos', numeroGuia: g.numeroGuia.trim() }],
-        }))
-      )
-      
+      const stopsPayload = stopsForm.map((s, i) => ({
+        orden: i + 1,
+        direccion: s.direccion,
+        lat: s.lat ?? undefined,
+        lng: s.lng ?? undefined,
+        clienteId: s.subClienteId || s.clienteId,
+        notas: s.notas || undefined,
+        guias: s.guias.map((g) => ({
+          descripcion: g.descripcion.trim() || 'Insumos médicos',
+          numeroGuia: g.numeroGuia.trim(),
+        })),
+      }))
+
       await api.post('/rutas', {
         nombre: nombreRuta.trim() || undefined,
+        hojaRuta: hojaRutaField.trim() || undefined,
+        lugarOrigen: lugarOrigen.trim() || undefined,
+        lugarDestino: lugarDestino.trim() || undefined,
         fecha,
         choferId,
-        stops: guiasPayload,
+        stops: stopsPayload,
       })
       addToast('Ruta creada', 'success')
       resetForm()
@@ -528,6 +539,55 @@ export function AdminRutasPage() {
                   >
                     <span className="material-symbols-outlined text-[18px] text-slate-500">casino</span>
                   </button>
+                </div>
+              </div>
+
+              <div>
+                <div className="mb-1.5 flex items-center justify-between">
+                  <label className="text-sm font-semibold text-slate-700">Hoja de ruta</label>
+                  <span className={`text-[10px] ${hojaRutaField.length > 100 ? 'text-amber-500' : 'text-slate-400'}`}>
+                    {hojaRutaField.length}/120
+                  </span>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Ej: HR-2026-0142"
+                  value={hojaRutaField}
+                  onChange={(e) => setHojaRutaField(e.target.value)}
+                  maxLength={120}
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
+                />
+                <p className="mt-1 text-[11px] text-slate-400">Referencia visible en reportes Excel.</p>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <div className="mb-1.5 flex items-center justify-between">
+                    <label className="text-sm font-semibold text-slate-700">Lugar de origen</label>
+                    <span className="text-[10px] text-slate-400">{lugarOrigen.length}/200</span>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Ej: Bodega Quito Norte"
+                    value={lugarOrigen}
+                    onChange={(e) => setLugarOrigen(e.target.value)}
+                    maxLength={200}
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <div className="mb-1.5 flex items-center justify-between">
+                    <label className="text-sm font-semibold text-slate-700">Lugar de destino</label>
+                    <span className="text-[10px] text-slate-400">{lugarDestino.length}/200</span>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="Ej: Ruta final sur"
+                    value={lugarDestino}
+                    onChange={(e) => setLugarDestino(e.target.value)}
+                    maxLength={200}
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm"
+                  />
                 </div>
               </div>
 
@@ -899,6 +959,25 @@ export function AdminRutasPage() {
                           {ruta.stops.reduce((acc, s) => acc + s.guias.length, 0)} guías
                         </span>
                       </div>
+                      {(ruta.hojaRuta || ruta.lugarOrigen || ruta.lugarDestino) && (
+                        <div className="mt-2 space-y-0.5 text-[11px] text-slate-500">
+                          {ruta.hojaRuta ? (
+                            <p>
+                              <span className="font-semibold text-slate-600">Hoja de ruta:</span> {trunc(ruta.hojaRuta, 80)}
+                            </p>
+                          ) : null}
+                          {ruta.lugarOrigen ? (
+                            <p>
+                              <span className="font-semibold text-slate-600">Origen:</span> {trunc(ruta.lugarOrigen, 80)}
+                            </p>
+                          ) : null}
+                          {ruta.lugarDestino ? (
+                            <p>
+                              <span className="font-semibold text-slate-600">Destino:</span> {trunc(ruta.lugarDestino, 80)}
+                            </p>
+                          ) : null}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

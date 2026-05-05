@@ -23,6 +23,10 @@ interface RutaExport {
   id: string
   fecha: string
   estado: string
+  nombre?: string | null
+  hojaRuta?: string | null
+  lugarOrigen?: string | null
+  lugarDestino?: string | null
   chofer: { nombre: string; cedula: string }
   stops: Array<{
     orden: number
@@ -66,6 +70,10 @@ export function exportarRutaExcel(ruta: RutaExport) {
     ['REPORTE DE RUTA'],
     [],
     ['ID Ruta', ruta.id],
+    ['Nombre ruta', ruta.nombre ?? '—'],
+    ['Hoja de ruta', ruta.hojaRuta ?? '—'],
+    ['Lugar origen', ruta.lugarOrigen ?? '—'],
+    ['Lugar destino', ruta.lugarDestino ?? '—'],
     ['Fecha', new Date(ruta.fecha).toLocaleDateString('es-ES')],
     ['Chofer', ruta.chofer.nombre],
     ['Cédula Chofer', ruta.chofer.cedula],
