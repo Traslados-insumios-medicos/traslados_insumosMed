@@ -195,6 +195,20 @@ export async function exportarRutaPDF(ruta: RutaExport) {
   })
   
   const doc = new jsPDF()
+  const pageHeight = doc.internal.pageSize.height
+  const pageBottomMargin = 20
+  const pageTopMargin = 20
+  const safeFooterReserve = 12
+
+  const ensurePageSpace = (neededHeight: number, currentY: number) => {
+    const availableBottom = pageHeight - pageBottomMargin - safeFooterReserve
+    if (currentY + neededHeight > availableBottom) {
+      doc.addPage()
+      agregarMarcaDeAgua()
+      return pageTopMargin
+    }
+    return currentY
+  }
   
   const entregadas = ruta.guias.filter(g => g.estado === 'ENTREGADO').length
   const incidencias = ruta.guias.filter(g => g.estado === 'INCIDENCIA').length
@@ -430,22 +444,28 @@ export async function exportarRutaPDF(ruta: RutaExport) {
         for (let i = 0; i < guia.fotos.length; i++) {
           const foto = guia.fotos[i]
           
-          // Verificar si necesitamos nueva página para la foto
-          if (currentY + 50 > doc.internal.pageSize.height - 20) {
-            doc.addPage()
-            agregarMarcaDeAgua() // Marca de agua ANTES del contenido
-            currentY = 20
-          }
-
           try {
+            const maxImgWidth = 60
+            const maxImgHeight = 45
+            const imgBase64 = await urlToBase64(foto.urlPreview)
+            const imgProps = doc.getImageProperties(imgBase64)
+            const imgRatio = imgProps.width / imgProps.height
+            let drawWidth = maxImgWidth
+            let drawHeight = maxImgWidth / imgRatio
+            if (drawHeight > maxImgHeight) {
+              drawHeight = maxImgHeight
+              drawWidth = maxImgHeight * imgRatio
+            }
+
+            // Reservar espacio para título + imagen + margen
+            currentY = ensurePageSpace(drawHeight + 8, currentY)
             doc.setFontSize(8)
             doc.setFont('helvetica', 'normal')
             doc.text(`Foto ${i + 1} de ${guia.fotos.length}`, 18, currentY)
             currentY += 3
-            
-            const imgBase64 = await urlToBase64(foto.urlPreview)
-            doc.addImage(imgBase64, 'JPEG', 18, currentY, 60, 45)
-            currentY += 48
+
+            doc.addImage(imgBase64, 'JPEG', 18, currentY, drawWidth, drawHeight)
+            currentY += drawHeight + 3
           } catch (error) {
             console.error('❌ Error al cargar imagen:', error)
             doc.setFontSize(8)
@@ -541,29 +561,34 @@ export async function exportarRutaPDF(ruta: RutaExport) {
     doc.setFont('helvetica', 'bold')
     doc.text('HOJA DE RUTA FINALIZADA', 14, 20)
 
-    let yPos = 30
-    const imgWidth = 170
-    const imgHeight = 120
+  let yPos = 30
+  const maxImageWidth = 170
+  const maxImageHeight = 220
 
     for (let i = 0; i < fotosHojaRuta.length; i++) {
       const foto = fotosHojaRuta[i]
       
-      if (yPos + imgHeight + 15 > doc.internal.pageSize.height - 20) {
-        doc.addPage()
-        agregarMarcaDeAgua() // Marca de agua ANTES del contenido
-        yPos = 20
-      }
-
       try {
+        const imgBase64 = await urlToBase64(foto.urlPreview)
+        const imgProps = doc.getImageProperties(imgBase64)
+        const imgRatio = imgProps.width / imgProps.height
+        let drawWidth = maxImageWidth
+        let drawHeight = maxImageWidth / imgRatio
+        if (drawHeight > maxImageHeight) {
+          drawHeight = maxImageHeight
+          drawWidth = maxImageHeight * imgRatio
+        }
+
+        // Texto de documento + imagen + separación
+        yPos = ensurePageSpace(drawHeight + 10, yPos)
         doc.setFontSize(10)
         doc.setFont('helvetica', 'bold')
         doc.text(`Documento ${i + 1} de ${fotosHojaRuta.length}`, 14, yPos)
         yPos += 5
-        
-        const imgBase64 = await urlToBase64(foto.urlPreview)
-        doc.addImage(imgBase64, 'JPEG', 14, yPos, imgWidth, imgHeight)
-        
-        yPos += imgHeight + 15
+
+        doc.addImage(imgBase64, 'JPEG', 14, yPos, drawWidth, drawHeight)
+
+        yPos += drawHeight + 15
       } catch (error) {
         console.error('Error al cargar imagen de hoja de ruta:', error)
         doc.setFontSize(8)
