@@ -524,6 +524,11 @@ export async function exportToPDF(
               doc.text('Imagen no disponible', pw / 2, ph / 2, { align: 'center' })
             }
           }
+
+          // Importante: después de páginas de fotos full-screen, crear una página
+          // nueva para evitar que la siguiente tarjeta se dibuje encima de la foto.
+          doc.addPage()
+          y = 16
         } else {
           const imgY = y + cardHeight - 38
           doc.setFontSize(7)
