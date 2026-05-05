@@ -529,6 +529,7 @@ export async function exportToPDF(
           // nueva para evitar que la siguiente tarjeta se dibuje encima de la foto.
           doc.addPage()
           y = 16
+          continue
         } else {
           const imgY = y + cardHeight - 38
           doc.setFontSize(7)
