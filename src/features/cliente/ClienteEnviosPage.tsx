@@ -1,137 +1,142 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
-import { useGsapStaggerChildren } from '../../hooks/useGsapStaggerChildren'
-import { api } from '../../services/api'
-import { useToastStore } from '../../store/toastStore'
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
+import { useGsapStaggerChildren } from "../../hooks/useGsapStaggerChildren";
+import { api } from "../../services/api";
+import { useToastStore } from "../../store/toastStore";
 
 const estadoLabel: Record<string, string> = {
-  ENTREGADO: 'Entregado',
-  INCIDENCIA: 'Incidencia',
-  PENDIENTE: 'En camino',
-}
+  ENTREGADO: "Entregado",
+  INCIDENCIA: "Incidencia",
+  PENDIENTE: "En camino",
+};
 
 const estadoClass: Record<string, string> = {
-  ENTREGADO: 'bg-emerald-100 text-emerald-800',
-  INCIDENCIA: 'bg-rose-100 text-rose-800',
-  PENDIENTE: 'bg-blue-100 text-blue-800',
-}
+  ENTREGADO: "bg-emerald-100 text-emerald-800",
+  INCIDENCIA: "bg-rose-100 text-rose-800",
+  PENDIENTE: "bg-blue-100 text-blue-800",
+};
 
 const rutaEstadoLabel: Record<string, string> = {
-  EN_CURSO: 'En curso',
-  PENDIENTE: 'Planificada',
-  COMPLETADA: 'Completada',
-  CANCELADA: 'Cancelada',
-}
+  EN_CURSO: "En curso",
+  PENDIENTE: "Planificada",
+  COMPLETADA: "Completada",
+  CANCELADA: "Cancelada",
+};
 
-type VistaTab = 'activos' | 'historial' | 'todos'
+type VistaTab = "activos" | "historial" | "todos";
 
 interface RutaMini {
-  id: string
-  fecha: string
-  estado: string
+  id: string;
+  fecha: string;
+  estado: string;
+  nombre?: string | null;
+  hojaRuta?: string | null;
 }
 
 interface GuiaListItem {
-  id: string
-  numeroGuia: string
-  descripcion: string
-  estado: string
-  clienteId: string
-  cliente: { id: string; nombre: string }
-  ruta: RutaMini
+  id: string;
+  numeroGuia: string;
+  descripcion: string;
+  estado: string;
+  clienteId: string;
+  cliente: { id: string; nombre: string };
+  ruta: RutaMini;
 }
 
 interface MisEnviosResponse {
-  data: GuiaListItem[]
-  total: number
-  page: number
-  limit: number
+  data: GuiaListItem[];
+  total: number;
+  page: number;
+  limit: number;
   resumen: {
-    activas: number
-    entregadosHoy: number
-    incidencias: number
-    nombreEmpresa: string
-  }
+    activas: number;
+    entregadosHoy: number;
+    incidencias: number;
+    nombreEmpresa: string;
+  };
 }
 
 export function ClienteEnviosPage() {
-  const addToast = useToastStore((s) => s.addToast)
-  const rootRef = useRef<HTMLDivElement>(null)
+  const addToast = useToastStore((s) => s.addToast);
+  const rootRef = useRef<HTMLDivElement>(null);
 
-  const [vista, setVista] = useState<VistaTab>('activos')
-  const [busqueda, setBusqueda] = useState('')
-  const [debouncedSearch, setDebouncedSearch] = useState('')
-  const [page, setPage] = useState(1)
-  const [loading, setLoading] = useState(true)
-  const [payload, setPayload] = useState<MisEnviosResponse | null>(null)
-
-  useEffect(() => {
-    const t = window.setTimeout(() => setDebouncedSearch(busqueda.trim()), 350)
-    return () => window.clearTimeout(t)
-  }, [busqueda])
+  const [vista, setVista] = useState<VistaTab>("activos");
+  const [busqueda, setBusqueda] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [payload, setPayload] = useState<MisEnviosResponse | null>(null);
 
   useEffect(() => {
-    setPage(1)
-  }, [debouncedSearch, vista])
+    const t = window.setTimeout(() => setDebouncedSearch(busqueda.trim()), 350);
+    return () => window.clearTimeout(t);
+  }, [busqueda]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, vista]);
 
   const fetchEnvios = useCallback(async () => {
-    setLoading(true)
+    setLoading(true);
     try {
       const params = new URLSearchParams({
         vista,
         page: String(page),
-        limit: '10',
-      })
-      if (debouncedSearch) params.set('search', debouncedSearch)
-      const res = await api.get<MisEnviosResponse>(`/guias/mis-envios?${params}`)
-      setPayload(res.data)
+        limit: "10",
+      });
+      if (debouncedSearch) params.set("search", debouncedSearch);
+      const res = await api.get<MisEnviosResponse>(
+        `/guias/mis-envios?${params}`,
+      );
+      setPayload(res.data);
     } catch {
-      addToast('No se pudieron cargar los envíos', 'error')
-      setPayload(null)
+      addToast("No se pudieron cargar los envíos", "error");
+      setPayload(null);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }, [vista, page, debouncedSearch, addToast])
+  }, [vista, page, debouncedSearch, addToast]);
 
   useEffect(() => {
-    fetchEnvios()
-  }, [fetchEnvios])
+    fetchEnvios();
+  }, [fetchEnvios]);
 
-  useGsapStaggerChildren(rootRef, '[data-gsap-reveal]', [loading, vista])
+  useGsapStaggerChildren(rootRef, "[data-gsap-reveal]", [loading, vista]);
 
-  const resumen = payload?.resumen
-  const guiasFiltradas = payload?.data ?? []
-  const total = payload?.total ?? 0
-  const limit = payload?.limit ?? 10
-  const totalPages = Math.max(1, Math.ceil(total / limit))
+  const resumen = payload?.resumen;
+  const guiasFiltradas = payload?.data ?? [];
+  const total = payload?.total ?? 0;
+  const limit = payload?.limit ?? 10;
+  const totalPages = Math.max(1, Math.ceil(total / limit));
 
   return (
     <div ref={rootRef} className="space-y-6 sm:space-y-8">
       <div data-gsap-reveal>
         <h1 className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
-          {resumen?.nombreEmpresa ?? '…'} · Panel
+          {resumen?.nombreEmpresa ?? "…"} · Panel
         </h1>
         <p className="text-sm text-slate-500 sm:text-base">
           Seguimiento de envíos y logística de insumos médicos
         </p>
       </div>
 
-      <div data-gsap-reveal className="flex flex-wrap gap-2 border-b border-slate-200 pb-1">
-        {(
-          [
-            { id: 'activos' as const, label: 'En curso' },
-            { id: 'historial' as const, label: 'Historial (entregados)' },
-            { id: 'todos' as const, label: 'Todos' },
-          ]
-        ).map((t) => (
+      <div
+        data-gsap-reveal
+        className="flex flex-wrap gap-2 border-b border-slate-200 pb-1"
+      >
+        {[
+          { id: "activos" as const, label: "En curso" },
+          { id: "historial" as const, label: "Historial (entregados)" },
+          { id: "todos" as const, label: "Todos" },
+        ].map((t) => (
           <button
             key={t.id}
             type="button"
             onClick={() => setVista(t.id)}
             className={`rounded-t-lg px-4 py-2 text-sm font-semibold transition-colors ${
               vista === t.id
-                ? 'bg-primary text-white'
-                : 'text-slate-600 hover:bg-slate-100'
+                ? "bg-primary text-white"
+                : "text-slate-600 hover:bg-slate-100"
             }`}
           >
             {t.label}
@@ -150,8 +155,12 @@ export function ClienteEnviosPage() {
               <span className="material-symbols-outlined">local_shipping</span>
             </span>
           </div>
-          <p className="text-3xl font-bold leading-tight text-slate-900">{resumen?.activas ?? '—'}</p>
-          <p className="text-sm font-medium text-slate-500">En curso o con incidencia</p>
+          <p className="text-3xl font-bold leading-tight text-slate-900">
+            {resumen?.activas ?? "—"}
+          </p>
+          <p className="text-sm font-medium text-slate-500">
+            En curso o con incidencia
+          </p>
         </div>
         <div
           data-gsap-reveal
@@ -163,8 +172,12 @@ export function ClienteEnviosPage() {
               <span className="material-symbols-outlined">task_alt</span>
             </span>
           </div>
-          <p className="text-3xl font-bold leading-tight text-slate-900">{resumen?.entregadosHoy ?? '—'}</p>
-          <p className="text-sm font-medium text-slate-500">Según fecha del servidor</p>
+          <p className="text-3xl font-bold leading-tight text-slate-900">
+            {resumen?.entregadosHoy ?? "—"}
+          </p>
+          <p className="text-sm font-medium text-slate-500">
+            Según fecha del servidor
+          </p>
         </div>
         <div
           data-gsap-reveal
@@ -176,8 +189,12 @@ export function ClienteEnviosPage() {
               <span className="material-symbols-outlined">warning</span>
             </span>
           </div>
-          <p className="text-3xl font-bold leading-tight text-slate-900">{resumen?.incidencias ?? '—'}</p>
-          <p className="text-sm font-medium text-rose-600">Requieren seguimiento</p>
+          <p className="text-3xl font-bold leading-tight text-slate-900">
+            {resumen?.incidencias ?? "—"}
+          </p>
+          <p className="text-sm font-medium text-rose-600">
+            Requieren seguimiento
+          </p>
         </div>
       </div>
 
@@ -189,7 +206,7 @@ export function ClienteEnviosPage() {
           <h3 className="text-lg font-bold text-slate-900">
             Listado
             <span className="ml-2 text-sm font-normal text-slate-400">
-              ({loading ? '…' : total} registros)
+              ({loading ? "…" : total} registros)
             </span>
           </h3>
           <div className="relative w-full sm:w-64">
@@ -208,7 +225,9 @@ export function ClienteEnviosPage() {
         <div className="overflow-x-auto">
           {loading ? (
             <div className="flex items-center justify-center py-16">
-              <span className="material-symbols-outlined animate-spin text-3xl text-primary">progress_activity</span>
+              <span className="material-symbols-outlined animate-spin text-3xl text-primary">
+                progress_activity
+              </span>
             </div>
           ) : (
             <table className="w-full min-w-[520px] text-left text-sm">
@@ -225,21 +244,35 @@ export function ClienteEnviosPage() {
               <tbody className="divide-y divide-slate-100">
                 {guiasFiltradas.length === 0 ? (
                   <tr>
-                    <td colSpan={6} className="px-6 py-8 text-center text-sm text-slate-500">
-                      {debouncedSearch ? 'Sin resultados para esa búsqueda.' : 'No hay envíos en esta vista.'}
+                    <td
+                      colSpan={6}
+                      className="px-6 py-8 text-center text-sm text-slate-500"
+                    >
+                      {debouncedSearch
+                        ? "Sin resultados para esa búsqueda."
+                        : "No hay envíos en esta vista."}
                     </td>
                   </tr>
                 ) : (
                   guiasFiltradas.map((g) => {
-                    const ruta = g.ruta
+                    const ruta = g.ruta;
                     return (
-                      <tr key={g.id} className="transition-colors hover:bg-slate-50">
-                        <td className="px-6 py-4 font-semibold text-primary">{g.numeroGuia}</td>
-                        <td className="px-6 py-4 text-sm text-slate-700">{g.descripcion}</td>
-                        <td className="px-6 py-4 text-sm text-slate-600">{g.cliente?.nombre ?? '—'}</td>
+                      <tr
+                        key={g.id}
+                        className="transition-colors hover:bg-slate-50"
+                      >
+                        <td className="px-6 py-4 font-semibold text-primary">
+                          {g.numeroGuia}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-slate-700">
+                          {g.descripcion}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-slate-600">
+                          {g.cliente?.nombre ?? "—"}
+                        </td>
                         <td className="px-6 py-4">
                           <span
-                            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${estadoClass[g.estado] ?? ''}`}
+                            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${estadoClass[g.estado] ?? ""}`}
                           >
                             {estadoLabel[g.estado] ?? g.estado}
                           </span>
@@ -248,12 +281,20 @@ export function ClienteEnviosPage() {
                           {ruta ? (
                             <span className="flex items-center gap-1.5">
                               <span
-                                className={`size-1.5 rounded-full ${ruta.estado === 'EN_CURSO' ? 'bg-emerald-500' : 'bg-slate-400'}`}
+                                className={`size-1.5 shrink-0 rounded-full ${ruta.estado === "EN_CURSO" ? "bg-emerald-500" : "bg-slate-400"}`}
                               />
-                              RUTA #{ruta.id.slice(-6).toUpperCase()} • {rutaEstadoLabel[ruta.estado] ?? ruta.estado}
+                              <span>
+                                RUTA #{ruta.id.slice(-6).toUpperCase()} •{" "}
+                                {rutaEstadoLabel[ruta.estado] ?? ruta.estado}
+                                {ruta.hojaRuta && (
+                                  <span className="ml-1 text-xs text-slate-400">
+                                    · HR: {ruta.hojaRuta}
+                                  </span>
+                                )}
+                              </span>
                             </span>
                           ) : (
-                            '—'
+                            "—"
                           )}
                         </td>
                         <td className="px-6 py-4 text-right">
@@ -261,11 +302,13 @@ export function ClienteEnviosPage() {
                             to={`/cliente/envios/${g.id}`}
                             className="text-slate-400 transition-colors hover:text-primary"
                           >
-                            <span className="material-symbols-outlined">visibility</span>
+                            <span className="material-symbols-outlined">
+                              visibility
+                            </span>
                           </Link>
                         </td>
                       </tr>
-                    )
+                    );
                   })
                 )}
               </tbody>
@@ -299,5 +342,5 @@ export function ClienteEnviosPage() {
         )}
       </div>
     </div>
-  )
+  );
 }
