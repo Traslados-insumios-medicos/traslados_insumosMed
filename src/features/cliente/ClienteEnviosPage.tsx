@@ -284,13 +284,17 @@ export function ClienteEnviosPage() {
                                 className={`size-1.5 shrink-0 rounded-full ${ruta.estado === "EN_CURSO" ? "bg-emerald-500" : "bg-slate-400"}`}
                               />
                               <span>
-                                RUTA #{ruta.id.slice(-6).toUpperCase()} •{" "}
-                                {rutaEstadoLabel[ruta.estado] ?? ruta.estado}
-                                {ruta.hojaRuta && (
-                                  <span className="ml-1 text-xs text-slate-400">
-                                    · HR: {ruta.hojaRuta}
+                                {ruta.hojaRuta ? (
+                                  <span className="text-slate-800">
+                                    {ruta.hojaRuta}
                                   </span>
+                                ) : (
+                                  <span className="text-slate-400">Sin HR</span>
                                 )}
+                                <span className="ml-1 text-xs text-slate-400">
+                                  ·{" "}
+                                  {rutaEstadoLabel[ruta.estado] ?? ruta.estado}
+                                </span>
                               </span>
                             </span>
                           ) : (

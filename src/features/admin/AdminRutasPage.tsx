@@ -1603,9 +1603,11 @@ export function AdminRutasPage() {
                               <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
                                 Recibido por
                               </p>
-                              <p className="text-xs text-slate-700 break-all overflow-wrap-anywhere">
-                                {g.receptorNombre}
-                              </p>
+                              {g.receptorNombre.split("|").map((n, i) => (
+                                <p key={i} className="text-xs text-slate-700">
+                                  {n.trim()}
+                                </p>
+                              ))}
                             </div>
                           )}
                           {g.temperatura && (
@@ -1613,9 +1615,11 @@ export function AdminRutasPage() {
                               <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
                                 Temperatura
                               </p>
-                              <p className="text-xs text-slate-700 break-all overflow-wrap-anywhere">
-                                {g.temperatura}
-                              </p>
+                              {g.temperatura.split("|").map((t, i) => (
+                                <p key={i} className="text-xs text-slate-700">
+                                  {t.trim()} °C
+                                </p>
+                              ))}
                             </div>
                           )}
                         </div>

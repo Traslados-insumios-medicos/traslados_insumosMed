@@ -161,6 +161,14 @@ export function ChoferRutaDetallePage() {
   const [fotosBorradorPorGuia, setFotosBorradorPorGuia] = useState<
     Record<string, File[]>
   >({});
+  // Lista de temperaturas por guía (se serializa como "18|4|22" en el campo temperatura)
+  const [temperaturasListPorGuia, setTemperaturasListPorGuia] = useState<
+    Record<string, string[]>
+  >({});
+  // Lista de receptores por guía (se serializa como "Juan|María" en el campo receptorNombre)
+  const [receptoresListPorGuia, setReceptoresListPorGuia] = useState<
+    Record<string, string[]>
+  >({});
   const rutaIdParaDetalleRef = useRef<string | null>(null);
   const [ultimaActualizacionSeguimiento, setUltimaActualizacionSeguimiento] =
     useState<string | null>(null);
@@ -235,9 +243,6 @@ export function ChoferRutaDetallePage() {
     setDetalleFormPorGuia((prev) => {
       const next = { ...prev };
       ruta.guias.forEach((g) => {
-        // Solo actualizar si:
-        // 1. No existe en el formulario (primera carga)
-        // 2. Los datos están persistidos Y no está en modo edición
         const estaEnEdicion = guiaIdsEnEdicion.has(g.id);
         const yaExiste = !!prev[g.id];
 
@@ -250,6 +255,32 @@ export function ChoferRutaDetallePage() {
             observaciones: g.observaciones ?? "",
             tipoIncidencia: "CLIENTE_AUSENTE",
           };
+        }
+      });
+      return next;
+    });
+    // Sincronizar lista de temperaturas desde el campo serializado
+    setTemperaturasListPorGuia((prev) => {
+      const next = { ...prev };
+      ruta.guias.forEach((g) => {
+        const estaEnEdicion = guiaIdsEnEdicion.has(g.id);
+        const yaExiste = !!prev[g.id];
+        if (!yaExiste || (guiaTieneDetallePersistido(g) && !estaEnEdicion)) {
+          const raw = g.temperatura ?? "";
+          next[g.id] = raw ? raw.split("|").map((t) => t.trim()) : [""];
+        }
+      });
+      return next;
+    });
+    // Sincronizar lista de receptores desde el campo serializado
+    setReceptoresListPorGuia((prev) => {
+      const next = { ...prev };
+      ruta.guias.forEach((g) => {
+        const estaEnEdicion = guiaIdsEnEdicion.has(g.id);
+        const yaExiste = !!prev[g.id];
+        if (!yaExiste || (guiaTieneDetallePersistido(g) && !estaEnEdicion)) {
+          const raw = g.receptorNombre ?? "";
+          next[g.id] = raw ? raw.split("|").map((r) => r.trim()) : [""];
         }
       });
       return next;
@@ -657,6 +688,64 @@ export function ChoferRutaDetallePage() {
         [campo]: valor,
       },
     }));
+  };
+
+  // Helpers para lista de temperaturas
+  const getTemperaturasList = (guiaId: string): string[] => {
+    if (temperaturasListPorGuia[guiaId]) return temperaturasListPorGuia[guiaId];
+    const raw = detalleFormPorGuia[guiaId]?.temperatura ?? "";
+    return raw ? raw.split("|").map((t) => t.trim()) : [""];
+  };
+
+  const setTemperaturaItem = (guiaId: string, index: number, valor: string) => {
+    const list = [...getTemperaturasList(guiaId)];
+    list[index] = valor;
+    setTemperaturasListPorGuia((prev) => ({ ...prev, [guiaId]: list }));
+    const serialized = list.filter((t) => t.trim()).join("|");
+    setCampoDetalle(guiaId, "temperatura", serialized || list.join("|"));
+    if (serialized.trim()) limpiarErrorCampoDetalle(guiaId, "temperatura");
+  };
+
+  const addTemperaturaItem = (guiaId: string) => {
+    const list = [...getTemperaturasList(guiaId), ""];
+    setTemperaturasListPorGuia((prev) => ({ ...prev, [guiaId]: list }));
+  };
+
+  const removeTemperaturaItem = (guiaId: string, index: number) => {
+    const list = getTemperaturasList(guiaId).filter((_, i) => i !== index);
+    const safeList = list.length === 0 ? [""] : list;
+    setTemperaturasListPorGuia((prev) => ({ ...prev, [guiaId]: safeList }));
+    const serialized = safeList.filter((t) => t.trim()).join("|");
+    setCampoDetalle(guiaId, "temperatura", serialized);
+  };
+
+  // Helpers para lista de receptores (mismo concepto que temperatura)
+  const getReceptoresList = (guiaId: string): string[] => {
+    if (receptoresListPorGuia[guiaId]) return receptoresListPorGuia[guiaId];
+    const raw = detalleFormPorGuia[guiaId]?.receptorNombre ?? "";
+    return raw ? raw.split("|").map((r) => r.trim()) : [""];
+  };
+
+  const setReceptorItem = (guiaId: string, index: number, valor: string) => {
+    const list = [...getReceptoresList(guiaId)];
+    list[index] = valor;
+    setReceptoresListPorGuia((prev) => ({ ...prev, [guiaId]: list }));
+    const serialized = list.filter((r) => r.trim()).join("|");
+    setCampoDetalle(guiaId, "receptorNombre", serialized || list.join("|"));
+    if (serialized.trim()) limpiarErrorCampoDetalle(guiaId, "receptorNombre");
+  };
+
+  const addReceptorItem = (guiaId: string) => {
+    const list = [...getReceptoresList(guiaId), ""];
+    setReceptoresListPorGuia((prev) => ({ ...prev, [guiaId]: list }));
+  };
+
+  const removeReceptorItem = (guiaId: string, index: number) => {
+    const list = getReceptoresList(guiaId).filter((_, i) => i !== index);
+    const safeList = list.length === 0 ? [""] : list;
+    setReceptoresListPorGuia((prev) => ({ ...prev, [guiaId]: safeList }));
+    const serialized = safeList.filter((r) => r.trim()).join("|");
+    setCampoDetalle(guiaId, "receptorNombre", serialized);
   };
 
   const setErrorCampoDetalle = (
@@ -1278,53 +1367,192 @@ export function ChoferRutaDetallePage() {
                                         </select>
                                       </div>
                                       <div>
-                                        <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                                          Temperatura (•C)
-                                        </label>
-                                        <div className="relative">
-                                          <input
-                                            type="text"
-                                            inputMode="decimal"
-                                            placeholder="Ej: 18 / 2-8 / 18'"
-                                            value={
-                                              detalleFormPorGuia[g.id]
-                                                ?.temperatura ?? ""
-                                            }
-                                            onChange={(e) => {
-                                              const value = e.target.value;
-                                              setCampoDetalle(g.id, "temperatura", value);
-                                              if (value.trim()) {
-                                                limpiarErrorCampoDetalle(g.id, "temperatura");
+                                        <div className="mb-1.5 flex items-center justify-between">
+                                          <label className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                                            Temperatura (•C)
+                                          </label>
+                                          {(!guiaIdsDetalleGuardado.has(g.id) ||
+                                            guiaIdsEnEdicion.has(g.id)) && (
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                addTemperaturaItem(g.id)
                                               }
-                                            }}
-                                            onBlur={() => {
-                                              const value =
-                                                detalleFormPorGuia[g.id]
-                                                  ?.temperatura ?? "";
-                                              const isValid =
-                                                value.trim().length > 0;
-                                              setErrorCampoDetalle(
-                                                g.id,
-                                                "temperatura",
-                                                isValid ? "" : REQUIRED_MESSAGE,
+                                              className="flex items-center gap-0.5 rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary hover:bg-primary/20"
+                                            >
+                                              <span className="material-symbols-outlined text-[12px]">
+                                                add
+                                              </span>
+                                              Agregar
+                                            </button>
+                                          )}
+                                        </div>
+                                        <div className="space-y-1.5">
+                                          {getTemperaturasList(g.id).map(
+                                            (temp, idx) => {
+                                              const canEdit =
+                                                !guiaIdsDetalleGuardado.has(
+                                                  g.id,
+                                                ) || guiaIdsEnEdicion.has(g.id);
+                                              const showRemove =
+                                                getTemperaturasList(g.id)
+                                                  .length > 1 && canEdit;
+                                              return (
+                                                <div
+                                                  key={idx}
+                                                  className="relative"
+                                                >
+                                                  <input
+                                                    type="text"
+                                                    inputMode="decimal"
+                                                    placeholder="Ej: 18"
+                                                    value={temp}
+                                                    onChange={(e) =>
+                                                      setTemperaturaItem(
+                                                        g.id,
+                                                        idx,
+                                                        e.target.value,
+                                                      )
+                                                    }
+                                                    onBlur={() => {
+                                                      const hasValue =
+                                                        getTemperaturasList(
+                                                          g.id,
+                                                        ).some((t) => t.trim());
+                                                      setErrorCampoDetalle(
+                                                        g.id,
+                                                        "temperatura",
+                                                        hasValue
+                                                          ? ""
+                                                          : REQUIRED_MESSAGE,
+                                                      );
+                                                    }}
+                                                    maxLength={10}
+                                                    disabled={!canEdit}
+                                                    className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 ${showRemove ? "pr-16" : "pr-10"} ${erroresDetallePorGuia[g.id]?.temperatura ? "border-red-400 focus:border-red-400 focus:ring-red-100" : "border-slate-200 focus:border-primary focus:ring-primary/15"}`}
+                                                  />
+                                                  {showRemove && (
+                                                    <button
+                                                      type="button"
+                                                      onClick={() =>
+                                                        removeTemperaturaItem(
+                                                          g.id,
+                                                          idx,
+                                                        )
+                                                      }
+                                                      className="absolute right-8 top-1/2 -translate-y-1/2 text-slate-300 hover:text-red-400"
+                                                    >
+                                                      <span className="material-symbols-outlined text-[15px]">
+                                                        close
+                                                      </span>
+                                                    </button>
+                                                  )}
+                                                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-400 pointer-events-none">
+                                                    •C
+                                                  </span>
+                                                </div>
                                               );
-                                            }}
-                                            maxLength={10}
-                                            disabled={
-                                              guiaIdsDetalleGuardado.has(
-                                                g.id,
-                                              ) && !guiaIdsEnEdicion.has(g.id)
-                                            }
-                                            className={`w-full rounded-lg border bg-white px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 ${
+                                            },
+                                          )}
+                                        </div>
+                                        {erroresDetallePorGuia[g.id]
+                                          ?.temperatura && (
+                                          <p className="mt-1 text-xs text-red-500">
+                                            {
                                               erroresDetallePorGuia[g.id]
                                                 ?.temperatura
-                                                ? "border-red-400 focus:border-red-400 focus:ring-red-100"
-                                                : "border-slate-200 focus:border-primary focus:ring-primary/15"
-                                            }`}
-                                          />
-                                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-400 pointer-events-none">
-                                            •C
-                                          </span>
+                                            }
+                                          </p>
+                                        )}
+                                      </div>{" "}
+                                      <div>
+                                        <div className="mb-1.5 flex items-center justify-between">
+                                          <label className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                                            Temperatura (•C)
+                                          </label>
+                                          {(!guiaIdsDetalleGuardado.has(g.id) ||
+                                            guiaIdsEnEdicion.has(g.id)) && (
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                addTemperaturaItem(g.id)
+                                              }
+                                              className="flex items-center gap-0.5 rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary hover:bg-primary/20"
+                                            >
+                                              <span className="material-symbols-outlined text-[12px]">
+                                                add
+                                              </span>
+                                              Agregar
+                                            </button>
+                                          )}
+                                        </div>
+                                        <div className="space-y-1.5">
+                                          {getTemperaturasList(g.id).map(
+                                            (temp, idx) => {
+                                              const canEdit =
+                                                !guiaIdsDetalleGuardado.has(
+                                                  g.id,
+                                                ) || guiaIdsEnEdicion.has(g.id);
+                                              const showRemove =
+                                                getTemperaturasList(g.id)
+                                                  .length > 1 && canEdit;
+                                              return (
+                                                <div
+                                                  key={idx}
+                                                  className="relative"
+                                                >
+                                                  <input
+                                                    type="text"
+                                                    inputMode="decimal"
+                                                    placeholder="Ej: 18"
+                                                    value={temp}
+                                                    onChange={(e) =>
+                                                      setTemperaturaItem(
+                                                        g.id,
+                                                        idx,
+                                                        e.target.value,
+                                                      )
+                                                    }
+                                                    onBlur={() => {
+                                                      const hasValue =
+                                                        getTemperaturasList(
+                                                          g.id,
+                                                        ).some((t) => t.trim());
+                                                      setErrorCampoDetalle(
+                                                        g.id,
+                                                        "temperatura",
+                                                        hasValue
+                                                          ? ""
+                                                          : REQUIRED_MESSAGE,
+                                                      );
+                                                    }}
+                                                    maxLength={10}
+                                                    disabled={!canEdit}
+                                                    className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 ${showRemove ? "pr-16" : "pr-10"} ${erroresDetallePorGuia[g.id]?.temperatura ? "border-red-400 focus:border-red-400 focus:ring-red-100" : "border-slate-200 focus:border-primary focus:ring-primary/15"}`}
+                                                  />
+                                                  {showRemove && (
+                                                    <button
+                                                      type="button"
+                                                      onClick={() =>
+                                                        removeTemperaturaItem(
+                                                          g.id,
+                                                          idx,
+                                                        )
+                                                      }
+                                                      className="absolute right-8 top-1/2 -translate-y-1/2 text-slate-300 hover:text-red-400"
+                                                    >
+                                                      <span className="material-symbols-outlined text-[15px]">
+                                                        close
+                                                      </span>
+                                                    </button>
+                                                  )}
+                                                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-400 pointer-events-none">
+                                                    •C
+                                                  </span>
+                                                </div>
+                                              );
+                                            },
+                                          )}
                                         </div>
                                         {erroresDetallePorGuia[g.id]
                                           ?.temperatura && (
@@ -1576,72 +1804,124 @@ export function ChoferRutaDetallePage() {
                                   <>
                                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                                       <div>
-                                        <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                                          Recibido por
-                                        </label>
-                                        <div className="relative">
-                                          <input
-                                            type="text"
-                                            placeholder="Nombre de quien recibe"
-                                            value={
-                                              detalleFormPorGuia[g.id]
-                                                ?.receptorNombre ?? ""
-                                            }
-                                            onChange={(e) => {
-                                              const value = e.target.value;
-                                              // Solo permitir letras, espacios y caracteres especiales comunes en nombres
-                                              if (
-                                                value === "" ||
-                                                /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'-]+$/.test(
-                                                  value,
-                                                )
-                                              ) {
-                                                setCampoDetalle(
-                                                  g.id,
-                                                  "receptorNombre",
-                                                  value,
-                                                );
-                                                if (value.trim())
-                                                  limpiarErrorCampoDetalle(
-                                                    g.id,
-                                                    "receptorNombre",
-                                                  );
-                                              }
-                                            }}
-                                            onBlur={() => {
-                                              const value =
-                                                detalleFormPorGuia[g.id]
-                                                  ?.receptorNombre ?? "";
-                                              setErrorCampoDetalle(
-                                                g.id,
-                                                "receptorNombre",
-                                                value.trim()
-                                                  ? ""
-                                                  : REQUIRED_MESSAGE,
-                                              );
-                                            }}
-                                            maxLength={50}
-                                            disabled={
-                                              ruta.estado === "COMPLETADA" ||
-                                              (guiaIdsDetalleGuardado.has(
-                                                g.id,
-                                              ) &&
-                                                !guiaIdsEnEdicion.has(g.id))
-                                            }
-                                            className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 ${
-                                              erroresDetallePorGuia[g.id]
-                                                ?.receptorNombre
-                                                ? "border-red-400 focus:border-red-400 focus:ring-red-100"
-                                                : "border-slate-200 focus:border-primary focus:ring-primary/15"
-                                            }`}
-                                          />
-                                          <span
-                                            className={`absolute -bottom-4 right-0 text-[10px] ${(detalleFormPorGuia[g.id]?.receptorNombre?.length || 0) > 45 ? "text-amber-600" : "text-slate-400"}`}
-                                          >
-                                            {detalleFormPorGuia[g.id]
-                                              ?.receptorNombre?.length || 0}
-                                            /50
-                                          </span>
+                                        <div className="mb-1.5 flex items-center justify-between">
+                                          <label className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                                            Recibido por
+                                          </label>
+                                          {!(
+                                            guiaIdsDetalleGuardado.has(g.id) &&
+                                            !guiaIdsEnEdicion.has(g.id)
+                                          ) &&
+                                            ruta.estado !== "COMPLETADA" && (
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  addReceptorItem(g.id)
+                                                }
+                                                className="flex items-center gap-0.5 rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary hover:bg-primary/20"
+                                              >
+                                                <span className="material-symbols-outlined text-[12px]">
+                                                  add
+                                                </span>
+                                                Agregar
+                                              </button>
+                                            )}
+                                        </div>
+                                        <div className="space-y-1.5">
+                                          {getReceptoresList(g.id).map(
+                                            (receptor, idx) => (
+                                              <div
+                                                key={idx}
+                                                className="relative"
+                                              >
+                                                <input
+                                                  type="text"
+                                                  placeholder="Nombre de quien recibe"
+                                                  value={receptor}
+                                                  onChange={(e) => {
+                                                    const value =
+                                                      e.target.value;
+                                                    if (
+                                                      value === "" ||
+                                                      /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'-]+$/.test(
+                                                        value,
+                                                      )
+                                                    ) {
+                                                      setReceptorItem(
+                                                        g.id,
+                                                        idx,
+                                                        value,
+                                                      );
+                                                    }
+                                                  }}
+                                                  onBlur={() => {
+                                                    const hasValue =
+                                                      getReceptoresList(
+                                                        g.id,
+                                                      ).some((r) => r.trim());
+                                                    setErrorCampoDetalle(
+                                                      g.id,
+                                                      "receptorNombre",
+                                                      hasValue
+                                                        ? ""
+                                                        : REQUIRED_MESSAGE,
+                                                    );
+                                                  }}
+                                                  maxLength={50}
+                                                  disabled={
+                                                    ruta.estado ===
+                                                      "COMPLETADA" ||
+                                                    (guiaIdsDetalleGuardado.has(
+                                                      g.id,
+                                                    ) &&
+                                                      !guiaIdsEnEdicion.has(
+                                                        g.id,
+                                                      ))
+                                                  }
+                                                  className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 ${
+                                                    getReceptoresList(g.id)
+                                                      .length > 1 &&
+                                                    !(
+                                                      guiaIdsDetalleGuardado.has(
+                                                        g.id,
+                                                      ) &&
+                                                      !guiaIdsEnEdicion.has(
+                                                        g.id,
+                                                      )
+                                                    ) &&
+                                                    ruta.estado !== "COMPLETADA"
+                                                      ? "pr-8"
+                                                      : ""
+                                                  } ${erroresDetallePorGuia[g.id]?.receptorNombre ? "border-red-400 focus:border-red-400 focus:ring-red-100" : "border-slate-200 focus:border-primary focus:ring-primary/15"}`}
+                                                />
+                                                {getReceptoresList(g.id)
+                                                  .length > 1 &&
+                                                  !(
+                                                    guiaIdsDetalleGuardado.has(
+                                                      g.id,
+                                                    ) &&
+                                                    !guiaIdsEnEdicion.has(g.id)
+                                                  ) &&
+                                                  ruta.estado !==
+                                                    "COMPLETADA" && (
+                                                    <button
+                                                      type="button"
+                                                      onClick={() =>
+                                                        removeReceptorItem(
+                                                          g.id,
+                                                          idx,
+                                                        )
+                                                      }
+                                                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-300 hover:text-red-400"
+                                                    >
+                                                      <span className="material-symbols-outlined text-[16px]">
+                                                        close
+                                                      </span>
+                                                    </button>
+                                                  )}
+                                              </div>
+                                            ),
+                                          )}
                                         </div>
                                         {erroresDetallePorGuia[g.id]
                                           ?.receptorNombre && (
@@ -1654,45 +1934,93 @@ export function ChoferRutaDetallePage() {
                                         )}
                                       </div>
                                       <div>
-                                        <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                                          Temperatura (•C)
-                                        </label>
-                                        <div className="relative">
-                                          <input
-                                            type="text"
-                                            inputMode="decimal"
-                                            placeholder="Ej: 18"
-                                            value={
-                                              detalleFormPorGuia[g.id]
-                                                ?.temperatura ?? ""
-                                            }
-                                            onChange={(e) => {
-                                              const value = e.target.value;
-                                              setCampoDetalle(g.id, "temperatura", value);
-                                              if (value.trim()) {
-                                                limpiarErrorCampoDetalle(g.id, "temperatura");
+                                        <div className="mb-1.5 flex items-center justify-between">
+                                          <label className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                                            Temperatura (•C)
+                                          </label>
+                                          {(!guiaIdsDetalleGuardado.has(g.id) ||
+                                            guiaIdsEnEdicion.has(g.id)) && (
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                addTemperaturaItem(g.id)
                                               }
-                                            }}
-                                            onBlur={() => {
-                                              const value = detalleFormPorGuia[g.id]?.temperatura ?? "";
-                                              setErrorCampoDetalle(g.id, "temperatura", value.trim() ? "" : REQUIRED_MESSAGE);
-                                            }}
-                                            maxLength={10}
-                                            disabled={
-                                              guiaIdsDetalleGuardado.has(
-                                                g.id,
-                                              ) && !guiaIdsEnEdicion.has(g.id)
-                                            }
-                                            className={`w-full rounded-lg border bg-white px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 ${
-                                              erroresDetallePorGuia[g.id]
-                                                ?.temperatura
-                                                ? "border-red-400 focus:border-red-400 focus:ring-red-100"
-                                                : "border-slate-200 focus:border-primary focus:ring-primary/15"
-                                            }`}
-                                          />
-                                          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-400 pointer-events-none">
-                                            •C
-                                          </span>
+                                              className="flex items-center gap-0.5 rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary hover:bg-primary/20"
+                                            >
+                                              <span className="material-symbols-outlined text-[12px]">
+                                                add
+                                              </span>
+                                              Agregar
+                                            </button>
+                                          )}
+                                        </div>
+                                        <div className="space-y-1.5">
+                                          {getTemperaturasList(g.id).map(
+                                            (temp, idx) => {
+                                              const canEdit =
+                                                !guiaIdsDetalleGuardado.has(
+                                                  g.id,
+                                                ) || guiaIdsEnEdicion.has(g.id);
+                                              const showRemove =
+                                                getTemperaturasList(g.id)
+                                                  .length > 1 && canEdit;
+                                              return (
+                                                <div
+                                                  key={idx}
+                                                  className="relative"
+                                                >
+                                                  <input
+                                                    type="text"
+                                                    inputMode="decimal"
+                                                    placeholder="Ej: 18"
+                                                    value={temp}
+                                                    onChange={(e) =>
+                                                      setTemperaturaItem(
+                                                        g.id,
+                                                        idx,
+                                                        e.target.value,
+                                                      )
+                                                    }
+                                                    onBlur={() => {
+                                                      const hasValue =
+                                                        getTemperaturasList(
+                                                          g.id,
+                                                        ).some((t) => t.trim());
+                                                      setErrorCampoDetalle(
+                                                        g.id,
+                                                        "temperatura",
+                                                        hasValue
+                                                          ? ""
+                                                          : REQUIRED_MESSAGE,
+                                                      );
+                                                    }}
+                                                    maxLength={10}
+                                                    disabled={!canEdit}
+                                                    className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 ${showRemove ? "pr-16" : "pr-10"} ${erroresDetallePorGuia[g.id]?.temperatura ? "border-red-400 focus:border-red-400 focus:ring-red-100" : "border-slate-200 focus:border-primary focus:ring-primary/15"}`}
+                                                  />
+                                                  {showRemove && (
+                                                    <button
+                                                      type="button"
+                                                      onClick={() =>
+                                                        removeTemperaturaItem(
+                                                          g.id,
+                                                          idx,
+                                                        )
+                                                      }
+                                                      className="absolute right-8 top-1/2 -translate-y-1/2 text-slate-300 hover:text-red-400"
+                                                    >
+                                                      <span className="material-symbols-outlined text-[15px]">
+                                                        close
+                                                      </span>
+                                                    </button>
+                                                  )}
+                                                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-400 pointer-events-none">
+                                                    •C
+                                                  </span>
+                                                </div>
+                                              );
+                                            },
+                                          )}
                                         </div>
                                         {erroresDetallePorGuia[g.id]
                                           ?.temperatura && (
