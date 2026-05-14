@@ -409,8 +409,9 @@ export function AdminSeguimientoPage() {
             <div>
               <h3 className="font-bold text-slate-900">
                 Detalle de ruta{" "}
-                {detalleRuta?.hojaRuta ??
-                  `#${detalleRutaId.slice(-6).toUpperCase()}`}
+                {detalleRuta?.hojaRuta
+                  ? `#${detalleRutaId.slice(-6).toUpperCase()} · HR: ${detalleRuta.hojaRuta}`
+                  : `#${detalleRutaId.slice(-6).toUpperCase()}`}
               </h3>
               {detalleRuta && (
                 <p className="text-xs text-slate-500">

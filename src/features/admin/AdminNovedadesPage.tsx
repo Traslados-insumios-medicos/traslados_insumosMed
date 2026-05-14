@@ -244,14 +244,16 @@ export function AdminNovedadesPage() {
                     {modalNovedad.guia.ruta.fecha}
                   </p>
                 </div>
-                <div className="rounded-lg border border-slate-200 bg-white p-3">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-2">
-                    Hoja de Ruta
-                  </p>
-                  <p className="text-sm font-medium text-primary">
-                    {modalNovedad.guia.ruta.hojaRuta ?? "—"}
-                  </p>
-                </div>
+                {modalNovedad.guia.ruta.hojaRuta && (
+                  <div className="rounded-lg border border-slate-200 bg-white p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-2">
+                      Hoja de Ruta
+                    </p>
+                    <p className="text-sm font-medium text-primary">
+                      {modalNovedad.guia.ruta.hojaRuta}
+                    </p>
+                  </div>
+                )}
                 <div className="rounded-lg border border-slate-200 bg-white p-3">
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-2">
                     Estado
