@@ -110,7 +110,7 @@ export function PhotoUploader({
       });
   }, [scope, guiaId, rutaId, draftMode, initialDraftFiles]);
 
-  const [pendingImageLoads, setPendingImageLoads] = useState(0);
+  const [, setPendingImageLoads] = useState(0);
 
   // Sin límite si max no está definido
   const hasLimit = max !== undefined;
