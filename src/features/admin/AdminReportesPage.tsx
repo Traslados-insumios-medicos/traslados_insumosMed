@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../../services/api";
 import { useToastStore } from "../../store/toastStore";
+import { useGlobalLoadingStore } from "../../store/globalLoadingStore";
 import {
   exportToExcel,
   exportToPDF,
@@ -188,6 +189,7 @@ const buildStaticMapUrl = (
 
 export function AdminReportesPage() {
   const addToast = useToastStore((s) => s.addToast);
+  const { show: showLoading, hide: hideLoading } = useGlobalLoadingStore();
   const { downloadImage } = useImageDownload();
 
   const [tab, setTab] = useState<TabId>("cliente");
@@ -408,7 +410,8 @@ export function AdminReportesPage() {
     );
   };
   const handleExportClientePDF = async () => {
-    const totalGuias = dataCliente.reduce((acc, r) => acc + r.total, 0);
+    showLoading();
+    try {
     const totalEntregados = dataCliente.reduce(
       (acc, r) => acc + r.entregados,
       0,

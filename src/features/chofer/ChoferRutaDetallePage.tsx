@@ -817,12 +817,14 @@ export function ChoferRutaDetallePage() {
     const f = detalleFormPorGuia[guiaId];
     if (!f) return;
 
-    // Buscar la guía para saber si es incidencia
     const guia = guiasPorRuta.find((g) => g.id === guiaId);
     const esIncidencia = guia?.estado === "INCIDENCIA";
 
     if (marcarErroresObligatoriosDetalle(guiaId, f, esIncidencia)) return;
 
+    const showLoading = useGlobalLoadingStore.getState().show;
+    const hideLoading = useGlobalLoadingStore.getState().hide;
+    showLoading();
     setGuardandoGuiaId(guiaId);
     try {
       // 1. Guardar estado de la guía (ENTREGADO o INCIDENCIA)
@@ -895,6 +897,7 @@ export function ChoferRutaDetallePage() {
       addToast("No se pudieron guardar los datos de entrega", "error");
     } finally {
       setGuardandoGuiaId(null);
+      hideLoading();
     }
   };
 
