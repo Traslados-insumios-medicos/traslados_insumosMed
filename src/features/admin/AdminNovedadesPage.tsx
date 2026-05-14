@@ -3,7 +3,6 @@ import { motion } from "framer-motion";
 import { ModalMotion } from "../../components/ui/ModalMotion";
 import { api } from "../../services/api";
 import { useToastStore } from "../../store/toastStore";
-import { parseMultiField } from "../../utils/exportUtils";
 
 interface SeguimientoApi {
   id: string;
