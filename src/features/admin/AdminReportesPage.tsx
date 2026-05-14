@@ -412,77 +412,83 @@ export function AdminReportesPage() {
   const handleExportClientePDF = async () => {
     showLoading();
     try {
-    const totalEntregados = dataCliente.reduce(
-      (acc, r) => acc + r.entregados,
-      0,
-    );
-    const totalIncidencias = dataCliente.reduce(
-      (acc, r) => acc + r.incidencias,
-      0,
-    );
-    const detalleGuiasCards = dataCliente
-      .flatMap((cliente) =>
-        cliente.guias.map((g) => ({
-          routeId: g.ruta.id,
-          card: {
-            groupTitle: `${rutaHojaLabel(g.ruta) !== "—" ? `${rutaHojaLabel(g.ruta)} · ` : ""}#${g.ruta.id.slice(-6).toUpperCase()} · Chofer: ${g.ruta.chofer.nombre} · Fecha ruta: ${new Date(g.ruta.fecha).toLocaleDateString("es-ES")} · Creada: ${new Date(g.ruta.createdAt).toLocaleString("es-ES")}`,
-            title: `${cliente.nombre} · Guia ${g.numeroGuia}`,
-            subtitle: `Estado de la guia: ${g.estado}`,
-            fields: [
-              { label: "Recibido por", value: g.receptorNombre ?? "—" },
-              {
-                label: "Registrada",
-                value: new Date(g.createdAt).toLocaleString("es-ES"),
-              },
-              { label: "Hora llegada", value: g.horaLlegada ?? "—" },
-              { label: "Hora salida", value: g.horaSalida ?? "—" },
-              { label: "Temperatura", value: g.temperatura ?? "—" },
-              { label: "Observaciones", value: g.observaciones ?? "—" },
-              { label: "Incidencias", value: formatNovedades(g.novedades) },
-            ],
-            imageUrls: [
-              buildStaticMapUrl(g.stop?.lat, g.stop?.lng, g.stop?.direccion),
-              ...g.fotos
-                .filter((f) => f.tipo === "GUIA")
-                .map((f) => f.urlPreview),
-            ].filter(Boolean),
-          },
-        })),
-      )
-      .sort((a, b) => a.routeId.localeCompare(b.routeId))
-      .map((item) => item.card);
-    await exportToPDF(
-      "Reporte por Cliente",
-      [
-        "Nombre del cliente",
-        "Tipo de cliente",
-        "Total de guías",
-        "Guías entregadas",
-        "Guías pendientes",
-        "Guías con incidencia",
-      ],
-      dataCliente.map((r) => [
-        r.nombre,
-        r.tipo === "PRINCIPAL"
-          ? "Principal"
-          : `Secundario (${r.clientePrincipal?.nombre || "Sin asignar"})`,
-        r.total,
-        r.entregados,
-        r.pendientes,
-        r.incidencias,
-      ]),
-      "reporte-por-cliente",
-      buildFilterInfo(),
-      [
-        { label: "Clientes", value: dataCliente.length },
-        { label: "Guias", value: totalGuias },
-        { label: "Entregados", value: totalEntregados },
-        { label: "Incidencias", value: totalIncidencias },
-      ],
-      undefined,
-      detalleGuiasCards,
-      { showMainTable: false },
-    );
+      const totalGuias = dataCliente.reduce((acc, r) => acc + r.total, 0);
+      const totalEntregados = dataCliente.reduce(
+        (acc, r) => acc + r.entregados,
+        0,
+      );
+      const totalIncidencias = dataCliente.reduce(
+        (acc, r) => acc + r.incidencias,
+        0,
+      );
+      const detalleGuiasCards = dataCliente
+        .flatMap((cliente) =>
+          cliente.guias.map((g) => ({
+            routeId: g.ruta.id,
+            card: {
+              groupTitle: `${rutaHojaLabel(g.ruta) !== "—" ? `${rutaHojaLabel(g.ruta)} · ` : ""}#${g.ruta.id.slice(-6).toUpperCase()} · Chofer: ${g.ruta.chofer.nombre} · Fecha ruta: ${new Date(g.ruta.fecha).toLocaleDateString("es-ES")} · Creada: ${new Date(g.ruta.createdAt).toLocaleString("es-ES")}`,
+              title: `${cliente.nombre} · Guia ${g.numeroGuia}`,
+              subtitle: `Estado de la guia: ${g.estado}`,
+              fields: [
+                { label: "Recibido por", value: g.receptorNombre ?? "—" },
+                {
+                  label: "Registrada",
+                  value: new Date(g.createdAt).toLocaleString("es-ES"),
+                },
+                { label: "Hora llegada", value: g.horaLlegada ?? "—" },
+                { label: "Hora salida", value: g.horaSalida ?? "—" },
+                { label: "Temperatura", value: g.temperatura ?? "—" },
+                { label: "Observaciones", value: g.observaciones ?? "—" },
+                { label: "Incidencias", value: formatNovedades(g.novedades) },
+              ],
+              imageUrls: [
+                buildStaticMapUrl(g.stop?.lat, g.stop?.lng, g.stop?.direccion),
+                ...g.fotos
+                  .filter((f) => f.tipo === "GUIA")
+                  .map((f) => f.urlPreview),
+              ].filter(Boolean),
+            },
+          })),
+        )
+        .sort((a, b) => a.routeId.localeCompare(b.routeId))
+        .map((item) => item.card);
+      await exportToPDF(
+        "Reporte por Cliente",
+        [
+          "Nombre del cliente",
+          "Tipo de cliente",
+          "Total de guías",
+          "Guías entregadas",
+          "Guías pendientes",
+          "Guías con incidencia",
+        ],
+        dataCliente.map((r) => [
+          r.nombre,
+          r.tipo === "PRINCIPAL"
+            ? "Principal"
+            : `Secundario (${r.clientePrincipal?.nombre || "Sin asignar"})`,
+          r.total,
+          r.entregados,
+          r.pendientes,
+          r.incidencias,
+        ]),
+        "reporte-por-cliente",
+        buildFilterInfo(),
+        [
+          { label: "Clientes", value: dataCliente.length },
+          { label: "Guias", value: totalGuias },
+          { label: "Entregados", value: totalEntregados },
+          { label: "Incidencias", value: totalIncidencias },
+        ],
+        undefined,
+        detalleGuiasCards,
+        { showMainTable: false },
+      );
+    } catch {
+      // error silencioso
+    } finally {
+      hideLoading();
+    }
   };
 
   const buildChoferRows = () => {
@@ -532,117 +538,128 @@ export function AdminReportesPage() {
       buildFilterInfo(),
     );
   const handleExportChoferPDF = async () => {
-    const rows = buildChoferRows();
-    const totalRutas = dataChofer.reduce((acc, ch) => acc + ch.rutas.length, 0);
-    const totalGuias = dataChofer.reduce(
-      (acc, ch) => acc + ch.rutas.reduce((n, r) => n + r.guias.length, 0),
-      0,
-    );
-    const totalIncidencias = dataChofer.reduce(
-      (acc, ch) =>
-        acc +
-        ch.rutas.reduce(
-          (n, r) => n + r.guias.filter((g) => g.estado === "INCIDENCIA").length,
-          0,
-        ),
-      0,
-    );
-    const detalleChoferCards = dataChofer
-      .flatMap((ch) =>
-        (ch.rutas ?? []).flatMap((r) => {
-          const routeStops = Array.isArray(r.stops) ? r.stops : [];
-          return (r.guias ?? []).map((g) => {
-            const stop = routeStops.find((s) => s.id === g.stopId);
-            return {
-              routeId: r.rutaId,
-              card: {
-                groupTitle: `${rutaHojaLabel({ hojaRuta: r.hojaRuta, nombre: r.nombre }) !== "—" ? `${rutaHojaLabel({ hojaRuta: r.hojaRuta, nombre: r.nombre })} · ` : ""}#${r.rutaId.slice(-6).toUpperCase()} · Chofer: ${ch.nombre} · Fecha ruta: ${new Date(r.fecha).toLocaleDateString("es-ES")}`,
-                title: `${g.cliente} · Guia ${g.numeroGuia}`,
-                subtitle: `Estado de la guia: ${g.estado}`,
-                fields: [
-                  { label: "Recibido por", value: g.receptorNombre ?? "—" },
-                  {
-                    label: "Registrada",
-                    value: new Date(g.createdAt).toLocaleString("es-ES"),
-                  },
-                  { label: "Hora llegada", value: g.horaLlegada ?? "—" },
-                  { label: "Hora salida", value: g.horaSalida ?? "—" },
-                  { label: "Temperatura", value: g.temperatura ?? "—" },
-                  { label: "Observaciones", value: g.observaciones ?? "—" },
-                  {
-                    label: "Incidencias",
-                    value: formatNovedades(g.novedades ?? []),
-                  },
-                ],
-                imageUrls: [
-                  buildStaticMapUrl(
-                    stop?.lat ?? null,
-                    stop?.lng ?? null,
-                    stop?.direccion ?? "",
-                  ),
-                  ...(g.fotos ?? [])
-                    .filter((f) => f.tipo === "GUIA")
-                    .map((f) => f.urlPreview),
-                ].filter(Boolean),
-              },
-            };
-          });
-        }),
-      )
-      .sort((a, b) => a.routeId.localeCompare(b.routeId))
-      .map((item) => item.card);
-    await exportToPDF(
-      "Reporte por Chofer",
-      [
-        "Nombre del chofer",
-        "Hoja de ruta",
-        "Lugar origen",
-        "Lugar destino",
-        "ID ruta",
-        "Fecha de ruta",
-        "Cliente de la guia",
-        "Numero de guia",
-        "Descripcion",
-        "Estado",
-        "Recibido por",
-        "Hora de llegada",
-        "Hora de salida",
-        "Temperatura",
-        "Observaciones",
-        "Incidencias reportadas",
-        "Fotos (enlaces)",
-      ],
-      rows.map((row) => [
-        row["Chofer"],
-        row["Hoja de ruta"],
-        row["Lugar origen"],
-        row["Lugar destino"],
-        row["ID ruta"],
-        row["Fecha"],
-        row["Cliente"],
-        row["Nº Guía"],
-        row["Descripción"],
-        row["Estado"],
-        row["Recibido por"],
-        row["Hora llegada"],
-        row["Hora salida"],
-        row["Temperatura"],
-        row["Observaciones"],
-        row["Incidencias"],
-        row["Fotos (URLs)"],
-      ]),
-      "reporte-por-chofer",
-      buildFilterInfo(),
-      [
-        { label: "Choferes", value: dataChofer.length },
-        { label: "Rutas", value: totalRutas },
-        { label: "Guias", value: totalGuias },
-        { label: "Incidencias", value: totalIncidencias },
-      ],
-      undefined,
-      detalleChoferCards,
-      { showMainTable: false },
-    );
+    showLoading();
+    try {
+      const rows = buildChoferRows();
+      const totalRutas = dataChofer.reduce(
+        (acc, ch) => acc + ch.rutas.length,
+        0,
+      );
+      const totalGuias = dataChofer.reduce(
+        (acc, ch) => acc + ch.rutas.reduce((n, r) => n + r.guias.length, 0),
+        0,
+      );
+      const totalIncidencias = dataChofer.reduce(
+        (acc, ch) =>
+          acc +
+          ch.rutas.reduce(
+            (n, r) =>
+              n + r.guias.filter((g) => g.estado === "INCIDENCIA").length,
+            0,
+          ),
+        0,
+      );
+      const detalleChoferCards = dataChofer
+        .flatMap((ch) =>
+          (ch.rutas ?? []).flatMap((r) => {
+            const routeStops = Array.isArray(r.stops) ? r.stops : [];
+            return (r.guias ?? []).map((g) => {
+              const stop = routeStops.find((s) => s.id === g.stopId);
+              return {
+                routeId: r.rutaId,
+                card: {
+                  groupTitle: `${rutaHojaLabel({ hojaRuta: r.hojaRuta, nombre: r.nombre }) !== "—" ? `${rutaHojaLabel({ hojaRuta: r.hojaRuta, nombre: r.nombre })} · ` : ""}#${r.rutaId.slice(-6).toUpperCase()} · Chofer: ${ch.nombre} · Fecha ruta: ${new Date(r.fecha).toLocaleDateString("es-ES")}`,
+                  title: `${g.cliente} · Guia ${g.numeroGuia}`,
+                  subtitle: `Estado de la guia: ${g.estado}`,
+                  fields: [
+                    { label: "Recibido por", value: g.receptorNombre ?? "—" },
+                    {
+                      label: "Registrada",
+                      value: new Date(g.createdAt).toLocaleString("es-ES"),
+                    },
+                    { label: "Hora llegada", value: g.horaLlegada ?? "—" },
+                    { label: "Hora salida", value: g.horaSalida ?? "—" },
+                    { label: "Temperatura", value: g.temperatura ?? "—" },
+                    { label: "Observaciones", value: g.observaciones ?? "—" },
+                    {
+                      label: "Incidencias",
+                      value: formatNovedades(g.novedades ?? []),
+                    },
+                  ],
+                  imageUrls: [
+                    buildStaticMapUrl(
+                      stop?.lat ?? null,
+                      stop?.lng ?? null,
+                      stop?.direccion ?? "",
+                    ),
+                    ...(g.fotos ?? [])
+                      .filter((f) => f.tipo === "GUIA")
+                      .map((f) => f.urlPreview),
+                  ].filter(Boolean),
+                },
+              };
+            });
+          }),
+        )
+        .sort((a, b) => a.routeId.localeCompare(b.routeId))
+        .map((item) => item.card);
+      await exportToPDF(
+        "Reporte por Chofer",
+        [
+          "Nombre del chofer",
+          "Hoja de ruta",
+          "Lugar origen",
+          "Lugar destino",
+          "ID ruta",
+          "Fecha de ruta",
+          "Cliente de la guia",
+          "Numero de guia",
+          "Descripcion",
+          "Estado",
+          "Recibido por",
+          "Hora de llegada",
+          "Hora de salida",
+          "Temperatura",
+          "Observaciones",
+          "Incidencias reportadas",
+          "Fotos (enlaces)",
+        ],
+        rows.map((row) => [
+          row["Chofer"],
+          row["Hoja de ruta"],
+          row["Lugar origen"],
+          row["Lugar destino"],
+          row["ID ruta"],
+          row["Fecha"],
+          row["Cliente"],
+          row["Nº Guía"],
+          row["Descripción"],
+          row["Estado"],
+          row["Recibido por"],
+          row["Hora llegada"],
+          row["Hora salida"],
+          row["Temperatura"],
+          row["Observaciones"],
+          row["Incidencias"],
+          row["Fotos (URLs)"],
+        ]),
+        "reporte-por-chofer",
+        buildFilterInfo(),
+        [
+          { label: "Choferes", value: dataChofer.length },
+          { label: "Rutas", value: totalRutas },
+          { label: "Guias", value: totalGuias },
+          { label: "Incidencias", value: totalIncidencias },
+        ],
+        undefined,
+        detalleChoferCards,
+        { showMainTable: false },
+      );
+    } catch {
+      /* silencioso */
+    } finally {
+      hideLoading();
+    }
   };
 
   const buildFechasRows = () =>
@@ -678,97 +695,107 @@ export function AdminReportesPage() {
     );
 
   const handleExportFechasPDF = async () => {
-    const rows = buildFechasRows();
-    const entregadas = dataFechas.filter(
-      (g) => g.estado === "ENTREGADO",
-    ).length;
-    const incidencias = dataFechas.filter(
-      (g) => g.estado === "INCIDENCIA",
-    ).length;
-    const detalleFechasCards = dataFechas
-      .map((g) => ({
-        routeId: g.ruta.id,
-        card: {
-          groupTitle: `${rutaHojaLabel(g.ruta) !== "—" ? `${rutaHojaLabel(g.ruta)} · ` : ""}#${g.ruta.id.slice(-6).toUpperCase()} · Chofer: ${g.ruta.chofer.nombre} · Fecha ruta: ${new Date(g.ruta.fecha).toLocaleDateString("es-ES")}`,
-          title: `${g.cliente.nombre} · Guia ${g.numeroGuia}`,
-          subtitle: `Estado de la guia: ${g.estado}`,
-          fields: [
-            { label: "Recibido por", value: g.receptorNombre ?? "—" },
-            {
-              label: "Registrada",
-              value: new Date(g.createdAt).toLocaleString("es-ES"),
-            },
-            { label: "Hora llegada", value: g.horaLlegada ?? "—" },
-            { label: "Hora salida", value: g.horaSalida ?? "—" },
-            { label: "Temperatura", value: g.temperatura ?? "—" },
-            { label: "Observaciones", value: g.observaciones ?? "—" },
-            { label: "Incidencias", value: formatNovedades(g.novedades ?? []) },
-          ],
-          imageUrls: [
-            buildStaticMapUrl(g.stop?.lat, g.stop?.lng, g.stop?.direccion),
-            ...(g.fotos ?? [])
-              .filter((f) => f.tipo === "GUIA")
-              .map((f) => f.urlPreview),
-          ].filter(Boolean),
-        },
-      }))
-      .sort((a, b) => a.routeId.localeCompare(b.routeId))
-      .map((item) => item.card);
-    await exportToPDF(
-      "Reporte detallado por fechas",
-      [
-        "Numero de guia",
-        "Descripcion",
-        "Estado",
-        "Fecha de registro",
-        "Cliente de la guia",
-        "Chofer",
-        "Hoja de ruta",
-        "Lugar origen",
-        "Lugar destino",
-        "ID ruta",
-        "Recibido por",
-        "Hora de llegada",
-        "Hora de salida",
-        "Temperatura",
-        "Observaciones",
-        "Incidencias reportadas",
-        "Fotos (enlaces)",
-      ],
-      rows.map((r) => [
-        r["Nº Guía"],
-        r["Descripción"],
-        r["Estado"],
-        r["Fecha"],
-        r["Cliente"],
-        r["Chofer"],
-        r["Hoja de ruta"],
-        r["Lugar origen"],
-        r["Lugar destino"],
-        r["ID ruta"],
-        r["Recibido por"],
-        r["Hora llegada"],
-        r["Hora salida"],
-        r["Temperatura"],
-        r["Observaciones"],
-        r["Incidencias"],
-        r["Fotos (URLs)"],
-      ]),
-      "reporte-por-fechas-detallado",
-      buildFilterInfo(),
-      [
-        { label: "Guias", value: dataFechas.length },
-        { label: "Entregadas", value: entregadas },
-        { label: "Incidencias", value: incidencias },
-        {
-          label: "Rango",
-          value: `${fechaDesde || "Inicio"} - ${fechaHasta || "Hoy"}`,
-        },
-      ],
-      undefined,
-      detalleFechasCards,
-      { showMainTable: false },
-    );
+    showLoading();
+    try {
+      const rows = buildFechasRows();
+      const entregadas = dataFechas.filter(
+        (g) => g.estado === "ENTREGADO",
+      ).length;
+      const incidencias = dataFechas.filter(
+        (g) => g.estado === "INCIDENCIA",
+      ).length;
+      const detalleFechasCards = dataFechas
+        .map((g) => ({
+          routeId: g.ruta.id,
+          card: {
+            groupTitle: `${rutaHojaLabel(g.ruta) !== "—" ? `${rutaHojaLabel(g.ruta)} · ` : ""}#${g.ruta.id.slice(-6).toUpperCase()} · Chofer: ${g.ruta.chofer.nombre} · Fecha ruta: ${new Date(g.ruta.fecha).toLocaleDateString("es-ES")}`,
+            title: `${g.cliente.nombre} · Guia ${g.numeroGuia}`,
+            subtitle: `Estado de la guia: ${g.estado}`,
+            fields: [
+              { label: "Recibido por", value: g.receptorNombre ?? "—" },
+              {
+                label: "Registrada",
+                value: new Date(g.createdAt).toLocaleString("es-ES"),
+              },
+              { label: "Hora llegada", value: g.horaLlegada ?? "—" },
+              { label: "Hora salida", value: g.horaSalida ?? "—" },
+              { label: "Temperatura", value: g.temperatura ?? "—" },
+              { label: "Observaciones", value: g.observaciones ?? "—" },
+              {
+                label: "Incidencias",
+                value: formatNovedades(g.novedades ?? []),
+              },
+            ],
+            imageUrls: [
+              buildStaticMapUrl(g.stop?.lat, g.stop?.lng, g.stop?.direccion),
+              ...(g.fotos ?? [])
+                .filter((f) => f.tipo === "GUIA")
+                .map((f) => f.urlPreview),
+            ].filter(Boolean),
+          },
+        }))
+        .sort((a, b) => a.routeId.localeCompare(b.routeId))
+        .map((item) => item.card);
+      await exportToPDF(
+        "Reporte detallado por fechas",
+        [
+          "Numero de guia",
+          "Descripcion",
+          "Estado",
+          "Fecha de registro",
+          "Cliente de la guia",
+          "Chofer",
+          "Hoja de ruta",
+          "Lugar origen",
+          "Lugar destino",
+          "ID ruta",
+          "Recibido por",
+          "Hora de llegada",
+          "Hora de salida",
+          "Temperatura",
+          "Observaciones",
+          "Incidencias reportadas",
+          "Fotos (enlaces)",
+        ],
+        rows.map((r) => [
+          r["Nº Guía"],
+          r["Descripción"],
+          r["Estado"],
+          r["Fecha"],
+          r["Cliente"],
+          r["Chofer"],
+          r["Hoja de ruta"],
+          r["Lugar origen"],
+          r["Lugar destino"],
+          r["ID ruta"],
+          r["Recibido por"],
+          r["Hora llegada"],
+          r["Hora salida"],
+          r["Temperatura"],
+          r["Observaciones"],
+          r["Incidencias"],
+          r["Fotos (URLs)"],
+        ]),
+        "reporte-por-fechas-detallado",
+        buildFilterInfo(),
+        [
+          { label: "Guias", value: dataFechas.length },
+          { label: "Entregadas", value: entregadas },
+          { label: "Incidencias", value: incidencias },
+          {
+            label: "Rango",
+            value: `${fechaDesde || "Inicio"} - ${fechaHasta || "Hoy"}`,
+          },
+        ],
+        undefined,
+        detalleFechasCards,
+        { showMainTable: false },
+      );
+    } catch {
+      /* silencioso */
+    } finally {
+      hideLoading();
+    }
   };
 
   const buildGuiaRows = () =>
@@ -810,97 +837,111 @@ export function AdminReportesPage() {
     );
 
   const handleExportGuiaPDF = async () => {
-    const rows = buildGuiaRows();
-    const entregadas = dataGuia.filter((g) => g.estado === "ENTREGADO").length;
-    const incidencias = dataGuia.filter(
-      (g) => g.estado === "INCIDENCIA",
-    ).length;
-    const pendientes = dataGuia.filter((g) => g.estado === "PENDIENTE").length;
+    showLoading();
+    try {
+      const rows = buildGuiaRows();
+      const entregadas = dataGuia.filter(
+        (g) => g.estado === "ENTREGADO",
+      ).length;
+      const incidencias = dataGuia.filter(
+        (g) => g.estado === "INCIDENCIA",
+      ).length;
+      const pendientes = dataGuia.filter(
+        (g) => g.estado === "PENDIENTE",
+      ).length;
 
-    const detalleGuiaCards = dataGuia
-      .map((g) => ({
-        routeId: g.ruta.id,
-        card: {
-          groupTitle: `${rutaHojaLabel(g.ruta) !== "—" ? `${rutaHojaLabel(g.ruta)} · ` : ""}#${g.ruta.id.slice(-6).toUpperCase()} · Chofer: ${g.ruta.chofer.nombre} · Fecha ruta: ${new Date(g.ruta.fecha).toLocaleDateString("es-ES")}`,
-          title: `${g.cliente.nombre} · Guía ${g.numeroGuia}`,
-          subtitle: `Estado: ${g.estado} · ${g.descripcion}`,
-          fields: [
-            { label: "Recibido por", value: g.receptorNombre ?? "—" },
-            {
-              label: "Registrada",
-              value: new Date(g.createdAt).toLocaleString("es-ES"),
-            },
-            { label: "Hora llegada", value: g.horaLlegada ?? "—" },
-            { label: "Hora salida", value: g.horaSalida ?? "—" },
-            { label: "Temperatura", value: g.temperatura ?? "—" },
-            { label: "Observaciones", value: g.observaciones ?? "—" },
-            { label: "Incidencias", value: formatNovedades(g.novedades ?? []) },
-          ],
-          imageUrls: [
-            buildStaticMapUrl(g.stop?.lat, g.stop?.lng, g.stop?.direccion),
-            ...(g.fotos ?? [])
-              .filter((f) => f.tipo === "GUIA")
-              .map((f) => f.urlPreview),
-          ].filter(Boolean),
-        },
-      }))
-      .sort((a, b) => a.routeId.localeCompare(b.routeId))
-      .map((item) => item.card);
+      const detalleGuiaCards = dataGuia
+        .map((g) => ({
+          routeId: g.ruta.id,
+          card: {
+            groupTitle: `${rutaHojaLabel(g.ruta) !== "—" ? `${rutaHojaLabel(g.ruta)} · ` : ""}#${g.ruta.id.slice(-6).toUpperCase()} · Chofer: ${g.ruta.chofer.nombre} · Fecha ruta: ${new Date(g.ruta.fecha).toLocaleDateString("es-ES")}`,
+            title: `${g.cliente.nombre} · Guía ${g.numeroGuia}`,
+            subtitle: `Estado: ${g.estado} · ${g.descripcion}`,
+            fields: [
+              { label: "Recibido por", value: g.receptorNombre ?? "—" },
+              {
+                label: "Registrada",
+                value: new Date(g.createdAt).toLocaleString("es-ES"),
+              },
+              { label: "Hora llegada", value: g.horaLlegada ?? "—" },
+              { label: "Hora salida", value: g.horaSalida ?? "—" },
+              { label: "Temperatura", value: g.temperatura ?? "—" },
+              { label: "Observaciones", value: g.observaciones ?? "—" },
+              {
+                label: "Incidencias",
+                value: formatNovedades(g.novedades ?? []),
+              },
+            ],
+            imageUrls: [
+              buildStaticMapUrl(g.stop?.lat, g.stop?.lng, g.stop?.direccion),
+              ...(g.fotos ?? [])
+                .filter((f) => f.tipo === "GUIA")
+                .map((f) => f.urlPreview),
+            ].filter(Boolean),
+          },
+        }))
+        .sort((a, b) => a.routeId.localeCompare(b.routeId))
+        .map((item) => item.card);
 
-    await exportToPDF(
-      "Reporte por Guía",
-      [
-        "Número de guía",
-        "Descripción",
-        "Estado",
-        "Fecha registro",
-        "Cliente",
-        "Chofer",
-        "Hoja de ruta",
-        "Lugar origen",
-        "Lugar destino",
-        "ID ruta",
-        "Fecha ruta",
-        "Estado ruta",
-        "Recibido por",
-        "Hora llegada",
-        "Hora salida",
-        "Temperatura",
-        "Observaciones",
-        "Incidencias",
-      ],
-      rows.map((r) => [
-        r["Nº Guía"],
-        r["Descripción"],
-        r["Estado"],
-        r["Fecha registro"],
-        r["Cliente"],
-        r["Chofer"],
-        r["Hoja de ruta"],
-        r["Lugar origen"],
-        r["Lugar destino"],
-        r["Ruta ID"],
-        r["Fecha ruta"],
-        r["Estado ruta"],
-        r["Recibido por"],
-        r["Hora llegada"],
-        r["Hora salida"],
-        r["Temperatura"],
-        r["Observaciones"],
-        r["Incidencias"],
-      ]),
-      "reporte-por-guia",
-      buildFilterInfo(),
-      [
-        { label: "Total guías", value: dataGuia.length },
-        { label: "Entregadas", value: entregadas },
-        { label: "Pendientes", value: pendientes },
-        { label: "Incidencias", value: incidencias },
-      ],
-      undefined,
-      detalleGuiaCards,
-      { showMainTable: false },
-    );
+      await exportToPDF(
+        "Reporte por Guía",
+        [
+          "Número de guía",
+          "Descripción",
+          "Estado",
+          "Fecha registro",
+          "Cliente",
+          "Chofer",
+          "Hoja de ruta",
+          "Lugar origen",
+          "Lugar destino",
+          "ID ruta",
+          "Fecha ruta",
+          "Estado ruta",
+          "Recibido por",
+          "Hora llegada",
+          "Hora salida",
+          "Temperatura",
+          "Observaciones",
+          "Incidencias",
+        ],
+        rows.map((r) => [
+          r["Nº Guía"],
+          r["Descripción"],
+          r["Estado"],
+          r["Fecha registro"],
+          r["Cliente"],
+          r["Chofer"],
+          r["Hoja de ruta"],
+          r["Lugar origen"],
+          r["Lugar destino"],
+          r["Ruta ID"],
+          r["Fecha ruta"],
+          r["Estado ruta"],
+          r["Recibido por"],
+          r["Hora llegada"],
+          r["Hora salida"],
+          r["Temperatura"],
+          r["Observaciones"],
+          r["Incidencias"],
+        ]),
+        "reporte-por-guia",
+        buildFilterInfo(),
+        [
+          { label: "Total guías", value: dataGuia.length },
+          { label: "Entregadas", value: entregadas },
+          { label: "Pendientes", value: pendientes },
+          { label: "Incidencias", value: incidencias },
+        ],
+        undefined,
+        detalleGuiaCards,
+        { showMainTable: false },
+      );
+    } catch {
+      /* silencioso */
+    } finally {
+      hideLoading();
+    }
   };
 
   return (
