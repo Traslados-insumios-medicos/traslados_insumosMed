@@ -38,6 +38,7 @@ interface PaginatedResponse {
   total: number;
   page: number;
   limit: number;
+  totalActivos: number;
 }
 interface PasswordModalData {
   clienteNombre: string;
@@ -81,6 +82,7 @@ export function AdminClientesPage() {
   const addToast = useToastStore((s) => s.addToast);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [total, setTotal] = useState(0);
+  const [totalActivosBackend, setTotalActivosBackend] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [filtroTipo, setFiltroTipo] = useState<"" | TipoCliente>("");
@@ -212,6 +214,12 @@ export function AdminClientesPage() {
   };
   const totalPages = Math.max(1, Math.ceil(total / LIMIT));
 
+  const [debouncedBusqueda, setDebouncedBusqueda] = useState("");
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedBusqueda(busqueda.trim()), 400);
+    return () => clearTimeout(t);
+  }, [busqueda]);
+
   const fetchClientes = useCallback(
     async (p: number, silent = false) => {
       if (!silent) setLoading(true);
@@ -221,9 +229,11 @@ export function AdminClientesPage() {
           limit: String(LIMIT),
         });
         if (filtroTipo) params.set("tipo", filtroTipo);
+        if (debouncedBusqueda) params.set("search", debouncedBusqueda);
         const res = await api.get<PaginatedResponse>(`/clientes?${params}`);
         setClientes(res.data.data);
         setTotal(res.data.total);
+        setTotalActivosBackend(res.data.totalActivos);
         setPage(p);
       } catch {
         addToast("Error al cargar clientes", "error");
@@ -231,7 +241,7 @@ export function AdminClientesPage() {
         if (!silent) setLoading(false);
       }
     },
-    [addToast, filtroTipo],
+    [addToast, filtroTipo, debouncedBusqueda],
   );
 
   useEffect(() => {
@@ -605,23 +615,10 @@ export function AdminClientesPage() {
     }
   };
 
-  const totalActivos = clientes.filter((c) => c.activo).length;
+  const totalActivos = totalActivosBackend;
 
-  // Filtrado combinado: búsqueda general + filtro de tipo + filtro de principal
+  // Filtrado local: solo filtro de cliente principal (búsqueda y tipo van al backend)
   const clientesFiltrados = clientes.filter((c) => {
-    // Filtro de búsqueda general
-    if (busqueda.trim()) {
-      const q = busqueda.toLowerCase();
-      const match =
-        c.nombre.toLowerCase().includes(q) ||
-        c.ruc.includes(busqueda) ||
-        (c.emailContacto ?? "").toLowerCase().includes(q);
-      if (!match) return false;
-    }
-
-    // Filtro de tipo (Principal/Secundario/Todos)
-    if (filtroTipo && c.tipo !== filtroTipo) return false;
-
     // Filtro de cliente principal (solo para secundarios)
     if (
       filtroPrincipal &&
@@ -632,7 +629,6 @@ export function AdminClientesPage() {
       if (!principalNombre.includes(filtroPrincipal.toLowerCase()))
         return false;
     }
-
     return true;
   });
 

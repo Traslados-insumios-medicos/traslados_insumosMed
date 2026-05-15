@@ -842,13 +842,12 @@ export function ChoferRutaDetallePage() {
         observaciones: string | null;
         updatedAt: string;
       }>(`/guias/${guiaId}/detalle`, {
-        receptorNombre: esIncidencia
-          ? `INCIDENCIA: ${f.tipoIncidencia}`
-          : f.receptorNombre.trim() || undefined,
+        receptorNombre: f.receptorNombre.trim() || undefined,
         temperatura: f.temperatura.trim() || undefined,
         horaLlegada: f.horaLlegada.trim() || undefined,
         horaSalida: f.horaSalida.trim() || undefined,
         observaciones: f.observaciones.trim() || undefined,
+        ...(esIncidencia && { tipoIncidencia: f.tipoIncidencia }),
       });
 
       // 3. Subir fotos en borrador
@@ -1269,13 +1268,17 @@ export function ChoferRutaDetallePage() {
                                   onClick={() => handleMarkEntregado(g.id)}
                                   disabled={
                                     ruta.estado === "PENDIENTE" ||
-                                    ruta.estado === "COMPLETADA"
+                                    ruta.estado === "COMPLETADA" ||
+                                    (guiaIdsDetalleGuardado.has(g.id) &&
+                                      !guiaIdsEnEdicion.has(g.id))
                                   }
                                   className={`rounded px-2 py-1 text-[10px] font-medium ${
                                     g.estado === "ENTREGADO"
                                       ? "bg-emerald-600 text-white"
                                       : ruta.estado === "PENDIENTE" ||
-                                          ruta.estado === "COMPLETADA"
+                                          ruta.estado === "COMPLETADA" ||
+                                          (guiaIdsDetalleGuardado.has(g.id) &&
+                                            !guiaIdsEnEdicion.has(g.id))
                                         ? "border border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed"
                                         : "border border-slate-200 bg-white hover:bg-slate-50"
                                   }`}
@@ -1287,13 +1290,17 @@ export function ChoferRutaDetallePage() {
                                   onClick={() => handleMarkIncidencia(g.id)}
                                   disabled={
                                     ruta.estado === "PENDIENTE" ||
-                                    ruta.estado === "COMPLETADA"
+                                    ruta.estado === "COMPLETADA" ||
+                                    (guiaIdsDetalleGuardado.has(g.id) &&
+                                      !guiaIdsEnEdicion.has(g.id))
                                   }
                                   className={`rounded px-2 py-1 text-[10px] font-medium ${
                                     g.estado === "INCIDENCIA"
                                       ? "bg-amber-600 text-white"
                                       : ruta.estado === "PENDIENTE" ||
-                                          ruta.estado === "COMPLETADA"
+                                          ruta.estado === "COMPLETADA" ||
+                                          (guiaIdsDetalleGuardado.has(g.id) &&
+                                            !guiaIdsEnEdicion.has(g.id))
                                         ? "border border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed"
                                         : "border border-slate-200 bg-white hover:bg-amber-50"
                                   }`}
@@ -1334,7 +1341,8 @@ export function ChoferRutaDetallePage() {
                                       </p>
                                     </div>
 
-                                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                    <div className="space-y-3">
+                                      {/* Fila 1: Tipo de incidencia — ancho completo */}
                                       <div>
                                         <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
                                           Tipo de incidencia *
@@ -1368,313 +1376,312 @@ export function ChoferRutaDetallePage() {
                                           ))}
                                         </select>
                                       </div>
-                                      <div>
-                                        <div className="mb-1.5 flex items-center justify-between">
-                                          <label className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                                            Temperatura (•C)
-                                          </label>
-                                          {(!guiaIdsDetalleGuardado.has(g.id) ||
-                                            guiaIdsEnEdicion.has(g.id)) && (
-                                            <button
-                                              type="button"
-                                              onClick={() =>
-                                                addTemperaturaItem(g.id)
-                                              }
-                                              className="flex items-center gap-0.5 rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary hover:bg-primary/20"
-                                            >
-                                              <span className="material-symbols-outlined text-[12px]">
-                                                add
-                                              </span>
-                                              Agregar
-                                            </button>
-                                          )}
-                                        </div>
-                                        <div className="space-y-1.5">
-                                          {getTemperaturasList(g.id).map(
-                                            (temp, idx) => {
-                                              const canEdit =
-                                                !guiaIdsDetalleGuardado.has(
-                                                  g.id,
-                                                ) || guiaIdsEnEdicion.has(g.id);
-                                              const showRemove =
-                                                getTemperaturasList(g.id)
-                                                  .length > 1 && canEdit;
-                                              return (
-                                                <div
-                                                  key={idx}
-                                                  className="relative"
-                                                >
-                                                  <input
-                                                    type="text"
-                                                    inputMode="decimal"
-                                                    placeholder="Ej: 18"
-                                                    value={temp}
-                                                    onChange={(e) =>
-                                                      setTemperaturaItem(
-                                                        g.id,
-                                                        idx,
-                                                        e.target.value,
-                                                      )
-                                                    }
-                                                    onBlur={() => {
-                                                      const hasValue =
-                                                        getTemperaturasList(
-                                                          g.id,
-                                                        ).some((t) => t.trim());
-                                                      setErrorCampoDetalle(
-                                                        g.id,
-                                                        "temperatura",
-                                                        hasValue
-                                                          ? ""
-                                                          : REQUIRED_MESSAGE,
-                                                      );
-                                                    }}
-                                                    maxLength={10}
-                                                    disabled={!canEdit}
-                                                    className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 ${showRemove ? "pr-16" : "pr-10"} ${erroresDetallePorGuia[g.id]?.temperatura ? "border-red-400 focus:border-red-400 focus:ring-red-100" : "border-slate-200 focus:border-primary focus:ring-primary/15"}`}
-                                                  />
-                                                  {showRemove && (
-                                                    <button
-                                                      type="button"
-                                                      onClick={() =>
-                                                        removeTemperaturaItem(
-                                                          g.id,
-                                                          idx,
-                                                        )
-                                                      }
-                                                      className="absolute right-8 top-1/2 -translate-y-1/2 text-slate-300 hover:text-red-400"
-                                                    >
-                                                      <span className="material-symbols-outlined text-[15px]">
-                                                        close
-                                                      </span>
-                                                    </button>
-                                                  )}
-                                                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-400 pointer-events-none">
-                                                    •C
-                                                  </span>
-                                                </div>
-                                              );
-                                            },
-                                          )}
-                                        </div>
-                                        {erroresDetallePorGuia[g.id]
-                                          ?.temperatura && (
-                                          <p className="mt-1 text-xs text-red-500">
-                                            {
-                                              erroresDetallePorGuia[g.id]
-                                                ?.temperatura
-                                            }
-                                          </p>
-                                        )}
-                                      </div>{" "}
-                                      <div>
-                                        <div className="mb-1.5 flex items-center justify-between">
-                                          <label className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                                            Temperatura (•C)
-                                          </label>
-                                          {(!guiaIdsDetalleGuardado.has(g.id) ||
-                                            guiaIdsEnEdicion.has(g.id)) && (
-                                            <button
-                                              type="button"
-                                              onClick={() =>
-                                                addTemperaturaItem(g.id)
-                                              }
-                                              className="flex items-center gap-0.5 rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary hover:bg-primary/20"
-                                            >
-                                              <span className="material-symbols-outlined text-[12px]">
-                                                add
-                                              </span>
-                                              Agregar
-                                            </button>
-                                          )}
-                                        </div>
-                                        <div className="space-y-1.5">
-                                          {getTemperaturasList(g.id).map(
-                                            (temp, idx) => {
-                                              const canEdit =
-                                                !guiaIdsDetalleGuardado.has(
-                                                  g.id,
-                                                ) || guiaIdsEnEdicion.has(g.id);
-                                              const showRemove =
-                                                getTemperaturasList(g.id)
-                                                  .length > 1 && canEdit;
-                                              return (
-                                                <div
-                                                  key={idx}
-                                                  className="relative"
-                                                >
-                                                  <input
-                                                    type="text"
-                                                    inputMode="decimal"
-                                                    placeholder="Ej: 18"
-                                                    value={temp}
-                                                    onChange={(e) =>
-                                                      setTemperaturaItem(
-                                                        g.id,
-                                                        idx,
-                                                        e.target.value,
-                                                      )
-                                                    }
-                                                    onBlur={() => {
-                                                      const hasValue =
-                                                        getTemperaturasList(
-                                                          g.id,
-                                                        ).some((t) => t.trim());
-                                                      setErrorCampoDetalle(
-                                                        g.id,
-                                                        "temperatura",
-                                                        hasValue
-                                                          ? ""
-                                                          : REQUIRED_MESSAGE,
-                                                      );
-                                                    }}
-                                                    maxLength={10}
-                                                    disabled={!canEdit}
-                                                    className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 ${showRemove ? "pr-16" : "pr-10"} ${erroresDetallePorGuia[g.id]?.temperatura ? "border-red-400 focus:border-red-400 focus:ring-red-100" : "border-slate-200 focus:border-primary focus:ring-primary/15"}`}
-                                                  />
-                                                  {showRemove && (
-                                                    <button
-                                                      type="button"
-                                                      onClick={() =>
-                                                        removeTemperaturaItem(
-                                                          g.id,
-                                                          idx,
-                                                        )
-                                                      }
-                                                      className="absolute right-8 top-1/2 -translate-y-1/2 text-slate-300 hover:text-red-400"
-                                                    >
-                                                      <span className="material-symbols-outlined text-[15px]">
-                                                        close
-                                                      </span>
-                                                    </button>
-                                                  )}
-                                                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-400 pointer-events-none">
-                                                    •C
-                                                  </span>
-                                                </div>
-                                              );
-                                            },
-                                          )}
-                                        </div>
-                                        {erroresDetallePorGuia[g.id]
-                                          ?.temperatura && (
-                                          <p className="mt-1 text-xs text-red-500">
-                                            {
-                                              erroresDetallePorGuia[g.id]
-                                                ?.temperatura
-                                            }
-                                          </p>
-                                        )}
-                                      </div>
-                                      <div>
-                                        <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                                          Hora llegada
-                                        </label>
-                                        <input
-                                          type="time"
-                                          value={
-                                            detalleFormPorGuia[g.id]
-                                              ?.horaLlegada ?? ""
-                                          }
-                                          onChange={(e) => {
-                                            const value = e.target.value;
-                                            setCampoDetalle(
+
+                                      {/* Fila 2: Recibido por (izq) | Temperatura (der) */}
+                                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                        <div>
+                                          <div className="mb-1.5 flex items-center justify-between">
+                                            <label className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                                              Recibido por (opcional)
+                                            </label>
+                                            {(!guiaIdsDetalleGuardado.has(
                                               g.id,
-                                              "horaLlegada",
-                                              value,
-                                            );
-                                            if (value)
-                                              limpiarErrorCampoDetalle(
+                                            ) ||
+                                              guiaIdsEnEdicion.has(g.id)) && (
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  addReceptorItem(g.id)
+                                                }
+                                                className="flex items-center gap-0.5 rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary hover:bg-primary/20"
+                                              >
+                                                <span className="material-symbols-outlined text-[12px]">
+                                                  add
+                                                </span>
+                                                Agregar
+                                              </button>
+                                            )}
+                                          </div>
+                                          <div className="space-y-1.5">
+                                            {getReceptoresList(g.id).map(
+                                              (receptor, idx) => {
+                                                const canEdit =
+                                                  !guiaIdsDetalleGuardado.has(
+                                                    g.id,
+                                                  ) ||
+                                                  guiaIdsEnEdicion.has(g.id);
+                                                return (
+                                                  <div
+                                                    key={idx}
+                                                    className="relative"
+                                                  >
+                                                    <input
+                                                      type="text"
+                                                      placeholder="Nombre de quien recibe"
+                                                      value={receptor}
+                                                      onChange={(e) => {
+                                                        const value =
+                                                          e.target.value;
+                                                        if (
+                                                          value === "" ||
+                                                          /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'-]+$/.test(
+                                                            value,
+                                                          )
+                                                        ) {
+                                                          setReceptorItem(
+                                                            g.id,
+                                                            idx,
+                                                            value,
+                                                          );
+                                                        }
+                                                      }}
+                                                      maxLength={50}
+                                                      disabled={!canEdit}
+                                                      className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 ${getReceptoresList(g.id).length > 1 && canEdit ? "pr-8" : ""} border-slate-200 focus:border-primary focus:ring-primary/15`}
+                                                    />
+                                                    {getReceptoresList(g.id)
+                                                      .length > 1 &&
+                                                      canEdit && (
+                                                        <button
+                                                          type="button"
+                                                          onClick={() =>
+                                                            removeReceptorItem(
+                                                              g.id,
+                                                              idx,
+                                                            )
+                                                          }
+                                                          className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-300 hover:text-red-400"
+                                                        >
+                                                          <span className="material-symbols-outlined text-[16px]">
+                                                            close
+                                                          </span>
+                                                        </button>
+                                                      )}
+                                                  </div>
+                                                );
+                                              },
+                                            )}
+                                          </div>
+                                        </div>
+                                        <div>
+                                          <div className="mb-1.5 flex items-center justify-between">
+                                            <label className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                                              Temperatura (•C)
+                                            </label>
+                                            {(!guiaIdsDetalleGuardado.has(
+                                              g.id,
+                                            ) ||
+                                              guiaIdsEnEdicion.has(g.id)) && (
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  addTemperaturaItem(g.id)
+                                                }
+                                                className="flex items-center gap-0.5 rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary hover:bg-primary/20"
+                                              >
+                                                <span className="material-symbols-outlined text-[12px]">
+                                                  add
+                                                </span>
+                                                Agregar
+                                              </button>
+                                            )}
+                                          </div>
+                                          <div className="space-y-1.5">
+                                            {getTemperaturasList(g.id).map(
+                                              (temp, idx) => {
+                                                const canEdit =
+                                                  !guiaIdsDetalleGuardado.has(
+                                                    g.id,
+                                                  ) ||
+                                                  guiaIdsEnEdicion.has(g.id);
+                                                const showRemove =
+                                                  getTemperaturasList(g.id)
+                                                    .length > 1 && canEdit;
+                                                return (
+                                                  <div
+                                                    key={idx}
+                                                    className="relative"
+                                                  >
+                                                    <input
+                                                      type="text"
+                                                      inputMode="decimal"
+                                                      placeholder="Ej: 18"
+                                                      value={temp}
+                                                      onChange={(e) =>
+                                                        setTemperaturaItem(
+                                                          g.id,
+                                                          idx,
+                                                          e.target.value,
+                                                        )
+                                                      }
+                                                      onBlur={() => {
+                                                        const hasValue =
+                                                          getTemperaturasList(
+                                                            g.id,
+                                                          ).some((t) =>
+                                                            t.trim(),
+                                                          );
+                                                        setErrorCampoDetalle(
+                                                          g.id,
+                                                          "temperatura",
+                                                          hasValue
+                                                            ? ""
+                                                            : REQUIRED_MESSAGE,
+                                                        );
+                                                      }}
+                                                      maxLength={10}
+                                                      disabled={!canEdit}
+                                                      className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 ${showRemove ? "pr-16" : "pr-10"} ${erroresDetallePorGuia[g.id]?.temperatura ? "border-red-400 focus:border-red-400 focus:ring-red-100" : "border-slate-200 focus:border-primary focus:ring-primary/15"}`}
+                                                    />
+                                                    {showRemove && (
+                                                      <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                          removeTemperaturaItem(
+                                                            g.id,
+                                                            idx,
+                                                          )
+                                                        }
+                                                        className="absolute right-8 top-1/2 -translate-y-1/2 text-slate-300 hover:text-red-400"
+                                                      >
+                                                        <span className="material-symbols-outlined text-[15px]">
+                                                          close
+                                                        </span>
+                                                      </button>
+                                                    )}
+                                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-400 pointer-events-none">
+                                                      •C
+                                                    </span>
+                                                  </div>
+                                                );
+                                              },
+                                            )}
+                                          </div>
+                                          {erroresDetallePorGuia[g.id]
+                                            ?.temperatura && (
+                                            <p className="mt-1 text-xs text-red-500">
+                                              {
+                                                erroresDetallePorGuia[g.id]
+                                                  ?.temperatura
+                                              }
+                                            </p>
+                                          )}
+                                        </div>
+                                      </div>
+                                      {/* cierra grid receptor+temperatura */}
+                                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                        <div>
+                                          <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                                            Hora llegada
+                                          </label>
+                                          <input
+                                            type="time"
+                                            value={
+                                              detalleFormPorGuia[g.id]
+                                                ?.horaLlegada ?? ""
+                                            }
+                                            onChange={(e) => {
+                                              const value = e.target.value;
+                                              setCampoDetalle(
                                                 g.id,
                                                 "horaLlegada",
+                                                value,
                                               );
-                                          }}
-                                          onBlur={() => {
-                                            const value =
-                                              detalleFormPorGuia[g.id]
-                                                ?.horaLlegada ?? "";
-                                            setErrorCampoDetalle(
-                                              g.id,
-                                              "horaLlegada",
-                                              value ? "" : REQUIRED_MESSAGE,
-                                            );
-                                          }}
-                                          disabled={
-                                            guiaIdsDetalleGuardado.has(g.id) &&
-                                            !guiaIdsEnEdicion.has(g.id)
-                                          }
-                                          className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 ${
-                                            erroresDetallePorGuia[g.id]
-                                              ?.horaLlegada
-                                              ? "border-red-400 focus:border-red-400 focus:ring-red-100"
-                                              : "border-slate-200 focus:border-primary focus:ring-primary/15"
-                                          }`}
-                                        />
-                                        {erroresDetallePorGuia[g.id]
-                                          ?.horaLlegada && (
-                                          <p className="mt-1 text-xs text-red-500">
-                                            {
+                                              if (value)
+                                                limpiarErrorCampoDetalle(
+                                                  g.id,
+                                                  "horaLlegada",
+                                                );
+                                            }}
+                                            onBlur={() => {
+                                              const value =
+                                                detalleFormPorGuia[g.id]
+                                                  ?.horaLlegada ?? "";
+                                              setErrorCampoDetalle(
+                                                g.id,
+                                                "horaLlegada",
+                                                value ? "" : REQUIRED_MESSAGE,
+                                              );
+                                            }}
+                                            disabled={
+                                              guiaIdsDetalleGuardado.has(
+                                                g.id,
+                                              ) && !guiaIdsEnEdicion.has(g.id)
+                                            }
+                                            className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 ${
                                               erroresDetallePorGuia[g.id]
                                                 ?.horaLlegada
+                                                ? "border-red-400 focus:border-red-400 focus:ring-red-100"
+                                                : "border-slate-200 focus:border-primary focus:ring-primary/15"
+                                            }`}
+                                          />
+                                          {erroresDetallePorGuia[g.id]
+                                            ?.horaLlegada && (
+                                            <p className="mt-1 text-xs text-red-500">
+                                              {
+                                                erroresDetallePorGuia[g.id]
+                                                  ?.horaLlegada
+                                              }
+                                            </p>
+                                          )}
+                                        </div>
+                                        <div>
+                                          <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                                            Hora salida
+                                          </label>
+                                          <input
+                                            type="time"
+                                            value={
+                                              detalleFormPorGuia[g.id]
+                                                ?.horaSalida ?? ""
                                             }
-                                          </p>
-                                        )}
-                                      </div>
-                                      <div>
-                                        <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
-                                          Hora salida
-                                        </label>
-                                        <input
-                                          type="time"
-                                          value={
-                                            detalleFormPorGuia[g.id]
-                                              ?.horaSalida ?? ""
-                                          }
-                                          onChange={(e) => {
-                                            const value = e.target.value;
-                                            setCampoDetalle(
-                                              g.id,
-                                              "horaSalida",
-                                              value,
-                                            );
-                                            if (value)
-                                              limpiarErrorCampoDetalle(
+                                            onChange={(e) => {
+                                              const value = e.target.value;
+                                              setCampoDetalle(
                                                 g.id,
                                                 "horaSalida",
+                                                value,
                                               );
-                                          }}
-                                          onBlur={() => {
-                                            const value =
-                                              detalleFormPorGuia[g.id]
-                                                ?.horaSalida ?? "";
-                                            setErrorCampoDetalle(
-                                              g.id,
-                                              "horaSalida",
-                                              value ? "" : REQUIRED_MESSAGE,
-                                            );
-                                          }}
-                                          disabled={
-                                            guiaIdsDetalleGuardado.has(g.id) &&
-                                            !guiaIdsEnEdicion.has(g.id)
-                                          }
-                                          className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 ${
-                                            erroresDetallePorGuia[g.id]
-                                              ?.horaSalida
-                                              ? "border-red-400 focus:border-red-400 focus:ring-red-100"
-                                              : "border-slate-200 focus:border-primary focus:ring-primary/15"
-                                          }`}
-                                        />
-                                        {erroresDetallePorGuia[g.id]
-                                          ?.horaSalida && (
-                                          <p className="mt-1 text-xs text-red-500">
-                                            {
+                                              if (value)
+                                                limpiarErrorCampoDetalle(
+                                                  g.id,
+                                                  "horaSalida",
+                                                );
+                                            }}
+                                            onBlur={() => {
+                                              const value =
+                                                detalleFormPorGuia[g.id]
+                                                  ?.horaSalida ?? "";
+                                              setErrorCampoDetalle(
+                                                g.id,
+                                                "horaSalida",
+                                                value ? "" : REQUIRED_MESSAGE,
+                                              );
+                                            }}
+                                            disabled={
+                                              guiaIdsDetalleGuardado.has(
+                                                g.id,
+                                              ) && !guiaIdsEnEdicion.has(g.id)
+                                            }
+                                            className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 ${
                                               erroresDetallePorGuia[g.id]
                                                 ?.horaSalida
-                                            }
-                                          </p>
-                                        )}
+                                                ? "border-red-400 focus:border-red-400 focus:ring-red-100"
+                                                : "border-slate-200 focus:border-primary focus:ring-primary/15"
+                                            }`}
+                                          />
+                                          {erroresDetallePorGuia[g.id]
+                                            ?.horaSalida && (
+                                            <p className="mt-1 text-xs text-red-500">
+                                              {
+                                                erroresDetallePorGuia[g.id]
+                                                  ?.horaSalida
+                                              }
+                                            </p>
+                                          )}
+                                        </div>
                                       </div>
-                                      <div className="sm:col-span-2">
+                                      <div>
                                         <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
                                           Observaciones (máx. 255 caracteres)
                                         </label>

@@ -64,87 +64,66 @@ export function AdminNovedadesPage() {
   const [novedades, setNovedades] = useState<NovedadApi[]>([]);
   const [clientes, setClientes] = useState<ClienteOption[]>([]);
   const [loading, setLoading] = useState(true);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const LIMIT = 15;
 
   const [clienteId, setClienteId] = useState("");
   const [fechaDesde, setFechaDesde] = useState("");
   const [fechaHasta, setFechaHasta] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [filtroTipo, setFiltroTipo] = useState<string>("");
   const [modalNovedadId, setModalNovedadId] = useState<string | null>(null);
 
   const modalNovedad = novedades.find((n) => n.id === modalNovedadId);
 
-  const fetchNovedades = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await api.get<NovedadApi[]>("/novedades");
-      setNovedades(res.data);
-    } catch {
-      addToast("Error al cargar novedades", "error");
-    } finally {
-      setLoading(false);
-    }
-  }, [addToast]);
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(searchTerm.trim()), 400);
+    return () => clearTimeout(t);
+  }, [searchTerm]);
+
+  const fetchNovedades = useCallback(
+    async (p = 1) => {
+      setLoading(true);
+      try {
+        const params = new URLSearchParams({
+          page: String(p),
+          limit: String(LIMIT),
+        });
+        if (clienteId) params.set("clienteId", clienteId);
+        if (filtroTipo) params.set("tipo", filtroTipo);
+        if (debouncedSearch) params.set("search", debouncedSearch);
+        if (fechaDesde) params.set("desde", fechaDesde);
+        if (fechaHasta) params.set("hasta", fechaHasta);
+        const res = await api.get<{ data: NovedadApi[]; total: number }>(
+          `/novedades?${params}`,
+        );
+        setNovedades(res.data.data);
+        setTotal(res.data.total);
+        setPage(p);
+      } catch {
+        addToast("Error al cargar novedades", "error");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [addToast, clienteId, filtroTipo, debouncedSearch, fechaDesde, fechaHasta],
+  );
 
   useEffect(() => {
-    fetchNovedades();
+    fetchNovedades(1);
+  }, [fetchNovedades]);
+
+  useEffect(() => {
     api
       .get<{ data: ClienteOption[] }>("/clientes?limit=100")
       .then((r) => setClientes(r.data.data))
       .catch(() => {});
-  }, [fetchNovedades]);
+  }, []);
 
-  const novedadesFiltradas = novedades
-    .filter((n) => {
-      // Filtro por cliente
-      if (clienteId && n.guia.clienteId !== clienteId) return false;
-
-      // Filtro por tipo de novedad
-      if (filtroTipo && n.tipo !== filtroTipo) return false;
-
-      // Filtro por búsqueda (coincidencias en descripción, chofer, cliente, receptor, guía)
-      if (searchTerm.trim()) {
-        const search = searchTerm.toLowerCase();
-        const matchDescripcion = n.descripcion.toLowerCase().includes(search);
-        const matchChofer = n.guia.ruta.chofer.nombre
-          .toLowerCase()
-          .includes(search);
-        const matchCliente = n.guia.stop.cliente.nombre
-          .toLowerCase()
-          .includes(search);
-        const matchReceptor = n.guia.receptorNombre
-          ?.toLowerCase()
-          .includes(search);
-        const matchGuia = n.guia.numeroGuia.toLowerCase().includes(search);
-        const matchTipo = tipoLabel[n.tipo]?.toLowerCase().includes(search);
-
-        if (
-          !matchDescripcion &&
-          !matchChofer &&
-          !matchCliente &&
-          !matchReceptor &&
-          !matchGuia &&
-          !matchTipo
-        ) {
-          return false;
-        }
-      }
-
-      // Filtros de rango de fecha manual
-      if (fechaDesde && new Date(n.createdAt) < new Date(fechaDesde))
-        return false;
-      if (
-        fechaHasta &&
-        new Date(n.createdAt) > new Date(fechaHasta + "T23:59:59")
-      )
-        return false;
-
-      return true;
-    })
-    .sort(
-      (a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-    );
+  const totalPages = Math.max(1, Math.ceil(total / LIMIT));
+  const novedadesFiltradas = novedades; // filtrado en backend
 
   return (
     <div className="space-y-6">
@@ -391,10 +370,7 @@ export function AdminNovedadesPage() {
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 p-4">
           <p className="text-sm text-slate-500">
-            Total:{" "}
-            <strong className="text-slate-900">
-              {novedadesFiltradas.length}
-            </strong>
+            Total: <strong className="text-slate-900">{total}</strong>
           </p>
         </div>
 
@@ -571,6 +547,31 @@ export function AdminNovedadesPage() {
               })
             )}
           </motion.div>
+        )}
+        {totalPages > 1 && !loading && (
+          <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3 text-sm text-slate-600">
+            <span>
+              Página {page} / {totalPages}
+            </span>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={page <= 1}
+                onClick={() => fetchNovedades(page - 1)}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 font-medium hover:bg-slate-50 disabled:opacity-40"
+              >
+                Anterior
+              </button>
+              <button
+                type="button"
+                disabled={page >= totalPages}
+                onClick={() => fetchNovedades(page + 1)}
+                className="rounded-lg border border-slate-200 px-3 py-1.5 font-medium hover:bg-slate-50 disabled:opacity-40"
+              >
+                Siguiente
+              </button>
+            </div>
+          </div>
         )}
       </div>
     </div>

@@ -279,6 +279,11 @@ export function AdminReportesPage() {
         if (choferId) params.set("choferId", choferId);
         const res = await api.get<GuiaFecha[]>(`/reportes/fechas?${params}`);
         setDataFechas(res.data);
+        if (res.data.length >= 500)
+          addToast(
+            "Se muestran los primeros 500 registros. Aplica filtros de fecha para acotar los resultados.",
+            "info",
+          );
       } else if (tab === "chofer") {
         const params = new URLSearchParams();
         if (choferId) params.set("choferId", choferId);
@@ -297,6 +302,11 @@ export function AdminReportesPage() {
         if (tipoCliente) params.set("tipo", tipoCliente);
         const res = await api.get<GuiaFecha[]>(`/reportes/guias?${params}`);
         setDataGuia(res.data);
+        if (res.data.length >= 500)
+          addToast(
+            "Se muestran los primeros 500 registros. Aplica filtros de fecha para acotar los resultados.",
+            "info",
+          );
       }
     } catch {
       addToast("Error al cargar reporte", "error");
