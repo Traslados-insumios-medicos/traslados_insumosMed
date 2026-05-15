@@ -155,9 +155,11 @@ export function ClienteEnvioDetallePage() {
     },
     {
       key: "delivery",
-      label: "En entrega",
-      done: guia.estado === "ENTREGADO",
-      active: guia.estado === "INCIDENCIA",
+      label:
+        guia.estado === "INCIDENCIA" ? "Incidencia reportada" : "En entrega",
+      done: guia.estado === "ENTREGADO" || guia.estado === "INCIDENCIA",
+      active: false,
+      isIncidencia: guia.estado === "INCIDENCIA",
     },
     {
       key: "delivered",
@@ -343,11 +345,13 @@ export function ClienteEnvioDetallePage() {
                 >
                   <div
                     className={`z-10 flex size-10 items-center justify-center rounded-full ${
-                      step.active
-                        ? "border-2 border-primary bg-primary/20 text-primary ring-4 ring-primary/10"
-                        : step.done
-                          ? "bg-primary text-white"
-                          : "bg-slate-100 text-slate-400"
+                      "isIncidencia" in step && step.isIncidencia
+                        ? "bg-rose-500 text-white"
+                        : step.active
+                          ? "border-2 border-primary bg-primary/20 text-primary ring-4 ring-primary/10"
+                          : step.done
+                            ? "bg-primary text-white"
+                            : "bg-slate-100 text-slate-400"
                     }`}
                   >
                     <span className="material-symbols-outlined text-lg">
@@ -356,13 +360,15 @@ export function ClienteEnvioDetallePage() {
                         : step.key === "transit"
                           ? "inventory_2"
                           : step.key === "delivery"
-                            ? "delivery_dining"
+                            ? "isIncidencia" in step && step.isIncidencia
+                              ? "warning"
+                              : "delivery_dining"
                             : "check_circle"}
                     </span>
                   </div>
                   <div>
                     <h4
-                      className={`text-sm font-bold ${step.active ? "text-primary" : step.done ? "text-slate-900" : "text-slate-400"}`}
+                      className={`text-sm font-bold ${"isIncidencia" in step && step.isIncidencia ? "text-rose-600" : step.active ? "text-primary" : step.done ? "text-slate-900" : "text-slate-400"}`}
                     >
                       {step.label}
                     </h4>
@@ -379,14 +385,23 @@ export function ClienteEnvioDetallePage() {
             </div>
           </div>
 
-          {guia.estado === "ENTREGADO" &&
+          {(guia.estado === "ENTREGADO" || guia.estado === "INCIDENCIA") &&
             (guia.receptorNombre || guia.horaLlegada || guia.temperatura) && (
-              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-6 shadow-sm">
+              <div
+                className={`rounded-xl border p-6 shadow-sm ${
+                  guia.estado === "INCIDENCIA"
+                    ? "border-rose-200 bg-rose-50"
+                    : "border-emerald-200 bg-emerald-50"
+                }`}
+              >
                 <h3 className="mb-4 flex items-center gap-2 text-lg font-bold text-slate-900">
-                  <span className="material-symbols-outlined text-emerald-600">
-                    verified
+                  <span
+                    className={`material-symbols-outlined ${guia.estado === "INCIDENCIA" ? "text-rose-600" : "text-emerald-600"}`}
+                  >
+                    {guia.estado === "INCIDENCIA" ? "warning" : "verified"}
                   </span>
-                  Datos de entrega
+                  Datos de{" "}
+                  {guia.estado === "INCIDENCIA" ? "la incidencia" : "entrega"}
                 </h3>
                 <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
                   {guia.receptorNombre && (

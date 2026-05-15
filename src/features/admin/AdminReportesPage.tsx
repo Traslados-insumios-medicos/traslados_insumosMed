@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api } from "../../services/api";
 import { useToastStore } from "../../store/toastStore";
 import { useGlobalLoadingStore } from "../../store/globalLoadingStore";
+import { SearchableSelect } from "../../components/ui/SearchableSelect";
 import {
   exportToExcel,
   exportToPDF,
@@ -1006,35 +1007,14 @@ export function AdminReportesPage() {
             <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
               Cliente
             </label>
-            <div className="relative">
-              <select
-                value={clienteId}
-                onChange={(e) => setClienteId(e.target.value)}
-                className="w-full appearance-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 pr-10 text-sm text-slate-700 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors"
-              >
-                <option value="">Todos</option>
-                {clientes.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.nombre}
-                  </option>
-                ))}
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
-                <svg
-                  className="h-4 w-4 text-slate-400"
-                  fill="none"
-                  viewBox="0 0 20 20"
-                >
-                  <path
-                    stroke="currentColor"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="1.5"
-                    d="M6 8l4 4 4-4"
-                  />
-                </svg>
-              </div>
-            </div>
+            <SearchableSelect
+              value={clienteId}
+              onChange={setClienteId}
+              placeholder="Todos"
+              options={[
+                ...clientes.map((c) => ({ value: c.id, label: c.nombre })),
+              ]}
+            />
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
@@ -1062,35 +1042,12 @@ export function AdminReportesPage() {
             <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
               Chofer
             </label>
-            <div className="relative">
-              <select
-                value={choferId}
-                onChange={(e) => setChoferId(e.target.value)}
-                className="w-full appearance-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 pr-10 text-sm text-slate-700 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors"
-              >
-                <option value="">Todos</option>
-                {choferes.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.nombre}
-                  </option>
-                ))}
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
-                <svg
-                  className="h-4 w-4 text-slate-400"
-                  fill="none"
-                  viewBox="0 0 20 20"
-                >
-                  <path
-                    stroke="currentColor"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="1.5"
-                    d="M6 8l4 4 4-4"
-                  />
-                </svg>
-              </div>
-            </div>
+            <SearchableSelect
+              value={choferId}
+              onChange={setChoferId}
+              placeholder="Todos"
+              options={choferes.map((c) => ({ value: c.id, label: c.nombre }))}
+            />
           </div>
         </div>
       </div>

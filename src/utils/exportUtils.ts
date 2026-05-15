@@ -469,8 +469,30 @@ export async function exportToPDF(
     const marginX = 12;
     const gap = 8;
     const cardWidth = pageWidth - marginX * 2;
-    const cardHeight = 112;
     let currentGroup = "";
+
+    // Función para calcular altura dinámica de la tarjeta según sus fields
+    const calcCardHeight = (card: ExportDetailCard): number => {
+      const hasMap = /mapbox\.com\/styles\/v1\//.test(
+        card.imageUrls?.[0] ?? "",
+      );
+      // Mapa ocupa 80px + 4px margen derecho + 4px separación = 88px desde el borde derecho
+      const mapReservedWidth = hasMap ? 88 : 0;
+      const valueX = marginX + 33;
+      const valueRightLimit = marginX + cardWidth - mapReservedWidth - 4;
+      const valueWrapWidth = Math.max(26, valueRightLimit - valueX);
+      let totalFieldHeight = 21; // header + subtitle
+      card.fields.slice(0, 6).forEach((field) => {
+        const rawValue = String(field.value || "—");
+        const wrapped = doc.splitTextToSize(rawValue, valueWrapWidth);
+        totalFieldHeight += wrapped.length > 1 ? wrapped.length * 5 + 2 : 7;
+      });
+      // Si hay mapa, la columna derecha necesita al menos 68px (título 18px + imagen 44px + margen 6px)
+      const mapMinHeight = hasMap ? 68 : 0;
+      // +14 para el texto de fotos al final de los campos
+      const fieldsHeight = totalFieldHeight + 14;
+      return Math.max(80, Math.max(fieldsHeight, mapMinHeight + 21));
+    };
 
     if (y + 12 > pageHeight - 16) {
       doc.addPage();
@@ -484,6 +506,7 @@ export async function exportToPDF(
 
     for (let idx = 0; idx < detailCards.length; idx++) {
       const card = detailCards[idx];
+      const cardHeight = calcCardHeight(card);
       if (card.groupTitle && card.groupTitle !== currentGroup) {
         if (y + 16 > pageHeight - 16) {
           doc.addPage();
@@ -525,11 +548,10 @@ export async function exportToPDF(
       const hasMap = /mapbox\.com\/styles\/v1\//.test(firstUrl);
       const mapUrl = hasMap ? firstUrl : "";
       const evidenceUrls = hasMap ? rawImageUrls.slice(1) : rawImageUrls;
-      const mapAreaWidth = hasMap ? 94 : 0;
+      // Mapa ocupa 80px + 4px margen derecho + 4px separación = 88px desde el borde derecho
+      const mapReservedWidth = hasMap ? 88 : 0;
       const valueX = x + 33;
-      const valueRightLimit = hasMap
-        ? x + cardWidth - mapAreaWidth - 34
-        : x + cardWidth - 8;
+      const valueRightLimit = x + cardWidth - mapReservedWidth - 4;
       const valueWrapWidth = Math.max(26, valueRightLimit - valueX);
 
       let fieldY = y + 21;
@@ -547,113 +569,97 @@ export async function exportToPDF(
             "°C",
           );
         } else if (labelLower.includes("recibido")) {
-          valueText = parseMultiField(rawValue === "—" ? null : rawValue);
+          valueText = parseMultiField(rawValue === "—" ? null : rawValue, ", ");
         } else {
           valueText = rawValue;
         }
         const wrapped = doc.splitTextToSize(valueText, valueWrapWidth);
-        const isObservaciones = labelLower.includes("observaciones");
-        const maxLines = isObservaciones ? 2 : 1;
-        const visibleLines = wrapped.slice(0, maxLines);
-        doc.text(visibleLines.length ? visibleLines : ["—"], valueX, fieldY);
-        fieldY += isObservaciones && visibleLines.length > 1 ? 11 : 7;
+        // Mostrar todas las líneas sin recortar
+        const visibleLines = wrapped.length ? wrapped : ["—"];
+        doc.text(visibleLines, valueX, fieldY);
+        fieldY += visibleLines.length > 1 ? visibleLines.length * 5 + 2 : 7;
       });
 
-      if (rawImageUrls.length > 0) {
-        // Mapa de la guia: centrado dentro del bloque derecho
-        if (hasMap) {
-          const mapAreaX = x + cardWidth - mapAreaWidth - 30;
-          const mapWidth = 84;
-          const mapHeight = 44;
-          const mapX = mapAreaX + (mapAreaWidth - mapWidth) / 2;
-          const mapY = y + 18;
-          try {
-            const mapBase64 = await urlToBase64(mapUrl);
-            const mapFormat = imageFormatFromBase64(mapBase64);
-            doc.setFontSize(9.5);
-            doc.setTextColor(71, 85, 105);
-            doc.text("Ubicacion de la guia", mapX + mapWidth / 2, mapY - 3, {
-              align: "center",
-            });
-            doc.addImage(mapBase64, mapFormat, mapX, mapY, mapWidth, mapHeight);
-          } catch {
-            doc.setFontSize(8);
-            doc.setTextColor(148, 163, 184);
-            doc.text("Mapa no disponible", mapX + mapWidth / 2, mapY + 10, {
-              align: "center",
-            });
-          }
-        }
-
-        // Fotos de evidencia: una por pagina A4 completa
-        if (evidenceUrls.length > 0) {
-          const imgY = y + cardHeight - 38;
-          doc.setFontSize(8);
-          doc.setTextColor(71, 85, 105);
-          doc.text(
-            `Fotos de evidencia (${evidenceUrls.length}): ver paginas siguientes`,
-            x + 2,
-            imgY - 2,
-          );
-
-          for (let i = 0; i < evidenceUrls.length; i++) {
-            doc.addPage();
-            const pw = doc.internal.pageSize.getWidth();
-            const ph = doc.internal.pageSize.getHeight();
-            doc.setFillColor(37, 99, 235);
-            doc.rect(0, 0, pw, 18, "F");
-            doc.setTextColor(255, 255, 255);
-            doc.setFontSize(10);
-            doc.text(
-              `${card.title} — Foto ${i + 1} de ${evidenceUrls.length}`,
-              10,
-              11,
-            );
-            try {
-              const imgBase64 = await urlToBase64(evidenceUrls[i]);
-              const format = imageFormatFromBase64(imgBase64);
-              const imgMargin = 10;
-              doc.addImage(
-                imgBase64,
-                format,
-                imgMargin,
-                22,
-                pw - imgMargin * 2,
-                ph - 32,
-              );
-            } catch {
-              doc.setFontSize(10);
-              doc.setTextColor(148, 163, 184);
-              doc.text("Imagen no disponible", pw / 2, ph / 2, {
-                align: "center",
-              });
-            }
-          }
-
-          // Importante: después de páginas de fotos full-screen, crear una página
-          // nueva para evitar que la siguiente tarjeta se dibuje encima de la foto.
-          doc.addPage();
-          y = 16;
-          continue;
-        } else {
-          const imgY = y + cardHeight - 38;
+      // Mapa de la guia: columna derecha, alineado al tope de los campos
+      if (hasMap) {
+        const mapWidth = 80;
+        const mapHeight = 44;
+        // Posicionar el mapa en la esquina derecha de la tarjeta con margen
+        const mapX = x + cardWidth - mapWidth - 4;
+        const mapY = y + 18; // debajo del header de la tarjeta
+        try {
+          const mapBase64 = await urlToBase64(mapUrl);
+          const mapFormat = imageFormatFromBase64(mapBase64);
           doc.setFontSize(7);
-          doc.setTextColor(100, 116, 139);
-          doc.text(
-            "Fotos de evidencia: sin fotos",
-            x + cardWidth / 2,
-            imgY + 6,
-            { align: "center" },
-          );
+          doc.setTextColor(71, 85, 105);
+          doc.text("Ubicacion", mapX + mapWidth / 2, mapY - 2, {
+            align: "center",
+          });
+          doc.addImage(mapBase64, mapFormat, mapX, mapY, mapWidth, mapHeight);
+        } catch {
+          doc.setFontSize(7);
+          doc.setTextColor(148, 163, 184);
+          doc.text("Mapa no disponible", mapX + mapWidth / 2, mapY + 10, {
+            align: "center",
+          });
         }
+      }
+
+      // Texto de fotos: siempre debajo del último campo (fieldY), nunca encima
+      const fotosLabelY = Math.max(fieldY + 2, y + cardHeight - 12);
+      if (evidenceUrls.length > 0) {
+        doc.setFontSize(8);
+        doc.setTextColor(71, 85, 105);
+        doc.text(
+          `Fotos de evidencia (${evidenceUrls.length}): ver paginas siguientes`,
+          x + 2,
+          fotosLabelY,
+        );
+
+        for (let i = 0; i < evidenceUrls.length; i++) {
+          doc.addPage();
+          const pw = doc.internal.pageSize.getWidth();
+          const ph = doc.internal.pageSize.getHeight();
+          doc.setFillColor(37, 99, 235);
+          doc.rect(0, 0, pw, 18, "F");
+          doc.setTextColor(255, 255, 255);
+          doc.setFontSize(10);
+          doc.text(
+            `${card.title} — Foto ${i + 1} de ${evidenceUrls.length}`,
+            10,
+            11,
+          );
+          try {
+            const imgBase64 = await urlToBase64(evidenceUrls[i]);
+            const format = imageFormatFromBase64(imgBase64);
+            const imgMargin = 10;
+            doc.addImage(
+              imgBase64,
+              format,
+              imgMargin,
+              22,
+              pw - imgMargin * 2,
+              ph - 32,
+            );
+          } catch {
+            doc.setFontSize(10);
+            doc.setTextColor(148, 163, 184);
+            doc.text("Imagen no disponible", pw / 2, ph / 2, {
+              align: "center",
+            });
+          }
+        }
+
+        // Después de páginas de fotos full-screen, nueva página para la siguiente tarjeta
+        doc.addPage();
+        y = 16;
+        continue;
       } else {
-        const imgY = y + cardHeight - 38;
         doc.setFontSize(7);
         doc.setTextColor(100, 116, 139);
-        doc.text("Fotos de evidencia: sin fotos", x + cardWidth / 2, imgY + 6, {
-          align: "center",
-        });
+        doc.text("Fotos de evidencia: sin fotos", x + 2, fotosLabelY);
       }
+
       y += cardHeight + gap;
     }
   }
