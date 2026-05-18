@@ -305,7 +305,6 @@ export function PhotoUploader({
               ref={inputRef}
               type="file"
               accept="image/jpeg,image/jpg,image/png,image/webp"
-              capture={scope === "guia" ? "environment" : undefined}
               multiple
               className="hidden"
               onChange={handleFileChange}

@@ -141,6 +141,13 @@ export function AdminRutasPage() {
   );
   const [deleteRutaSubmitting, setDeleteRutaSubmitting] = useState(false);
 
+  // Cambiar chofer
+  const [cambiarChoferRuta, setCambiarChoferRuta] = useState<RutaApi | null>(
+    null,
+  );
+  const [nuevoChoferId, setNuevoChoferId] = useState("");
+  const [cambiarChoferSubmitting, setCambiarChoferSubmitting] = useState(false);
+
   // Filtros de fecha
   const [fechaDesde, setFechaDesde] = useState("");
   const [fechaHasta, setFechaHasta] = useState("");
@@ -513,6 +520,24 @@ export function AdminRutasPage() {
     }
   };
 
+  const executeCambiarChofer = async () => {
+    if (!cambiarChoferRuta || !nuevoChoferId) return;
+    setCambiarChoferSubmitting(true);
+    try {
+      await api.patch(`/rutas/${cambiarChoferRuta.id}/asignar-chofer`, {
+        choferId: nuevoChoferId,
+      });
+      addToast("Chofer actualizado correctamente", "success");
+      setCambiarChoferRuta(null);
+      setNuevoChoferId("");
+      await fetchRutas(page);
+    } catch {
+      addToast("No se pudo cambiar el chofer", "error");
+    } finally {
+      setCambiarChoferSubmitting(false);
+    }
+  };
+
   const estadoBadge = (estado: string) => {
     const base = "rounded-full px-2.5 py-1 text-xs font-semibold";
     if (estado === "EN_CURSO") return `${base} bg-emerald-100 text-emerald-700`;
@@ -698,6 +723,89 @@ export function AdminRutasPage() {
                     </span>
                   )}
                   Eliminar
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+      </ModalMotion>
+
+      {/* Modal cambiar chofer */}
+      <ModalMotion
+        show={!!cambiarChoferRuta}
+        backdropClassName="bg-black/50"
+        panelClassName="w-full max-w-sm rounded-2xl bg-white shadow-2xl"
+      >
+        {cambiarChoferRuta && (
+          <>
+            <div className="flex items-center justify-between border-b border-slate-200 p-5">
+              <h3 className="text-base font-bold text-slate-900">
+                Cambiar chofer
+              </h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setCambiarChoferRuta(null);
+                  setNuevoChoferId("");
+                }}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <div className="space-y-4 p-5">
+              <p className="text-xs text-slate-500">
+                Ruta{" "}
+                <span className="font-semibold text-slate-700">
+                  #{cambiarChoferRuta.id.slice(-6).toUpperCase()}
+                </span>
+                {cambiarChoferRuta.hojaRuta && (
+                  <>
+                    {" "}
+                    ·{" "}
+                    <span className="font-semibold text-primary">
+                      {cambiarChoferRuta.hojaRuta}
+                    </span>
+                  </>
+                )}
+              </p>
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Nuevo chofer
+                </label>
+                <SearchableSelect
+                  value={nuevoChoferId}
+                  onChange={setNuevoChoferId}
+                  placeholder="Seleccionar chofer..."
+                  options={choferes.map((c) => ({
+                    value: c.id,
+                    label: c.nombre,
+                  }))}
+                />
+              </div>
+              <div className="flex justify-end gap-3 border-t border-slate-100 pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCambiarChoferRuta(null);
+                    setNuevoChoferId("");
+                  }}
+                  className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled={!nuevoChoferId || cambiarChoferSubmitting}
+                  onClick={() => void executeCambiarChofer()}
+                  className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white hover:bg-primary/90 disabled:opacity-50"
+                >
+                  {cambiarChoferSubmitting && (
+                    <span className="material-symbols-outlined animate-spin text-base">
+                      progress_activity
+                    </span>
+                  )}
+                  Guardar
                 </button>
               </div>
             </div>
@@ -1276,6 +1384,23 @@ export function AdminRutasPage() {
                               En vivo
                             </Link>
                           )}
+                          {ruta.estado === "PENDIENTE" && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setCambiarChoferRuta(ruta);
+                                setNuevoChoferId(ruta.chofer.id);
+                              }}
+                              className="rounded-lg p-1 text-slate-400 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                              aria-label="Cambiar chofer"
+                              title="Cambiar chofer"
+                            >
+                              <span className="material-symbols-outlined text-[18px]">
+                                swap_horiz
+                              </span>
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={(e) => {
@@ -1307,7 +1432,9 @@ export function AdminRutasPage() {
                       {/* Fecha + badge + stats en una sola línea */}
                       <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
                         <span className="text-xs text-slate-400">
-                          {new Date(ruta.fecha).toLocaleDateString("es-ES", {
+                          {new Date(
+                            ruta.fecha + "T00:00:00",
+                          ).toLocaleDateString("es-ES", {
                             day: "numeric",
                             month: "short",
                             year: "numeric",
