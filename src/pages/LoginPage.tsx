@@ -199,7 +199,7 @@ export function LoginPage() {
       {/* Right panel */}
       <div
         ref={rightPanelRef}
-        className="flex flex-1 flex-col items-center justify-center bg-bg px-6 py-12"
+        className="flex flex-1 flex-col items-center justify-center bg-bg px-6 py-12 relative"
       >
         {/* Mobile logo */}
         <div className="mb-8 flex flex-col items-center lg:hidden">
@@ -350,7 +350,7 @@ export function LoginPage() {
           </form>
         </div>
 
-        <p className="mt-8 text-center text-[10px] text-slate-300 select-none">
+        <p className="absolute bottom-4 right-6 text-[10px] text-slate-300 select-none">
           Desarrollado por{" "}
           <span className="font-semibold text-slate-400">
             ClearMinds Consultores
