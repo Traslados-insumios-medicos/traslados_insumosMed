@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { api } from '../../services/api'
+import { EstadoRutaBadge } from '../../components/ui/Badge'
+import { LoadingSpinner } from '../../components/ui/LoadingSpinner'
 
 interface RutaDashboard {
   id: string; fecha: string; estado: string; progreso: number
@@ -38,13 +40,6 @@ const tipoLabel: Record<string, string> = {
   OTRO: 'Otro',
 }
 
-const estadoBadge = (estado: string) => {
-  if (estado === 'EN_CURSO') return 'bg-emerald-100 text-emerald-700'
-  if (estado === 'COMPLETADA') return 'bg-slate-100 text-slate-600'
-  if (estado === 'PENDIENTE') return 'bg-amber-100 text-amber-700'
-  return 'bg-red-100 text-red-600'
-}
-
 const kpiContainer = {
   show: { transition: { staggerChildren: 0.07 } },
 }
@@ -75,7 +70,7 @@ export function AdminDashboardPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24">
-        <span className="material-symbols-outlined animate-spin text-3xl text-primary">progress_activity</span>
+        <LoadingSpinner size="lg" />
       </div>
     )
   }
@@ -179,9 +174,7 @@ export function AdminDashboardPage() {
                         </p>
                       </div>
                     </div>
-                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${estadoBadge(ruta.estado)}`}>
-                      {ruta.estado === 'EN_CURSO' ? 'En Curso' : ruta.estado === 'COMPLETADA' ? 'Completada' : ruta.estado === 'PENDIENTE' ? 'Pendiente' : 'Cancelada'}
-                    </span>
+                    <EstadoRutaBadge estado={ruta.estado} size="sm" />
                   </div>
                 ))}
               </div>
@@ -223,9 +216,7 @@ export function AdminDashboardPage() {
                           </div>
                         </td>
                         <td className="px-4 py-3">
-                          <span className={`rounded-full px-2.5 py-1 text-xs font-semibold whitespace-nowrap ${estadoBadge(ruta.estado)}`}>
-                            {ruta.estado === 'EN_CURSO' ? 'En Curso' : ruta.estado === 'COMPLETADA' ? 'Completada' : ruta.estado === 'PENDIENTE' ? 'Pendiente' : 'Cancelada'}
-                          </span>
+                          <EstadoRutaBadge estado={ruta.estado} />
                         </td>
                       </tr>
                     ))}

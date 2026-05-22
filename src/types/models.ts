@@ -7,6 +7,7 @@ export interface Cliente {
   nombre: string
   ruc: string
   direccion: string
+  ciudad?: string | null
   telefonoContacto?: string
   emailContacto?: string
   activo: boolean
@@ -18,6 +19,7 @@ export interface Usuario {
   id: string
   nombre: string
   cedula?: string
+  celular?: string | null
   rol: Rol
   activo: boolean
   clienteId?: string

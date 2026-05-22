@@ -4,6 +4,10 @@ import { io } from "socket.io-client";
 import { api } from "../../services/api";
 import { useAuthStore } from "../../store/authStore";
 import { useToastStore } from "../../store/toastStore";
+import { EstadoRutaBadge } from "../../components/ui/Badge";
+import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
+import { FilterSelect } from "../../components/ui/FilterSelect";
+import { ESTADO_RUTA_FILTER_OPTIONS } from "../../constants/selectFilters";
 
 interface GuiaApi {
   id: string;
@@ -184,13 +188,6 @@ export function ChoferRutasPage() {
     .filter((g) => g.estado === "INCIDENCIA").length;
   const rutasEnCurso = rutas.filter((r) => r.estado === "EN_CURSO").length;
 
-  const estadoBadge = (estado: string) => {
-    if (estado === "EN_CURSO") return "bg-emerald-100 text-emerald-700";
-    if (estado === "COMPLETADA") return "bg-slate-100 text-slate-500";
-    if (estado === "PENDIENTE") return "bg-amber-100 text-amber-700";
-    return "bg-red-100 text-red-600";
-  };
-
   const hoy = new Date();
 
   return (
@@ -276,21 +273,15 @@ export function ChoferRutasPage() {
       <div className="rounded-xl border border-slate-200 bg-white p-4">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           {/* Filtro de Estado */}
-          <div>
-            <label className="mb-1.5 block text-xs font-semibold text-slate-700">
-              Estado
-            </label>
-            <select
-              value={filtroEstado}
-              onChange={(e) => setFiltroEstado(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
-            >
-              <option value="">Todos</option>
-              <option value="PENDIENTE">Pendiente</option>
-              <option value="EN_CURSO">En Curso</option>
-              <option value="COMPLETADA">Completada</option>
-            </select>
-          </div>
+          <FilterSelect
+            label="Estado"
+            options={ESTADO_RUTA_FILTER_OPTIONS.filter(
+              (o) => o.value !== "CANCELADA",
+            )}
+            value={filtroEstado}
+            onChange={setFiltroEstado}
+            placeholder="Todos"
+          />
 
           {/* Fecha Desde */}
           <div>
@@ -378,9 +369,7 @@ export function ChoferRutasPage() {
 
       {loading ? (
         <div className="flex items-center justify-center py-16">
-          <span className="material-symbols-outlined animate-spin text-3xl text-primary">
-            progress_activity
-          </span>
+          <LoadingSpinner size="lg" />
         </div>
       ) : rutasFiltradas.length === 0 ? (
         <div className="rounded-xl border border-slate-200 bg-white p-8 text-center">
@@ -461,17 +450,11 @@ export function ChoferRutasPage() {
                       })}
                     </p>
                   </div>
-                  <span
-                    className={`rounded-full px-2.5 py-1 text-xs font-bold uppercase ${estadoBadge(ruta.estado)}`}
-                  >
-                    {ruta.estado === "EN_CURSO"
-                      ? "En Curso"
-                      : ruta.estado === "COMPLETADA"
-                        ? "Completada"
-                        : ruta.estado === "PENDIENTE"
-                          ? "Pendiente"
-                          : "Cancelada"}
-                  </span>
+                  <EstadoRutaBadge
+                    estado={ruta.estado}
+                    uppercase
+                    className="font-bold"
+                  />
                 </div>
 
                 <div className="mt-4 space-y-1.5">

@@ -3,6 +3,8 @@ import mapboxgl from "mapbox-gl";
 import { api } from "../../services/api";
 import { getSharedSocket } from "../../shared/socket";
 import "mapbox-gl/dist/mapbox-gl.css";
+import { EstadoGuiaBadge } from "../../components/ui/Badge";
+import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN ?? "";
 
@@ -67,13 +69,6 @@ const COLORES = [
   "#65a30d",
 ];
 const QUITO: [number, number] = [-78.47, -0.18];
-
-const estadoBadge = (e: string) =>
-  e === "ENTREGADO"
-    ? "bg-emerald-100 text-emerald-700"
-    : e === "INCIDENCIA"
-      ? "bg-amber-100 text-amber-700"
-      : "bg-slate-100 text-slate-600";
 
 export function AdminSeguimientoPage() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -273,9 +268,7 @@ export function AdminSeguimientoPage() {
         </div>
         {loading ? (
           <div className="flex items-center justify-center py-12">
-            <span className="material-symbols-outlined animate-spin text-2xl text-primary">
-              progress_activity
-            </span>
+            <LoadingSpinner />
           </div>
         ) : rutasActivas.length === 0 ? (
           <div className="flex flex-col items-center justify-center rounded-xl border border-slate-200 bg-white py-12 text-center">
@@ -434,9 +427,7 @@ export function AdminSeguimientoPage() {
           <div className="flex-1 overflow-y-auto p-5">
             {detalleLoading ? (
               <div className="flex items-center justify-center py-16">
-                <span className="material-symbols-outlined animate-spin text-3xl text-primary">
-                  progress_activity
-                </span>
+                <LoadingSpinner size="lg" />
               </div>
             ) : detalleRuta ? (
               <div className="space-y-5">
@@ -508,11 +499,7 @@ export function AdminSeguimientoPage() {
                                 <span className="text-[11px] font-mono text-slate-600 truncate">
                                   {g.numeroGuia}
                                 </span>
-                                <span
-                                  className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${estadoBadge(g.estado)}`}
-                                >
-                                  {g.estado}
-                                </span>
+                                <EstadoGuiaBadge estado={g.estado} size="sm" />
                               </div>
                             ))}
                           </div>

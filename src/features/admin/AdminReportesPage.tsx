@@ -3,6 +3,10 @@ import { api } from "../../services/api";
 import { useToastStore } from "../../store/toastStore";
 import { useGlobalLoadingStore } from "../../store/globalLoadingStore";
 import { SearchableSelect } from "../../components/ui/SearchableSelect";
+import { FilterSelect } from "../../components/ui/FilterSelect";
+import { TIPO_CLIENTE_FILTER_OPTIONS } from "../../constants/selectFilters";
+import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
+import { useCiudadesOptions } from "../../hooks/useCiudadesOptions";
 import {
   exportToExcel,
   exportToPDF,
@@ -16,6 +20,7 @@ type TabId = "cliente" | "fechas" | "chofer" | "guia";
 interface ResumenCliente {
   clienteId: string;
   nombre: string;
+  ciudad?: string | null;
   total: number;
   entregados: number;
   pendientes: number;
@@ -71,7 +76,7 @@ interface GuiaFecha {
   horaSalida?: string | null;
   temperatura?: string | null;
   observaciones?: string | null;
-  cliente: { id: string; nombre: string };
+  cliente: { id: string; nombre: string; ciudad?: string | null };
   ruta: {
     id: string;
     fecha: string;
@@ -189,6 +194,7 @@ const buildStaticMapUrl = (
 };
 
 export function AdminReportesPage() {
+  const ciudadesOptions = useCiudadesOptions();
   const addToast = useToastStore((s) => s.addToast);
   const { show: showLoading, hide: hideLoading } = useGlobalLoadingStore();
   const { downloadImage } = useImageDownload();
@@ -201,6 +207,7 @@ export function AdminReportesPage() {
   const [tipoCliente, setTipoCliente] = useState<
     "" | "PRINCIPAL" | "SECUNDARIO"
   >("");
+  const [filtroCiudad, setFiltroCiudad] = useState("");
 
   const [clientes, setClientes] = useState<ClienteOption[]>([]);
   const [choferes, setChoferes] = useState<ChoferOption[]>([]);
@@ -268,6 +275,7 @@ export function AdminReportesPage() {
         if (fechaDesde) params.set("desde", fechaDesde);
         if (fechaHasta) params.set("hasta", fechaHasta);
         if (choferId) params.set("choferId", choferId);
+        if (filtroCiudad.trim()) params.set("ciudad", filtroCiudad.trim());
         const res = await api.get<ResumenCliente[]>(
           `/reportes/clientes?${params}`,
         );
@@ -278,6 +286,7 @@ export function AdminReportesPage() {
         if (fechaHasta) params.set("hasta", fechaHasta);
         if (clienteId) params.set("clienteId", clienteId);
         if (choferId) params.set("choferId", choferId);
+        if (filtroCiudad.trim()) params.set("ciudad", filtroCiudad.trim());
         const res = await api.get<GuiaFecha[]>(`/reportes/fechas?${params}`);
         setDataFechas(res.data);
         if (res.data.length >= 500)
@@ -301,6 +310,7 @@ export function AdminReportesPage() {
         if (clienteId) params.set("clienteId", clienteId);
         if (choferId) params.set("choferId", choferId);
         if (tipoCliente) params.set("tipo", tipoCliente);
+        if (filtroCiudad.trim()) params.set("ciudad", filtroCiudad.trim());
         const res = await api.get<GuiaFecha[]>(`/reportes/guias?${params}`);
         setDataGuia(res.data);
         if (res.data.length >= 500)
@@ -314,7 +324,7 @@ export function AdminReportesPage() {
     } finally {
       setLoading(false);
     }
-  }, [tab, fechaDesde, fechaHasta, clienteId, choferId, tipoCliente, addToast]);
+  }, [tab, fechaDesde, fechaHasta, clienteId, choferId, tipoCliente, filtroCiudad, addToast]);
 
   useEffect(() => {
     fetchData();
@@ -351,6 +361,9 @@ export function AdminReportesPage() {
       const chofer = choferes.find((c) => c.id === choferId);
       if (chofer) filters.push(`Chofer: ${chofer.nombre}`);
     }
+    if (filtroCiudad.trim()) {
+      filters.push(`Ciudad / sector: ${filtroCiudad.trim()}`);
+    }
     return filters.length > 0 ? filters : undefined;
   };
 
@@ -358,6 +371,7 @@ export function AdminReportesPage() {
     const detalleRows = dataCliente.flatMap((cliente) =>
       cliente.guias.map((g) => [
         cliente.nombre,
+        cliente.ciudad ?? "—",
         g.numeroGuia,
         g.descripcion,
         g.estado,
@@ -380,6 +394,7 @@ export function AdminReportesPage() {
     exportToExcel(
       dataCliente.map((r) => ({
         Cliente: r.nombre,
+        "Ciudad / Sector": r.ciudad ?? "—",
         Tipo:
           r.tipo === "PRINCIPAL"
             ? "Principal"
@@ -397,6 +412,7 @@ export function AdminReportesPage() {
           sheetName: "Detalle Guias",
           headers: [
             "Cliente",
+            "Ciudad / Sector",
             "Numero de guia",
             "Descripcion guia",
             "Estado",
@@ -441,6 +457,10 @@ export function AdminReportesPage() {
               title: `${cliente.nombre} · Guia ${g.numeroGuia}`,
               subtitle: `Estado de la guia: ${g.estado}`,
               fields: [
+                {
+                  label: "Ciudad / Sector",
+                  value: cliente.ciudad ?? "—",
+                },
                 { label: "Recibido por", value: g.receptorNombre ?? "—" },
                 {
                   label: "Registrada",
@@ -467,6 +487,7 @@ export function AdminReportesPage() {
         "Reporte por Cliente",
         [
           "Nombre del cliente",
+          "Ciudad / Sector",
           "Tipo de cliente",
           "Total de guías",
           "Guías entregadas",
@@ -475,6 +496,7 @@ export function AdminReportesPage() {
         ],
         dataCliente.map((r) => [
           r.nombre,
+          r.ciudad ?? "—",
           r.tipo === "PRINCIPAL"
             ? "Principal"
             : `Secundario (${r.clientePrincipal?.nombre || "Sin asignar"})`,
@@ -680,6 +702,7 @@ export function AdminReportesPage() {
       Estado: g.estado ?? "—",
       Fecha: g.createdAt ? new Date(g.createdAt).toLocaleString("es-ES") : "—",
       Cliente: g.cliente?.nombre ?? "—",
+      "Ciudad / Sector": g.cliente?.ciudad ?? "—",
       Chofer: g.ruta?.chofer?.nombre ?? "—",
       "Hoja de ruta": rutaHojaLabel(g.ruta ?? null),
       "Lugar origen": g.ruta?.lugarOrigen?.trim() || "—",
@@ -755,6 +778,7 @@ export function AdminReportesPage() {
           "Estado",
           "Fecha de registro",
           "Cliente de la guia",
+          "Ciudad / Sector",
           "Chofer",
           "Hoja de ruta",
           "Lugar origen",
@@ -774,6 +798,7 @@ export function AdminReportesPage() {
           r["Estado"],
           r["Fecha"],
           r["Cliente"],
+          r["Ciudad / Sector"],
           r["Chofer"],
           r["Hoja de ruta"],
           r["Lugar origen"],
@@ -818,6 +843,7 @@ export function AdminReportesPage() {
         ? new Date(g.createdAt).toLocaleString("es-ES")
         : "—",
       Cliente: g.cliente?.nombre ?? "—",
+      "Ciudad / Sector": g.cliente?.ciudad ?? "—",
       Chofer: g.ruta?.chofer?.nombre ?? "—",
       "Hoja de ruta": rutaHojaLabel(g.ruta ?? null),
       "Lugar origen": g.ruta?.lugarOrigen?.trim() || "—",
@@ -902,6 +928,7 @@ export function AdminReportesPage() {
           "Estado",
           "Fecha registro",
           "Cliente",
+          "Ciudad / Sector",
           "Chofer",
           "Hoja de ruta",
           "Lugar origen",
@@ -922,6 +949,7 @@ export function AdminReportesPage() {
           r["Estado"],
           r["Fecha registro"],
           r["Cliente"],
+          r["Ciudad / Sector"],
           r["Chofer"],
           r["Hoja de ruta"],
           r["Lugar origen"],
@@ -966,43 +994,17 @@ export function AdminReportesPage() {
 
       {/* Filtros globales */}
       <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-              Tipo de cliente
-            </label>
-            <div className="relative">
-              <select
-                value={tipoCliente}
-                onChange={(e) => {
-                  setTipoCliente(
-                    e.target.value as "" | "PRINCIPAL" | "SECUNDARIO",
-                  );
-                  setClienteId(""); // Reset cliente selection when tipo changes
-                }}
-                className="w-full appearance-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 pr-10 text-sm text-slate-700 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors"
-              >
-                <option value="">Todos</option>
-                <option value="PRINCIPAL">Principales</option>
-                <option value="SECUNDARIO">Secundarios</option>
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
-                <svg
-                  className="h-4 w-4 text-slate-400"
-                  fill="none"
-                  viewBox="0 0 20 20"
-                >
-                  <path
-                    stroke="currentColor"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="1.5"
-                    d="M6 8l4 4 4-4"
-                  />
-                </svg>
-              </div>
-            </div>
-          </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+          <FilterSelect
+            label="Tipo de cliente"
+            options={TIPO_CLIENTE_FILTER_OPTIONS}
+            value={tipoCliente}
+            onChange={(v) => {
+              setTipoCliente(v as "" | "PRINCIPAL" | "SECUNDARIO");
+              setClienteId("");
+            }}
+            placeholder="Todos"
+          />
           <div className="flex flex-col gap-1.5">
             <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
               Cliente
@@ -1047,6 +1049,17 @@ export function AdminReportesPage() {
               onChange={setChoferId}
               placeholder="Todos"
               options={choferes.map((c) => ({ value: c.id, label: c.nombre }))}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+              Ciudad / sector
+            </label>
+            <SearchableSelect
+              options={ciudadesOptions}
+              value={filtroCiudad}
+              onChange={setFiltroCiudad}
+              placeholder="Todas..."
             />
           </div>
         </div>
@@ -1175,9 +1188,7 @@ export function AdminReportesPage() {
       <div className="rounded-xl border border-slate-200 bg-white shadow-sm">
         {loading ? (
           <div className="flex items-center justify-center py-16">
-            <span className="material-symbols-outlined animate-spin text-3xl text-primary">
-              progress_activity
-            </span>
+            <LoadingSpinner size="lg" />
           </div>
         ) : (
           <>
@@ -1188,6 +1199,7 @@ export function AdminReportesPage() {
                     <thead className="bg-slate-50 text-xs font-semibold uppercase tracking-wider text-slate-500">
                       <tr>
                         <th className="px-4 py-3">Cliente</th>
+                        <th className="px-4 py-3">Ciudad / Sector</th>
                         <th className="px-4 py-3">Tipo / Pertenece a</th>
                         <th className="px-4 py-3 text-center">Total guías</th>
                         <th className="px-4 py-3 text-center">Entregados</th>
@@ -1199,7 +1211,7 @@ export function AdminReportesPage() {
                       {dataClientePaginada.length === 0 ? (
                         <tr>
                           <td
-                            colSpan={6}
+                            colSpan={7}
                             className="px-4 py-12 text-center text-sm text-slate-400"
                           >
                             No hay datos para mostrar con los filtros
@@ -1237,6 +1249,9 @@ export function AdminReportesPage() {
                                   {trunc(r.nombre, 40)}
                                 </span>
                               </div>
+                            </td>
+                            <td className="px-4 py-3.5 text-xs text-slate-600">
+                              {r.ciudad ?? "—"}
                             </td>
                             <td className="px-4 py-3.5">
                               {r.tipo === "PRINCIPAL" ? (

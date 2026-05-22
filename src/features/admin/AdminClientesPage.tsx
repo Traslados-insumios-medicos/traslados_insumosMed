@@ -1,7 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { MapboxAddressInput } from "../../components/ui/MapboxAddressInput";
+import { useCiudadesOptions } from "../../hooks/useCiudadesOptions";
 import { ModalMotion } from "../../components/ui/ModalMotion";
 import { SearchableSelect } from "../../components/ui/SearchableSelect";
+import { ToggleSwitch } from "../../components/ui/ToggleSwitch";
+import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
+import { PaginationBar } from "../../components/ui/PaginationBar";
 import { api } from "../../services/api";
 import { useToastStore } from "../../store/toastStore";
 import { useGlobalLoadingStore } from "../../store/globalLoadingStore";
@@ -17,6 +21,7 @@ interface Cliente {
   nombre: string;
   ruc: string;
   direccion: string;
+  ciudad?: string | null;
   lat?: number | null;
   lng?: number | null;
   telefonoContacto?: string | null;
@@ -46,39 +51,11 @@ interface PasswordModalData {
   password: string;
 }
 
-function ToggleActivo({
-  activo,
-  onToggle,
-}: {
-  activo: boolean;
-  onToggle: () => void;
-}) {
-  const base =
-    "relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2";
-  const thumb =
-    "pointer-events-none inline-block size-3.5 rounded-full bg-white shadow-sm transition-transform duration-200";
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={activo}
-      onClick={(e) => {
-        e.stopPropagation();
-        onToggle();
-      }}
-      className={`${base} ${activo ? "bg-emerald-500" : "bg-slate-200"}`}
-    >
-      <span
-        className={`${thumb} ${activo ? "translate-x-4" : "translate-x-0"}`}
-      />
-    </button>
-  );
-}
-
 const LIMIT = 10;
 
 export function AdminClientesPage() {
   const REQUIRED_MESSAGE = "Este campo es obligatorio";
+  const ciudadesOptions = useCiudadesOptions();
   const addToast = useToastStore((s) => s.addToast);
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [total, setTotal] = useState(0);
@@ -93,6 +70,7 @@ export function AdminClientesPage() {
   const [nombre, setNombre] = useState("");
   const [ruc, setRuc] = useState("");
   const [direccion, setDireccion] = useState("");
+  const [ciudad, setCiudad] = useState("");
   const [coordsDireccion, setCoordsDireccion] = useState<{
     lat: number;
     lng: number;
@@ -118,6 +96,7 @@ export function AdminClientesPage() {
     useState<Cliente | null>(null);
   const [deleteClienteSubmitting, setDeleteClienteSubmitting] = useState(false);
   const [busqueda, setBusqueda] = useState("");
+  const [filtroCiudad, setFiltroCiudad] = useState("");
 
   // Errores de validación
   const [nombreError, setNombreError] = useState("");
@@ -215,10 +194,15 @@ export function AdminClientesPage() {
   const totalPages = Math.max(1, Math.ceil(total / LIMIT));
 
   const [debouncedBusqueda, setDebouncedBusqueda] = useState("");
+  const [debouncedFiltroCiudad, setDebouncedFiltroCiudad] = useState("");
   useEffect(() => {
     const t = setTimeout(() => setDebouncedBusqueda(busqueda.trim()), 400);
     return () => clearTimeout(t);
   }, [busqueda]);
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedFiltroCiudad(filtroCiudad.trim()), 400);
+    return () => clearTimeout(t);
+  }, [filtroCiudad]);
 
   const fetchClientes = useCallback(
     async (p: number, silent = false) => {
@@ -230,6 +214,7 @@ export function AdminClientesPage() {
         });
         if (filtroTipo) params.set("tipo", filtroTipo);
         if (debouncedBusqueda) params.set("search", debouncedBusqueda);
+        if (debouncedFiltroCiudad) params.set("ciudad", debouncedFiltroCiudad);
         const res = await api.get<PaginatedResponse>(`/clientes?${params}`);
         setClientes(res.data.data);
         setTotal(res.data.total);
@@ -241,7 +226,7 @@ export function AdminClientesPage() {
         if (!silent) setLoading(false);
       }
     },
-    [addToast, filtroTipo, debouncedBusqueda],
+    [addToast, filtroTipo, debouncedBusqueda, debouncedFiltroCiudad],
   );
 
   useEffect(() => {
@@ -274,6 +259,7 @@ export function AdminClientesPage() {
     setNombre("");
     setRuc("");
     setDireccion("");
+    setCiudad("");
     setCoordsDireccion(null);
     setTelefono("");
     setEmailContacto("");
@@ -298,6 +284,7 @@ export function AdminClientesPage() {
     setNombre(c.nombre);
     setRuc(c.ruc);
     setDireccion(c.direccion);
+    setCiudad(c.ciudad ?? "");
     setCoordsDireccion(c.lat && c.lng ? { lat: c.lat, lng: c.lng } : null);
     setTelefono(c.telefonoContacto ?? "");
     setEmailContacto(c.emailContacto ?? "");
@@ -484,6 +471,7 @@ export function AdminClientesPage() {
           nombre,
           ruc,
           direccion,
+          ciudad: ciudad.trim() || null,
           lat: coordsDireccion?.lat ?? undefined,
           lng: coordsDireccion?.lng ?? undefined,
           telefonoContacto: telefono,
@@ -537,6 +525,7 @@ export function AdminClientesPage() {
           nombre,
           ruc,
           direccion,
+          ciudad: ciudad.trim() || undefined,
           lat: coordsDireccion?.lat ?? undefined,
           lng: coordsDireccion?.lng ?? undefined,
           telefonoContacto: telefono,
@@ -732,7 +721,7 @@ export function AdminClientesPage() {
           type="text"
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
-          placeholder="Buscar por nombre, RUC o email..."
+          placeholder="Buscar por nombre, RUC, email o ciudad..."
           className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-sm text-slate-900 placeholder-slate-400 shadow-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15"
         />
         {busqueda && (
@@ -744,6 +733,18 @@ export function AdminClientesPage() {
             <span className="material-symbols-outlined text-[18px]">close</span>
           </button>
         )}
+      </div>
+
+      <div className="flex max-w-xs flex-col gap-1.5">
+        <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
+          Ciudad / sector
+        </label>
+        <SearchableSelect
+          options={ciudadesOptions}
+          value={filtroCiudad}
+          onChange={setFiltroCiudad}
+          placeholder="Todas..."
+        />
       </div>
 
       <ModalMotion
@@ -904,15 +905,33 @@ export function AdminClientesPage() {
             <MapboxAddressInput
               value={direccion}
               coords={coordsDireccion}
-              onChange={(val, coords) => {
+              onChange={(val, coords, ciudadMap) => {
                 setDireccion(val);
                 if (val.trim()) setDireccionError("");
                 if (coords) setCoordsDireccion(coords);
+                if (ciudadMap) setCiudad(ciudadMap);
               }}
             />
             {direccionError && (
               <p className="text-xs text-red-500">{direccionError}</p>
             )}
+          </div>
+          <div className="space-y-2">
+            <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+              Ciudad / Sector
+            </label>
+            <SearchableSelect
+              creatable
+              options={ciudadesOptions}
+              value={ciudad}
+              onChange={setCiudad}
+              placeholder="Ej. Quito, sector norte, parroquia..."
+              maxLength={100}
+            />
+            <p className="text-xs text-slate-400">
+              Opcional. Se sugiere al elegir dirección en el mapa; puede editarse
+              manualmente.
+            </p>
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
@@ -1327,6 +1346,7 @@ export function AdminClientesPage() {
                   await api.put<Cliente>(`/clientes/${editingId}`, {
                     nombre,
                     direccion,
+                    ciudad: ciudad.trim() || null,
                     lat: coordsDireccion?.lat ?? undefined,
                     lng: coordsDireccion?.lng ?? undefined,
                     telefonoContacto: telefono,
@@ -1398,9 +1418,7 @@ export function AdminClientesPage() {
         <div className="space-y-4 p-6">
           {detailLoading && (
             <div className="flex items-center justify-center py-8">
-              <span className="material-symbols-outlined animate-spin text-3xl text-primary">
-                progress_activity
-              </span>
+              <LoadingSpinner size="lg" />
             </div>
           )}
           {!detailLoading && detailCliente && (
@@ -1432,6 +1450,14 @@ export function AdminClientesPage() {
                   </dt>
                   <dd className="text-sm text-slate-900">
                     {detailCliente.activo ? "Activo" : "Inactivo"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-xs font-semibold text-slate-400">
+                    Ciudad / Sector
+                  </dt>
+                  <dd className="text-sm text-slate-900">
+                    {detailCliente.ciudad ?? "—"}
                   </dd>
                 </div>
                 <div className="sm:col-span-2">
@@ -1487,18 +1513,14 @@ export function AdminClientesPage() {
 
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
         {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <span className="material-symbols-outlined animate-spin text-3xl text-primary">
-              progress_activity
-            </span>
-          </div>
+          <LoadingSpinner />
         ) : (
           <>
             {/* Vista móvil */}
             <div className="divide-y divide-slate-100 sm:hidden">
               {clientesFiltrados.length === 0 ? (
                 <div className="py-20 text-center text-sm text-slate-400">
-                  {busqueda || filtroPrincipal
+                  {busqueda || filtroPrincipal || filtroCiudad
                     ? "Sin resultados para los filtros aplicados"
                     : "No hay clientes registrados."}
                 </div>
@@ -1524,6 +1546,11 @@ export function AdminClientesPage() {
                         <p className="text-xs text-slate-500 font-mono">
                           {c.ruc}
                         </p>
+                        {c.ciudad && (
+                          <p className="text-xs text-slate-400 mt-0.5">
+                            {c.ciudad}
+                          </p>
+                        )}
                         {c.tipo === "SECUNDARIO" && c.clientePrincipal && (
                           <p className="text-xs text-slate-400 mt-0.5">
                             → {c.clientePrincipal.nombre}
@@ -1532,9 +1559,9 @@ export function AdminClientesPage() {
                       </div>
                     </div>
                     <div className="flex items-center justify-between pl-12">
-                      <ToggleActivo
-                        activo={c.activo}
-                        onToggle={() => handleToggleActivo(c.id)}
+                      <ToggleSwitch
+                        checked={c.activo}
+                        onChange={() => handleToggleActivo(c.id)}
                       />
                       <div className="flex items-center gap-0.5">
                         {rowActions(c)}
@@ -1557,6 +1584,11 @@ export function AdminClientesPage() {
                   <th className="px-4 py-2.5">
                     <div className="text-xs font-semibold uppercase tracking-wider text-slate-400">
                       RUC
+                    </div>
+                  </th>
+                  <th className="px-4 py-2.5">
+                    <div className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                      Ciudad / Sector
                     </div>
                   </th>
                   <th className="px-4 py-2.5">
@@ -1609,10 +1641,11 @@ export function AdminClientesPage() {
                 {clientesFiltrados.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={5}
+                      colSpan={6}
                       className="py-20 text-center text-sm text-slate-400"
                     >
                       {busqueda ||
+                      filtroCiudad ||
                       (filtroPrincipal &&
                         filtroPrincipal !== "Cliente Principal")
                         ? "Sin resultados para los filtros aplicados"
@@ -1637,6 +1670,9 @@ export function AdminClientesPage() {
                       <td className="px-4 py-3 font-mono text-xs text-slate-500">
                         {c.ruc}
                       </td>
+                      <td className="px-4 py-3 text-xs text-slate-600">
+                        {c.ciudad || "—"}
+                      </td>
                       <td className="px-4 py-3">
                         {c.tipo === "PRINCIPAL" ? (
                           <span className="inline-flex items-center rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
@@ -1649,9 +1685,9 @@ export function AdminClientesPage() {
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        <ToggleActivo
-                          activo={c.activo}
-                          onToggle={() => handleToggleActivo(c.id)}
+                        <ToggleSwitch
+                          checked={c.activo}
+                          onChange={() => handleToggleActivo(c.id)}
                         />
                       </td>
                       <td className="px-4 py-3">
@@ -1668,34 +1704,14 @@ export function AdminClientesPage() {
         )}
       </div>
 
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between text-sm">
-          <p className="text-slate-400">
-            {total} cliente{total !== 1 ? "s" : ""} en total
-          </p>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => fetchClientes(page - 1)}
-              disabled={page <= 1 || loading}
-              className="rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40"
-            >
-              Anterior
-            </button>
-            <span className="text-slate-400">
-              {page} / {totalPages}
-            </span>
-            <button
-              type="button"
-              onClick={() => fetchClientes(page + 1)}
-              disabled={page >= totalPages || loading}
-              className="rounded-lg border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40"
-            >
-              Siguiente
-            </button>
-          </div>
-        </div>
-      )}
+      <PaginationBar
+        page={page}
+        totalPages={totalPages}
+        summary={`${total} cliente${total !== 1 ? "s" : ""} en total`}
+        loading={loading}
+        onPrev={() => fetchClientes(page - 1)}
+        onNext={() => fetchClientes(page + 1)}
+      />
     </div>
   );
 }

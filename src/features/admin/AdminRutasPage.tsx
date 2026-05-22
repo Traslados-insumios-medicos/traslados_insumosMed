@@ -5,6 +5,13 @@ import { useImageDownload } from "../../hooks/useImageDownload";
 import { MapboxAddressInput } from "../../components/ui/MapboxAddressInput";
 import { ModalMotion } from "../../components/ui/ModalMotion";
 import { SearchableSelect } from "../../components/ui/SearchableSelect";
+import { EstadoRutaBadge } from "../../components/ui/Badge";
+import { FilterSelect } from "../../components/ui/FilterSelect";
+import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
+import { EmptyState } from "../../components/ui/EmptyState";
+import { PaginationBar } from "../../components/ui/PaginationBar";
+import { useCiudadesOptions } from "../../hooks/useCiudadesOptions";
+import { ESTADO_RUTA_FILTER_OPTIONS } from "../../constants/selectFilters";
 import { api } from "../../services/api";
 import { useToastStore } from "../../store/toastStore";
 
@@ -28,7 +35,7 @@ interface StopApi {
   orden: number;
   direccion: string;
   notas?: string | null;
-  cliente: { id: string; nombre: string };
+  cliente: { id: string; nombre: string; ciudad?: string | null };
   guias: GuiaApi[];
 }
 
@@ -119,7 +126,19 @@ const stopVacio = (): StopForm => ({
 });
 const LIMIT = 10;
 
+function ciudadesDeRuta(stops: StopApi[]): string {
+  const unicas = [
+    ...new Set(
+      stops
+        .map((s) => s.cliente.ciudad?.trim())
+        .filter((c): c is string => Boolean(c)),
+    ),
+  ].sort((a, b) => a.localeCompare(b, "es"));
+  return unicas.join(", ");
+}
+
 export function AdminRutasPage() {
+  const ciudadesOptions = useCiudadesOptions();
   const addToast = useToastStore((s) => s.addToast);
   const { downloadImage } = useImageDownload();
 
@@ -154,6 +173,8 @@ export function AdminRutasPage() {
   const [filtroEstado, setFiltroEstado] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [filtroCiudad, setFiltroCiudad] = useState("");
+  const [debouncedFiltroCiudad, setDebouncedFiltroCiudad] = useState("");
 
   // Debounce para el buscador
   useEffect(() => {
@@ -162,6 +183,11 @@ export function AdminRutasPage() {
     }, 500);
     return () => clearTimeout(timer);
   }, [searchTerm]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedFiltroCiudad(filtroCiudad.trim()), 400);
+    return () => clearTimeout(timer);
+  }, [filtroCiudad]);
 
   // form
   const [nombreRuta, setNombreRuta] = useState("");
@@ -196,6 +222,8 @@ export function AdminRutasPage() {
         if (filtroEstado) params.append("estado", filtroEstado);
         if (debouncedSearch.trim())
           params.append("search", debouncedSearch.trim());
+        if (debouncedFiltroCiudad)
+          params.append("ciudad", debouncedFiltroCiudad);
 
         const res = await api.get<PaginatedRutas>(
           `/rutas?${params.toString()}`,
@@ -209,7 +237,7 @@ export function AdminRutasPage() {
         if (!silent) setLoading(false);
       }
     },
-    [addToast, fechaDesde, fechaHasta, filtroEstado, debouncedSearch],
+    [addToast, fechaDesde, fechaHasta, filtroEstado, debouncedSearch, debouncedFiltroCiudad],
   );
 
   useEffect(() => {
@@ -219,7 +247,7 @@ export function AdminRutasPage() {
   useEffect(() => {
     // Recargar cuando cambien los filtros
     fetchRutas(1);
-  }, [fechaDesde, fechaHasta, filtroEstado, debouncedSearch, fetchRutas]);
+  }, [fechaDesde, fechaHasta, filtroEstado, debouncedSearch, debouncedFiltroCiudad, fetchRutas]);
 
   useEffect(() => {
     // Load choferes and clientes for the form
@@ -538,14 +566,6 @@ export function AdminRutasPage() {
     }
   };
 
-  const estadoBadge = (estado: string) => {
-    const base = "rounded-full px-2.5 py-1 text-xs font-semibold";
-    if (estado === "EN_CURSO") return `${base} bg-emerald-100 text-emerald-700`;
-    if (estado === "COMPLETADA") return `${base} bg-slate-100 text-slate-600`;
-    if (estado === "PENDIENTE") return `${base} bg-amber-100 text-amber-700`;
-    return `${base} bg-red-100 text-red-600`;
-  };
-
   const trunc = (str: string, max = 50) =>
     str.length > max ? str.slice(0, max) + "..." : str;
 
@@ -599,43 +619,31 @@ export function AdminRutasPage() {
         </div>
 
         {/* Filtros */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
           <div className="flex flex-col gap-1.5">
             <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-              Estado
+              Ciudad
             </label>
-            <div className="relative">
-              <select
-                value={filtroEstado}
-                onChange={(e) => {
-                  setFiltroEstado(e.target.value);
-                  setPage(1);
-                }}
-                className="w-full appearance-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 pr-10 text-sm text-slate-700 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors"
-              >
-                <option value="">Todos</option>
-                <option value="PENDIENTE">Pendiente</option>
-                <option value="EN_CURSO">En Curso</option>
-                <option value="COMPLETADA">Completada</option>
-                <option value="CANCELADA">Cancelada</option>
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
-                <svg
-                  className="h-4 w-4 text-slate-400"
-                  fill="none"
-                  viewBox="0 0 20 20"
-                >
-                  <path
-                    stroke="currentColor"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="1.5"
-                    d="M6 8l4 4 4-4"
-                  />
-                </svg>
-              </div>
-            </div>
+            <SearchableSelect
+              options={ciudadesOptions}
+              value={filtroCiudad}
+              onChange={(v) => {
+                setFiltroCiudad(v);
+                setPage(1);
+              }}
+              placeholder="Todas..."
+            />
           </div>
+          <FilterSelect
+            label="Estado"
+            options={ESTADO_RUTA_FILTER_OPTIONS}
+            value={filtroEstado}
+            onChange={(v) => {
+              setFiltroEstado(v);
+              setPage(1);
+            }}
+            placeholder="Todos"
+          />
           <div className="flex flex-col gap-1.5">
             <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
               Desde
@@ -1319,40 +1327,41 @@ export function AdminRutasPage() {
 
       {/* Lista */}
       {loading ? (
-        <div className="flex items-center justify-center py-16">
-          <span className="material-symbols-outlined animate-spin text-3xl text-primary">
-            progress_activity
-          </span>
-        </div>
+        <LoadingSpinner />
       ) : rutas.length === 0 ? (
-        <div className="rounded-xl border border-slate-200 bg-white p-8 text-center">
-          <span className="material-symbols-outlined text-4xl text-slate-300">
-            search_off
-          </span>
-          <p className="mt-2 text-sm text-slate-600">
-            {debouncedSearch || filtroEstado || fechaDesde || fechaHasta
-              ? "No se encontraron rutas con los filtros aplicados."
-              : "No hay rutas registradas."}
-          </p>
-          {(debouncedSearch || filtroEstado || fechaDesde || fechaHasta) && (
-            <button
-              type="button"
-              onClick={() => {
-                setSearchTerm("");
-                setFiltroEstado("");
-                setFechaDesde("");
-                setFechaHasta("");
-              }}
-              className="mt-3 text-xs font-semibold text-primary hover:underline"
-            >
-              Limpiar filtros
-            </button>
-          )}
+        <div className="rounded-xl border border-slate-200 bg-white">
+          <EmptyState
+            title={
+              debouncedSearch ||
+              debouncedFiltroCiudad ||
+              filtroEstado ||
+              fechaDesde ||
+              fechaHasta
+                ? "No se encontraron rutas con los filtros aplicados."
+                : "No hay rutas registradas."
+            }
+            onClear={
+              debouncedSearch ||
+              debouncedFiltroCiudad ||
+              filtroEstado ||
+              fechaDesde ||
+              fechaHasta
+                ? () => {
+                    setSearchTerm("");
+                    setFiltroCiudad("");
+                    setFiltroEstado("");
+                    setFechaDesde("");
+                    setFechaHasta("");
+                  }
+                : undefined
+            }
+          />
         </div>
       ) : (
         <div className="space-y-4">
           {rutas.map((ruta) => {
             const expandida = rutaExpandidaId === ruta.id;
+            const ciudadesLabel = ciudadesDeRuta(ruta.stops);
             return (
               <div
                 key={ruta.id}
@@ -1440,9 +1449,7 @@ export function AdminRutasPage() {
                             year: "numeric",
                           })}
                         </span>
-                        <span className={estadoBadge(ruta.estado)}>
-                          {ruta.estado.replace("_", " ")}
-                        </span>
+                        <EstadoRutaBadge estado={ruta.estado} />
                         <span className="flex items-center gap-1 text-xs text-slate-500">
                           <span className="material-symbols-outlined text-[13px] text-slate-400">
                             person
@@ -1465,6 +1472,17 @@ export function AdminRutasPage() {
                           )}{" "}
                           guías
                         </span>
+                        {ciudadesLabel && (
+                          <span
+                            className="flex items-center gap-1 text-xs text-slate-500"
+                            title="Ciudades de los clientes en paradas"
+                          >
+                            <span className="material-symbols-outlined text-[13px] text-slate-400">
+                              location_city
+                            </span>
+                            {trunc(ciudadesLabel, 60)}
+                          </span>
+                        )}
                       </div>
                       {(ruta.hojaRuta ||
                         ruta.lugarOrigen ||
@@ -1526,6 +1544,9 @@ export function AdminRutasPage() {
                                 </p>
                                 <p className="text-xs text-slate-500">
                                   {trunc(stop.cliente.nombre)}
+                                  {stop.cliente.ciudad
+                                    ? ` · ${stop.cliente.ciudad}`
+                                    : ""}
                                 </p>
                                 {stop.notas && (
                                   <p className="mt-0.5 text-xs text-slate-500">
@@ -1623,34 +1644,14 @@ export function AdminRutasPage() {
         </div>
       )}
 
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between text-sm">
-          <p className="text-slate-500">
-            {total} ruta{total !== 1 ? "s" : ""} en total
-          </p>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => fetchRutas(page - 1)}
-              disabled={page <= 1 || loading}
-              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40"
-            >
-              Anterior
-            </button>
-            <span className="text-slate-500">
-              {page} / {totalPages}
-            </span>
-            <button
-              type="button"
-              onClick={() => fetchRutas(page + 1)}
-              disabled={page >= totalPages || loading}
-              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40"
-            >
-              Siguiente
-            </button>
-          </div>
-        </div>
-      )}
+      <PaginationBar
+        page={page}
+        totalPages={totalPages}
+        summary={`${total} ruta${total !== 1 ? "s" : ""} en total`}
+        loading={loading}
+        onPrev={() => fetchRutas(page - 1)}
+        onNext={() => fetchRutas(page + 1)}
+      />
 
       {/* Modal detalle de parada */}
       <ModalMotion

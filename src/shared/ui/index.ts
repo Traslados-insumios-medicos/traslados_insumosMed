@@ -6,7 +6,7 @@
 // Atoms
 export { Button } from './atoms/Button'
 export { Card } from './atoms/Card'
-export { Badge, EstadoGuiaBadge, EstadoRutaBadge } from './atoms/Badge'
+export { EstadoGuiaBadge, EstadoRutaBadge } from './atoms/Badge'
 
 // Molecules
 export { StatCard } from './molecules/StatCard'

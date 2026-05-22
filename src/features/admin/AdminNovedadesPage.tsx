@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { ModalMotion } from "../../components/ui/ModalMotion";
+import { SearchableSelect } from "../../components/ui/SearchableSelect";
+import { FilterSelect } from "../../components/ui/FilterSelect";
+import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
+import { PaginationBar } from "../../components/ui/PaginationBar";
 import { api } from "../../services/api";
 import { useToastStore } from "../../store/toastStore";
 
@@ -273,73 +277,32 @@ export function AdminNovedadesPage() {
       {/* Filtros por tipo de novedad */}
       <div className="rounded-xl border border-slate-200 bg-white px-4 py-3">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-              Tipo de incidencia
-            </label>
-            <div className="relative">
-              <select
-                value={filtroTipo}
-                onChange={(e) => setFiltroTipo(e.target.value)}
-                className="w-full appearance-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 pr-10 text-sm text-slate-700 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors"
-              >
-                <option value="">Todos</option>
-                {Object.entries(tipoLabel).map(([key, label]) => (
-                  <option key={key} value={key}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
-                <svg
-                  className="h-4 w-4 text-slate-400"
-                  fill="none"
-                  viewBox="0 0 20 20"
-                >
-                  <path
-                    stroke="currentColor"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="1.5"
-                    d="M6 8l4 4 4-4"
-                  />
-                </svg>
-              </div>
-            </div>
-          </div>
+          <FilterSelect
+            label="Tipo de incidencia"
+            options={[
+              { value: "", label: "Todos" },
+              ...Object.entries(tipoLabel).map(([key, label]) => ({
+                value: key,
+                label,
+              })),
+            ]}
+            value={filtroTipo}
+            onChange={setFiltroTipo}
+            placeholder="Todos"
+          />
           <div className="flex flex-col gap-1.5">
             <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
               Cliente
             </label>
-            <div className="relative">
-              <select
-                value={clienteId}
-                onChange={(e) => setClienteId(e.target.value)}
-                className="w-full appearance-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 pr-10 text-sm text-slate-700 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors"
-              >
-                <option value="">Todos</option>
-                {clientes.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.nombre}
-                  </option>
-                ))}
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
-                <svg
-                  className="h-4 w-4 text-slate-400"
-                  fill="none"
-                  viewBox="0 0 20 20"
-                >
-                  <path
-                    stroke="currentColor"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="1.5"
-                    d="M6 8l4 4 4-4"
-                  />
-                </svg>
-              </div>
-            </div>
+            <SearchableSelect
+              value={clienteId}
+              onChange={setClienteId}
+              placeholder="Todos"
+              options={[
+                { value: "", label: "Todos" },
+                ...clientes.map((c) => ({ value: c.id, label: c.nombre })),
+              ]}
+            />
           </div>
           <div className="flex flex-col gap-1.5">
             <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
@@ -376,9 +339,7 @@ export function AdminNovedadesPage() {
 
         {loading ? (
           <div className="flex items-center justify-center py-16">
-            <span className="material-symbols-outlined animate-spin text-3xl text-primary">
-              progress_activity
-            </span>
+            <LoadingSpinner size="lg" />
           </div>
         ) : (
           <motion.div
@@ -548,29 +509,15 @@ export function AdminNovedadesPage() {
             )}
           </motion.div>
         )}
-        {totalPages > 1 && !loading && (
-          <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3 text-sm text-slate-600">
-            <span>
-              Página {page} / {totalPages}
-            </span>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                disabled={page <= 1}
-                onClick={() => fetchNovedades(page - 1)}
-                className="rounded-lg border border-slate-200 px-3 py-1.5 font-medium hover:bg-slate-50 disabled:opacity-40"
-              >
-                Anterior
-              </button>
-              <button
-                type="button"
-                disabled={page >= totalPages}
-                onClick={() => fetchNovedades(page + 1)}
-                className="rounded-lg border border-slate-200 px-3 py-1.5 font-medium hover:bg-slate-50 disabled:opacity-40"
-              >
-                Siguiente
-              </button>
-            </div>
+        {!loading && (
+          <div className="border-t border-slate-100 px-4 py-3">
+            <PaginationBar
+              page={page}
+              totalPages={totalPages}
+              summary={`${total} novedad${total !== 1 ? "es" : ""}`}
+              onPrev={() => fetchNovedades(page - 1)}
+              onNext={() => fetchNovedades(page + 1)}
+            />
           </div>
         )}
       </div>

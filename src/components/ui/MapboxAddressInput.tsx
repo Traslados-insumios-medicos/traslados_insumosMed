@@ -6,7 +6,7 @@ interface Coords { lat: number; lng: number }
 interface Props {
   value: string
   coords?: Coords | null
-  onChange: (value: string, coords?: Coords) => void
+  onChange: (value: string, coords?: Coords, ciudad?: string) => void
   placeholder?: string
   onBlur?: () => void
 }
@@ -14,8 +14,8 @@ interface Props {
 export function MapboxAddressInput({ value, coords, onChange, placeholder = 'Seleccionar ubicacion...', onBlur }: Props) {
   const [open, setOpen] = useState(false)
 
-  const handleConfirm = (address: string, c: Coords) => {
-    onChange(address, c)
+  const handleConfirm = (address: string, c: Coords, ciudad?: string) => {
+    onChange(address, c, ciudad)
     setOpen(false)
   }
 

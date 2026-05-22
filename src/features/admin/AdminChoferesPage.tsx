@@ -6,6 +6,10 @@ import {
   type FormEvent,
 } from "react";
 import { ModalMotion } from "../../components/ui/ModalMotion";
+import { ToggleSwitch } from "../../components/ui/ToggleSwitch";
+import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
+import { EmptyState } from "../../components/ui/EmptyState";
+import { PaginationBar } from "../../components/ui/PaginationBar";
 import { api } from "../../services/api";
 import { useToastStore } from "../../store/toastStore";
 import { useGlobalLoadingStore } from "../../store/globalLoadingStore";
@@ -16,7 +20,7 @@ interface Chofer {
   nombre: string;
   email: string;
   cedula?: string | null;
-  celular: string;
+  celular?: string | null;
   activo: boolean;
   usuarioId?: string | null;
 }
@@ -34,31 +38,6 @@ interface PaginatedResponse {
 interface PasswordModalData {
   choferNombre: string;
   password: string;
-}
-
-function ToggleActivo({
-  activo,
-  onToggle,
-}: {
-  activo: boolean;
-  onToggle: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={activo}
-      onClick={(e) => {
-        e.stopPropagation();
-        onToggle();
-      }}
-      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ${activo ? "bg-emerald-500" : "bg-slate-200"}`}
-    >
-      <span
-        className={`pointer-events-none inline-block size-3.5 rounded-full bg-white shadow-sm transition-transform duration-200 ${activo ? "translate-x-4" : "translate-x-0"}`}
-      />
-    </button>
-  );
 }
 
 const LIMIT = 10;
@@ -205,7 +184,7 @@ export function AdminChoferesPage() {
     setEditingId(ch.id);
     setNombre(ch.nombre);
     setCedula(ch.cedula ?? "");
-    setCelular(ch.celular);
+    setCelular(ch.celular ?? "");
     setEmail(ch.email);
     setShowModal(true);
   };
@@ -756,9 +735,7 @@ export function AdminChoferesPage() {
         <div className="space-y-4 p-6">
           {detailLoading && (
             <div className="flex justify-center py-6">
-              <span className="material-symbols-outlined animate-spin text-3xl text-primary">
-                progress_activity
-              </span>
+              <LoadingSpinner size="lg" />
             </div>
           )}
           {!detailLoading && detailChofer && (
@@ -796,7 +773,9 @@ export function AdminChoferesPage() {
                   <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                     Celular
                   </dt>
-                  <dd className="text-slate-900">{detailChofer.celular}</dd>
+                  <dd className="text-slate-900">
+                    {detailChofer.celular ?? "—"}
+                  </dd>
                 </div>
                 <div>
                   <dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -908,31 +887,18 @@ export function AdminChoferesPage() {
       {/* Tabla */}
       <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-card">
         {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <span className="material-symbols-outlined animate-spin text-3xl text-primary">
-              progress_activity
-            </span>
-          </div>
+          <LoadingSpinner />
         ) : choferesFiltrados.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-center">
-            <span className="material-symbols-outlined text-4xl text-slate-300">
-              {searchTerm ? "search_off" : "local_shipping"}
-            </span>
-            <p className="mt-2 text-sm text-slate-400">
-              {searchTerm
+          <EmptyState
+            icon={searchTerm ? "search_off" : "local_shipping"}
+            title={
+              searchTerm
                 ? "No se encontraron choferes con ese criterio"
-                : "No hay choferes registrados"}
-            </p>
-            {searchTerm && (
-              <button
-                type="button"
-                onClick={() => setSearchTerm("")}
-                className="mt-3 text-xs font-semibold text-primary hover:underline"
-              >
-                Limpiar búsqueda
-              </button>
-            )}
-          </div>
+                : "No hay choferes registrados"
+            }
+            onClear={searchTerm ? () => setSearchTerm("") : undefined}
+            clearLabel="Limpiar búsqueda"
+          />
         ) : (
           <>
             {/* Vista móvil */}
@@ -950,12 +916,17 @@ export function AdminChoferesPage() {
                       <p className="text-xs text-slate-500">
                         {trunc(ch.email)}
                       </p>
+                      {ch.celular && (
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          {ch.celular}
+                        </p>
+                      )}
                     </div>
                   </div>
                   <div className="flex items-center justify-between pl-12">
-                    <ToggleActivo
-                      activo={ch.activo}
-                      onToggle={() => handleToggleActivo(ch.id)}
+                    <ToggleSwitch
+                      checked={ch.activo}
+                      onChange={() => handleToggleActivo(ch.id)}
                     />
                     <div className="flex items-center gap-0.5">
                       <button
@@ -1043,14 +1014,18 @@ export function AdminChoferesPage() {
                     <td className="px-4 py-3 text-slate-500">
                       {ch.cedula ?? <span className="text-slate-300">—</span>}
                     </td>
-                    <td className="px-4 py-3 text-slate-500">{ch.celular}</td>
+                    <td className="px-4 py-3 text-slate-500">
+                      {ch.celular ?? (
+                        <span className="text-slate-300">—</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-slate-500">
                       {trunc(ch.email)}
                     </td>
                     <td className="px-4 py-3">
-                      <ToggleActivo
-                        activo={ch.activo}
-                        onToggle={() => handleToggleActivo(ch.id)}
+                      <ToggleSwitch
+                        checked={ch.activo}
+                        onChange={() => handleToggleActivo(ch.id)}
                       />
                     </td>
                     <td className="px-4 py-3">
@@ -1107,35 +1082,14 @@ export function AdminChoferesPage() {
         )}
       </div>
 
-      {/* Paginación */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between text-sm">
-          <p className="text-slate-400">
-            {total} chofer{total !== 1 ? "es" : ""}
-          </p>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => fetchChoferes(page - 1)}
-              disabled={page <= 1 || loading}
-              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40"
-            >
-              Anterior
-            </button>
-            <span className="text-xs text-slate-500">
-              {page} / {totalPages}
-            </span>
-            <button
-              type="button"
-              onClick={() => fetchChoferes(page + 1)}
-              disabled={page >= totalPages || loading}
-              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40"
-            >
-              Siguiente
-            </button>
-          </div>
-        </div>
-      )}
+      <PaginationBar
+        page={page}
+        totalPages={totalPages}
+        summary={`${total} chofer${total !== 1 ? "es" : ""}`}
+        loading={loading}
+        onPrev={() => fetchChoferes(page - 1)}
+        onNext={() => fetchChoferes(page + 1)}
+      />
     </div>
   );
 }

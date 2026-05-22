@@ -2,6 +2,10 @@ import { useCallback, useEffect, useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { api } from "../../services/api";
 import { useToastStore } from "../../store/toastStore";
+import { EstadoRutaBadge } from "../../components/ui/Badge";
+import { FilterSelect } from "../../components/ui/FilterSelect";
+import { ESTADO_RUTA_FILTER_OPTIONS } from "../../constants/selectFilters";
+import { LoadingSpinner } from "../../components/ui/LoadingSpinner";
 
 interface GuiaApi {
   id: string;
@@ -112,26 +116,10 @@ export function ChoferHistorialPage() {
   const hayFiltrosActivos =
     searchTerm || estadoFiltro || fechaDesde || fechaHasta;
 
-  const estadoBadge = (estado: string) => {
-    if (estado === "EN_CURSO") return "bg-emerald-100 text-emerald-700";
-    if (estado === "COMPLETADA") return "bg-slate-100 text-slate-500";
-    if (estado === "PENDIENTE") return "bg-amber-100 text-amber-700";
-    return "bg-red-100 text-red-600";
-  };
-
-  const estadoLabel = (estado: string) => {
-    if (estado === "EN_CURSO") return "En Curso";
-    if (estado === "COMPLETADA") return "Completada";
-    if (estado === "PENDIENTE") return "Pendiente";
-    return "Cancelada";
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
-        <span className="material-symbols-outlined animate-spin text-3xl text-primary">
-          progress_activity
-        </span>
+        <LoadingSpinner size="lg" />
       </div>
     );
   }
@@ -165,39 +153,17 @@ export function ChoferHistorialPage() {
             </div>
           </div>
 
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
-              Estado
-            </label>
-            <div className="relative">
-              <select
-                value={estadoFiltro}
-                onChange={(e) => setEstadoFiltro(e.target.value as any)}
-                className="w-full appearance-none rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 pr-10 text-sm text-slate-700 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 transition-colors"
-              >
-                <option value="">Todos</option>
-                <option value="PENDIENTE">Pendiente</option>
-                <option value="EN_CURSO">En Curso</option>
-                <option value="COMPLETADA">Completada</option>
-                <option value="CANCELADA">Cancelada</option>
-              </select>
-              <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center">
-                <svg
-                  className="h-4 w-4 text-slate-400"
-                  fill="none"
-                  viewBox="0 0 20 20"
-                >
-                  <path
-                    stroke="currentColor"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="1.5"
-                    d="M6 8l4 4 4-4"
-                  />
-                </svg>
-              </div>
-            </div>
-          </div>
+          <FilterSelect
+            label="Estado"
+            options={ESTADO_RUTA_FILTER_OPTIONS}
+            value={estadoFiltro}
+            onChange={(v) =>
+              setEstadoFiltro(
+                v as "" | "PENDIENTE" | "EN_CURSO" | "COMPLETADA" | "CANCELADA",
+              )
+            }
+            placeholder="Todos"
+          />
 
           <div className="flex flex-col gap-1.5">
             <label className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">
@@ -308,11 +274,11 @@ export function ChoferHistorialPage() {
                         {ruta.fecha} • {ruta.stops.length} paradas
                       </p>
                     </div>
-                    <span
-                      className={`rounded-full px-2.5 py-1 text-xs font-bold uppercase ${estadoBadge(ruta.estado)}`}
-                    >
-                      {estadoLabel(ruta.estado)}
-                    </span>
+                    <EstadoRutaBadge
+                      estado={ruta.estado}
+                      uppercase
+                      className="font-bold"
+                    />
                   </div>
 
                   <div className="mt-4 space-y-1.5">

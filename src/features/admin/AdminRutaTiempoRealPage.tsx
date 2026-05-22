@@ -6,6 +6,8 @@ import { RouteMap } from '../../components/map/RouteMap'
 import { SeguimientoChoferStepper } from '../../components/cliente/SeguimientoChoferStepper'
 import { useToastStore } from '../../store/toastStore'
 import type { Stop } from '../../types/models'
+import { EstadoGuiaBadge } from '../../components/ui/Badge'
+import { LoadingSpinner } from '../../components/ui/LoadingSpinner'
 
 interface GuiaMini {
   id: string
@@ -112,16 +114,10 @@ export function AdminRutaTiempoRealPage() {
     }))
   }, [ruta])
 
-  const estadoGuia = (estado: string) => {
-    if (estado === 'ENTREGADO') return 'bg-emerald-100 text-emerald-700'
-    if (estado === 'INCIDENCIA') return 'bg-amber-100 text-amber-700'
-    return 'bg-slate-100 text-slate-600'
-  }
-
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24">
-        <span className="material-symbols-outlined animate-spin text-3xl text-primary">progress_activity</span>
+        <LoadingSpinner size="lg" />
       </div>
     )
   }
@@ -248,9 +244,7 @@ export function AdminRutaTiempoRealPage() {
                     {stop.guias.map((g) => (
                       <div key={g.id} className="flex items-center justify-between gap-2">
                         <span className="text-[11px] font-mono text-slate-600 truncate">{g.numeroGuia}</span>
-                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${estadoGuia(g.estado)}`}>
-                          {g.estado}
-                        </span>
+                        <EstadoGuiaBadge estado={g.estado} size="sm" />
                       </div>
                     ))}
                   </div>

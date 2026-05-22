@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import mapboxgl from "mapbox-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
+import { extractCiudadFromMapboxFeature } from "../../utils/mapboxCiudad";
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN ?? "";
 
@@ -13,22 +14,28 @@ interface Coords {
 interface Props {
   initialCoords?: Coords | null;
   initialAddress?: string;
-  onConfirm: (address: string, coords: Coords) => void;
+  onConfirm: (address: string, coords: Coords, ciudad?: string) => void;
   onClose: () => void;
 }
 
-async function reverseGeocode(lng: number, lat: number): Promise<string> {
+async function reverseGeocode(
+  lng: number,
+  lat: number,
+): Promise<{ address: string; ciudad?: string }> {
   try {
     const res = await fetch(
       `https://api.mapbox.com/geocoding/v5/mapbox.places/${lng},${lat}.json?access_token=${mapboxgl.accessToken}&language=es&limit=1&country=EC`,
     );
     const data = await res.json();
-    return (
-      (data.features?.[0]?.place_name as string) ??
-      `${lat.toFixed(5)}, ${lng.toFixed(5)}`
-    );
+    const feature = data.features?.[0];
+    const address =
+      (feature?.place_name as string) ?? `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    const ciudad = feature
+      ? extractCiudadFromMapboxFeature(feature) ?? undefined
+      : undefined;
+    return { address, ciudad };
   } catch {
-    return `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+    return { address: `${lat.toFixed(5)}, ${lng.toFixed(5)}` };
   }
 }
 
@@ -42,6 +49,7 @@ export function MapPickerModal({
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const markerRef = useRef<mapboxgl.Marker | null>(null);
   const [address, setAddress] = useState(initialAddress ?? "");
+  const [ciudad, setCiudad] = useState<string | undefined>(undefined);
   const [coords, setCoords] = useState<Coords | null>(initialCoords ?? null);
   const [query, setQuery] = useState(initialAddress ?? "");
   const [suggestions, setSuggestions] = useState<
@@ -76,10 +84,13 @@ export function MapPickerModal({
           setAddress(initialAddress);
           setQuery(initialAddress);
         } else {
-          reverseGeocode(initialCoords.lng, initialCoords.lat).then((addr) => {
-            setAddress(addr);
-            setQuery(addr);
-          });
+          reverseGeocode(initialCoords.lng, initialCoords.lat).then(
+            ({ address: addr, ciudad: c }) => {
+              setAddress(addr);
+              setQuery(addr);
+              if (c) setCiudad(c);
+            },
+          );
         }
       } else if (initialAddress) {
         // Geocodificar la dirección existente para centrar el mapa y poner el pin
@@ -92,9 +103,11 @@ export function MapPickerModal({
             if (feature) {
               const [lng, lat] = feature.center as [number, number];
               const addr = feature.place_name as string;
+              const c = extractCiudadFromMapboxFeature(feature);
               setCoords({ lat, lng });
               setAddress(addr);
               setQuery(addr);
+              if (c) setCiudad(c);
               placeMarker(map, lng, lat);
               map.flyTo({ center: [lng, lat], zoom: 15, duration: 0 });
             }
@@ -107,9 +120,10 @@ export function MapPickerModal({
       const { lng, lat } = e.lngLat;
       placeMarker(map, lng, lat);
       setCoords({ lat, lng });
-      const addr = await reverseGeocode(lng, lat);
+      const { address: addr, ciudad: c } = await reverseGeocode(lng, lat);
       setAddress(addr);
       setQuery(addr);
+      if (c) setCiudad(c);
     });
 
     return () => {
@@ -130,9 +144,13 @@ export function MapPickerModal({
       marker.on("dragend", async () => {
         const pos = marker.getLngLat();
         setCoords({ lat: pos.lat, lng: pos.lng });
-        const addr = await reverseGeocode(pos.lng, pos.lat);
+        const { address: addr, ciudad: c } = await reverseGeocode(
+          pos.lng,
+          pos.lat,
+        );
         setAddress(addr);
         setQuery(addr);
+        if (c) setCiudad(c);
       });
     }
   }
@@ -162,11 +180,16 @@ export function MapPickerModal({
   const handleSelectSuggestion = (s: {
     place_name: string;
     center: [number, number];
+    context?: { id: string; text: string }[];
+    place_type?: string[];
+    text?: string;
   }) => {
     const c = { lat: s.center[1], lng: s.center[0] };
+    const ciudadDetected = extractCiudadFromMapboxFeature(s);
     setCoords(c);
     setAddress(s.place_name);
     setQuery(s.place_name);
+    if (ciudadDetected) setCiudad(ciudadDetected);
     setSuggestions([]);
     setOpenSug(false);
     const map = mapRef.current;
@@ -258,7 +281,7 @@ export function MapPickerModal({
             <button
               type="button"
               disabled={!coords}
-              onClick={() => coords && onConfirm(address, coords)}
+              onClick={() => coords && onConfirm(address, coords, ciudad)}
               className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-white hover:bg-primary/90 disabled:opacity-40"
             >
               Confirmar ubicacion
