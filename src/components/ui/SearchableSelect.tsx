@@ -3,9 +3,9 @@ import {
   SelectDropdownPanel,
   SelectOptionsList,
   SelectSearchHeader,
-  type SelectOption,
   SelectTrigger,
 } from "./selectUi";
+import type { SelectOption } from "./selectTypes";
 
 interface Props {
   options: SelectOption[];
@@ -75,17 +75,6 @@ export function SearchableSelect({
     return () => document.removeEventListener("mousedown", handler);
   }, [onBlur]);
 
-  useEffect(() => {
-    if (open) {
-      if (creatable && value && !selected) {
-        setQuery(value);
-      } else {
-        setQuery("");
-      }
-      setTimeout(() => inputRef.current?.focus(), 50);
-    }
-  }, [open, creatable, value, selected]);
-
   const applyValue = (next: string) => {
     const trimmed = maxLength ? next.slice(0, maxLength) : next;
     onChange(trimmed);
@@ -95,6 +84,18 @@ export function SearchableSelect({
   const handleClear = () => {
     onChange("");
     setQuery("");
+  };
+
+  const handleToggle = () => {
+    if (disabled) return;
+    if (open) {
+      closeDropdown();
+      return;
+    }
+    const initialQuery = creatable && value && !selected ? value : "";
+    setQuery(initialQuery);
+    setOpen(true);
+    setTimeout(() => inputRef.current?.focus(), 50);
   };
 
   const listEmpty = filtered.length === 0 && !showCreateOption;
@@ -108,9 +109,7 @@ export function SearchableSelect({
         displayText={displayText}
         placeholder={placeholder}
         hasValue={hasValue}
-        onToggle={() => {
-          if (!disabled) setOpen((prev) => !prev);
-        }}
+        onToggle={handleToggle}
         onClear={handleClear}
       />
       {open && (

@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import type { Rol, Usuario } from '../types/models'
 import { api } from '../services/api'
+import { getApiErrorStatus } from '../utils/apiError'
 
 interface AuthState {
   currentUser: Usuario | null
@@ -79,10 +80,10 @@ export const useAuthStore = create<AuthState>((set) => ({
         mustChangePassword: !!data.mustChangePassword,
         sessionLoading: false,
       })
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Solo limpiar sesión si el servidor explícitamente rechaza el token (401)
       // No limpiar por errores de red o timeouts
-      if (err?.response?.status === 401) {
+      if (getApiErrorStatus(err) === 401) {
         localStorage.removeItem('token')
       }
       set({ sessionLoading: false })

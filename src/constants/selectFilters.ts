@@ -1,4 +1,4 @@
-import type { SelectOption } from "../components/ui/selectUi";
+import type { SelectOption } from "../components/ui/selectTypes";
 
 export const ESTADO_RUTA_FILTER_OPTIONS: SelectOption[] = [
   { value: "", label: "Todos" },

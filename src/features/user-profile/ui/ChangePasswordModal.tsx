@@ -7,6 +7,7 @@
 import { type FormEvent, useState } from 'react'
 import { ModalMotion } from '../../../components/ui/ModalMotion'
 import { useAuthStore } from '../../../store/authStore'
+import { getApiErrorMessage } from '../../../utils/apiError'
 
 interface ChangePasswordModalProps {
   show: boolean
@@ -60,9 +61,8 @@ export function ChangePasswordModal({ show, onClose }: ChangePasswordModalProps)
       setTimeout(() => {
         handleClose()
       }, 1500)
-    } catch (err: any) {
-      const msg = err?.response?.data?.message ?? 'Error al cambiar la contraseña'
-      setError(msg)
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Error al cambiar la contraseña'))
     } finally {
       setLoading(false)
     }

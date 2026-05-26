@@ -4,6 +4,7 @@
  */
 import { create } from 'zustand'
 import { api } from '../../../services/api'
+import { getApiErrorMessage } from '../../../utils/apiError'
 
 // ── Tipos que devuelve el backend ─────────────────────────────
 
@@ -129,8 +130,8 @@ export const useChoferStore = create<ChoferState>((set, get) => ({
       // El backend filtra automáticamente por choferId cuando el rol es CHOFER
       const { data } = await api.get<{ data: RutaAPI[]; total: number }>('/rutas')
       set({ rutas: data.data, loading: false })
-    } catch (e: any) {
-      set({ error: e.response?.data?.message ?? 'Error al cargar rutas', loading: false })
+    } catch (e: unknown) {
+      set({ error: getApiErrorMessage(e, 'Error al cargar rutas'), loading: false })
     }
   },
 
@@ -139,8 +140,8 @@ export const useChoferStore = create<ChoferState>((set, get) => ({
     try {
       const { data } = await api.get<RutaAPI>(`/rutas/${id}`)
       set({ rutaActual: data, loadingDetalle: false })
-    } catch (e: any) {
-      set({ error: e.response?.data?.message ?? 'Error al cargar ruta', loadingDetalle: false })
+    } catch (e: unknown) {
+      set({ error: getApiErrorMessage(e, 'Error al cargar ruta'), loadingDetalle: false })
     }
   },
 

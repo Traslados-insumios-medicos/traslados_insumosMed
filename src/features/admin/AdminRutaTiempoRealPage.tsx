@@ -44,18 +44,28 @@ export function AdminRutaTiempoRealPage() {
   const addToast = useToastStore((s) => s.addToast)
 
   const [ruta, setRuta] = useState<RutaApi | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [loadedRutaId, setLoadedRutaId] = useState<string | null>(null)
+  const loading = Boolean(rutaId) && loadedRutaId !== rutaId
   const [choferPosicion, setChoferPosicion] = useState<{ lat: number; lng: number } | null>(null)
   const [choferGpsAt, setChoferGpsAt] = useState<string | null>(null)
   const [seguimientoAt, setSeguimientoAt] = useState<string | null>(null)
 
   useEffect(() => {
     if (!rutaId) return
-    setLoading(true)
-    api.get<RutaApi>(`/rutas/${rutaId}`)
-      .then((r) => { setRuta(r.data); setSeguimientoAt(new Date().toISOString()) })
-      .catch(() => addToast('No se pudo cargar la ruta', 'error'))
-      .finally(() => setLoading(false))
+    let cancelled = false
+    void api.get<RutaApi>(`/rutas/${rutaId}`)
+      .then((r) => {
+        if (cancelled) return
+        setRuta(r.data)
+        setLoadedRutaId(rutaId)
+        setSeguimientoAt(new Date().toISOString())
+      })
+      .catch(() => {
+        if (!cancelled) addToast('No se pudo cargar la ruta', 'error')
+      })
+    return () => {
+      cancelled = true
+    }
   }, [rutaId, addToast])
 
   useEffect(() => {

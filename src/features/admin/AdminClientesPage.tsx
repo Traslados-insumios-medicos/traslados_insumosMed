@@ -10,8 +10,13 @@ import { api } from "../../services/api";
 import { useToastStore } from "../../store/toastStore";
 import { useGlobalLoadingStore } from "../../store/globalLoadingStore";
 import { useDbRefresh } from "../../hooks/useDbRefresh";
+import {
+  getApiErrorBody,
+  getApiErrorStatus,
+} from "../../utils/apiError";
 
 type TipoCliente = "PRINCIPAL" | "SECUNDARIO";
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/;
 interface ClientePrincipalRef {
   id: string;
   nombre: string;
@@ -110,8 +115,6 @@ export function AdminClientesPage() {
   const NOMBRE_REGEX = /^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]*$/;
   const RUC_REGEX = /^\d{0,13}$/;
   const TELEFONO_REGEX = /^\d{0,10}$/;
-  const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/;
-
   const handleNombreChange = (val: string) => {
     if (!NOMBRE_REGEX.test(val)) return;
     setNombre(val);
@@ -555,10 +558,8 @@ export function AdminClientesPage() {
         resetForm();
       }
     } catch (err: unknown) {
-      const status = (err as { response?: { status?: number } })?.response
-        ?.status;
-      const responseData = (err as { response?: { data?: any } })?.response
-        ?.data;
+      const status = getApiErrorStatus(err);
+      const responseData = getApiErrorBody(err);
       const message = responseData?.message;
       const errors = responseData?.errors;
 
@@ -1364,10 +1365,8 @@ export function AdminClientesPage() {
                   await fetchClientes(page);
                   resetForm();
                 } catch (err: unknown) {
-                  const status = (err as { response?: { status?: number } })
-                    ?.response?.status;
-                  const responseData = (err as { response?: { data?: any } })
-                    ?.response?.data;
+                  const status = getApiErrorStatus(err);
+                  const responseData = getApiErrorBody(err);
                   const message = responseData?.message;
                   const errors = responseData?.errors;
 

@@ -2,9 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import {
   SelectDropdownPanel,
   SelectOptionsList,
-  type SelectOption,
   SelectTrigger,
 } from "./selectUi";
+import type { SelectOption } from "./selectTypes";
 
 interface Props {
   label?: string;

@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from "react";
+import { ImageSourceSheet } from "../../components/ui/ImageSourceSheet";
 import { api } from "../../services/api";
 import { useToastStore } from "../../store/toastStore";
 import { useGlobalLoadingStore } from "../../store/globalLoadingStore";
+
+const IMAGE_ACCEPT = "image/jpeg,image/jpg,image/png,image/webp";
 
 type Scope = "guia" | "hoja_ruta";
 
@@ -63,7 +66,9 @@ export function PhotoUploader({
     "image/png",
     "image/webp",
   ]);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const [sourceSheetOpen, setSourceSheetOpen] = useState(false);
   const addToast = useToastStore((s) => s.addToast);
   const showLoading = useGlobalLoadingStore((s) => s.show);
   const hideLoading = useGlobalLoadingStore((s) => s.hide);
@@ -260,6 +265,22 @@ export function PhotoUploader({
     });
   };
 
+  const triggerInput = (input: HTMLInputElement | null) => {
+    if (!input) return;
+    input.value = "";
+    input.click();
+  };
+
+  const openCamera = () => {
+    setSourceSheetOpen(false);
+    requestAnimationFrame(() => triggerInput(cameraInputRef.current));
+  };
+
+  const openGallery = () => {
+    setSourceSheetOpen(false);
+    requestAnimationFrame(() => triggerInput(galleryInputRef.current));
+  };
+
   return (
     <div className="space-y-2">
       {label && (
@@ -302,16 +323,30 @@ export function PhotoUploader({
         {canUpload && (
           <>
             <input
-              ref={inputRef}
+              ref={cameraInputRef}
               type="file"
-              accept="image/jpeg,image/jpg,image/png,image/webp"
+              accept={IMAGE_ACCEPT}
+              capture="environment"
+              className="hidden"
+              onChange={handleFileChange}
+            />
+            <input
+              ref={galleryInputRef}
+              type="file"
+              accept={IMAGE_ACCEPT}
               multiple
               className="hidden"
               onChange={handleFileChange}
             />
+            <ImageSourceSheet
+              open={sourceSheetOpen}
+              onClose={() => setSourceSheetOpen(false)}
+              onCamera={openCamera}
+              onGallery={openGallery}
+            />
             <button
               type="button"
-              onClick={() => inputRef.current?.click()}
+              onClick={() => setSourceSheetOpen(true)}
               disabled={uploading}
               className="flex h-16 w-16 flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 text-slate-500 transition-colors hover:border-primary hover:bg-primary/5 hover:text-primary disabled:opacity-50 sm:h-20 sm:w-20"
             >

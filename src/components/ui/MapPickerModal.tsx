@@ -58,6 +58,28 @@ export function MapPickerModal({
   const [openSug, setOpenSug] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  function placeMarker(map: mapboxgl.Map, lng: number, lat: number) {
+    if (markerRef.current) {
+      markerRef.current.setLngLat([lng, lat]);
+    } else {
+      const marker = new mapboxgl.Marker({ color: "#0f172a", draggable: true })
+        .setLngLat([lng, lat])
+        .addTo(map);
+      markerRef.current = marker;
+      marker.on("dragend", async () => {
+        const pos = marker.getLngLat();
+        setCoords({ lat: pos.lat, lng: pos.lng });
+        const { address: addr, ciudad: c } = await reverseGeocode(
+          pos.lng,
+          pos.lat,
+        );
+        setAddress(addr);
+        setQuery(addr);
+        if (c) setCiudad(c);
+      });
+    }
+  }
+
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
@@ -132,28 +154,6 @@ export function MapPickerModal({
       mapRef.current = null;
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  function placeMarker(map: mapboxgl.Map, lng: number, lat: number) {
-    if (markerRef.current) {
-      markerRef.current.setLngLat([lng, lat]);
-    } else {
-      const marker = new mapboxgl.Marker({ color: "#0f172a", draggable: true })
-        .setLngLat([lng, lat])
-        .addTo(map);
-      markerRef.current = marker;
-      marker.on("dragend", async () => {
-        const pos = marker.getLngLat();
-        setCoords({ lat: pos.lat, lng: pos.lng });
-        const { address: addr, ciudad: c } = await reverseGeocode(
-          pos.lng,
-          pos.lat,
-        );
-        setAddress(addr);
-        setQuery(addr);
-        if (c) setCiudad(c);
-      });
-    }
-  }
 
   const handleSearch = (val: string) => {
     setQuery(val);

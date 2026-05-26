@@ -3,6 +3,10 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { parseMultiField, parseMultiFieldSuffix } from "./exportUtils";
 
+interface JsPdfWithAutoTable extends jsPDF {
+  lastAutoTable?: { finalY?: number };
+}
+
 // Helper para convertir imagen URL a base64
 async function urlToBase64(url: string): Promise<string> {
   try {
@@ -311,7 +315,7 @@ export async function exportarRutaPDF(ruta: RutaExport) {
     },
   });
 
-  let currentY = (doc as any).lastAutoTable.finalY || 90;
+  let currentY = (doc as JsPdfWithAutoTable).lastAutoTable?.finalY ?? 90;
 
   // DETALLE COMPLETO DE CADA GUÍA
   doc.addPage();
@@ -584,7 +588,7 @@ export async function exportarRutaPDF(ruta: RutaExport) {
       },
     });
 
-    currentY = (doc as any).lastAutoTable.finalY || currentY;
+    currentY = (doc as JsPdfWithAutoTable).lastAutoTable?.finalY ?? currentY;
   }
 
   // HOJA DE RUTA FINALIZADA

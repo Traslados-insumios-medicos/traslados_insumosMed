@@ -1,11 +1,9 @@
 import type { ReactNode, RefObject } from "react";
+import type { SelectOption } from "./selectTypes";
 
-export interface SelectOption {
-  value: string;
-  label: string;
-}
+export type { SelectOption };
 
-export function getSelectBorderClass(error: boolean, open: boolean) {
+function getSelectBorderClass(error: boolean, open: boolean) {
   if (error) return "border-red-400";
   if (open) return "border-primary ring-1 ring-primary/30";
   return "border-slate-200";

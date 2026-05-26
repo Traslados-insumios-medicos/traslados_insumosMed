@@ -8,6 +8,7 @@ import {
 import gsap from "gsap";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../store/authStore";
+import { getApiErrorMessage, getApiErrorStatus } from "../utils/apiError";
 import { ModalMotion } from "../components/ui/ModalMotion";
 import logo from "../assets/logo.png";
 
@@ -114,9 +115,9 @@ export function LoginPage() {
       if (rol === "ADMIN") navigate("/admin/dashboard");
       else if (rol === "CHOFER") navigate("/chofer/rutas");
       else navigate("/cliente/envios");
-    } catch (err: any) {
-      const status = err?.response?.status;
-      const msg = err?.response?.data?.message ?? "Credenciales incorrectas";
+    } catch (err: unknown) {
+      const status = getApiErrorStatus(err);
+      const msg = getApiErrorMessage(err, "Credenciales incorrectas");
       if (status === 403 && String(msg).toLowerCase().includes("inactivo")) {
         setInactiveMsg(msg);
         setShowInactiveModal(true);

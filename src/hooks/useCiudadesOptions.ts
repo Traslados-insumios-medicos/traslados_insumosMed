@@ -1,10 +1,9 @@
 import { useEffect, useState } from "react";
 import { api } from "../services/api";
 
-export interface SelectOption {
-  value: string;
-  label: string;
-}
+import type { SelectOption } from "../components/ui/selectTypes";
+
+export type { SelectOption };
 
 /** Opciones de ciudades distintas registradas en clientes (para SearchableSelect). */
 export function useCiudadesOptions() {

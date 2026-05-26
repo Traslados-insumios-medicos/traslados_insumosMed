@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useToastStore, type Toast } from '../../store/toastStore'
 
@@ -41,15 +41,15 @@ function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: () => void }) 
     return () => clearTimeout(t)
   }, [])
 
-  const handleClose = () => {
+  const handleClose = useCallback(() => {
     setLeaving(true)
     setTimeout(onRemove, 300)
-  }
+  }, [onRemove])
 
   useEffect(() => {
     const t = setTimeout(handleClose, TOAST_TTL_MS)
     return () => clearTimeout(t)
-  }, [])
+  }, [handleClose])
 
   return (
     <div

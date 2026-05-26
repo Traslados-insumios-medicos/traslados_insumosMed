@@ -1,6 +1,7 @@
 import { type FormEvent, useState, useEffect } from 'react'
 import { ModalMotion } from '../../../components/ui/ModalMotion'
 import { useUserProfileStore } from '../model/userProfile.store'
+import { getApiErrorMessage } from '../../../utils/apiError'
 
 interface EditProfileModalProps {
   show: boolean
@@ -40,8 +41,12 @@ export function EditProfileModal({ show, onClose }: EditProfileModalProps) {
       await updateProfile({ nombre: nombre.trim(), cedula: cedula.trim() || undefined })
       setSuccess(true)
       setTimeout(() => { onClose() }, 1200)
-    } catch (err: any) {
-      setError(err?.message ?? 'Error al actualizar el perfil')
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : getApiErrorMessage(err, 'Error al actualizar el perfil')
+      setError(message)
     } finally {
       setLoading(false)
     }

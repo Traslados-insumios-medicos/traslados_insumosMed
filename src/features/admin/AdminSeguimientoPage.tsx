@@ -137,9 +137,10 @@ export function AdminSeguimientoPage() {
       map.addControl(new mapboxgl.FullscreenControl(), "top-right");
       setMapLoaded(true);
     });
+    const markers = markersRef.current;
     return () => {
-      markersRef.current.forEach((m) => m.remove());
-      markersRef.current.clear();
+      markers.forEach((m) => m.remove());
+      markers.clear();
       map.remove();
       mapRef.current = null;
       setMapLoaded(false);

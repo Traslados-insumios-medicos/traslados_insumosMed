@@ -74,13 +74,18 @@ export function useGpsTracking({ rutaId, choferId, choferNombre, enabled, interv
 
   // Limpiar al desmontar
   useEffect(() => {
-    return () => { desactivar() }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+    return () => {
+      desactivar();
+    };
+  }, []);
 
-  // Si se deshabilita desde afuera, desactivar
+  // Si se deshabilita desde afuera, desactivar al cambiar el flag
   useEffect(() => {
-    if (!enabled && gpsActivo) desactivar()
-  }, [enabled]) // eslint-disable-line react-hooks/exhaustive-deps
+    if (enabled) return;
+    queueMicrotask(() => {
+      desactivar();
+    });
+  }, [enabled]);
 
   return { gpsActivo, error, activar, desactivar }
 }

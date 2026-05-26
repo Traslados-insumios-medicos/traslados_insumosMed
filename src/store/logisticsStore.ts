@@ -262,7 +262,8 @@ export const useLogisticsStore = create<LogisticsState>((set) => ({
 }))
 
 useLogisticsStore.subscribe((state) => {
-  const { resetDemoData, ...persist } = state
-  saveState(persist)
-})
+  const { resetDemoData: _resetDemoData, ...persist } = state;
+  void _resetDemoData;
+  saveState(persist);
+});
 

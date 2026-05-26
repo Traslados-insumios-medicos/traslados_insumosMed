@@ -383,7 +383,7 @@ export function AdminRutasPage() {
       (s) => s.id === subClienteId,
     );
 
-    let direccion = sub?.direccion ?? "";
+    const direccion = sub?.direccion ?? "";
     let lat = sub?.lat ?? null;
     let lng = sub?.lng ?? null;
 
@@ -400,7 +400,9 @@ export function AdminRutasPage() {
           lat = lat_result;
           lng = lng_result;
         }
-      } catch {}
+      } catch {
+        /* geocodificación opcional */
+      }
     }
 
     setStopsForm((p) =>

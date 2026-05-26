@@ -1,6 +1,7 @@
 import { type FormEvent, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/authStore'
+import { getApiErrorMessage } from '../utils/apiError'
 import logo from '../assets/logo.png'
 
 export function CambiarPasswordPage() {
@@ -54,9 +55,8 @@ export function CambiarPasswordPage() {
         else if (rol === 'CHOFER') navigate('/chofer/rutas')
         else navigate('/cliente/envios')
       }, 1500)
-    } catch (err: any) {
-      const msg = err?.response?.data?.message ?? 'Error al cambiar la contraseña'
-      setError(msg)
+    } catch (err: unknown) {
+      setError(getApiErrorMessage(err, 'Error al cambiar la contraseña'))
     } finally {
       setLoading(false)
     }

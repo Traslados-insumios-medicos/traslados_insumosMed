@@ -300,7 +300,7 @@ export function ClienteRutaTiempoRealPage() {
       console.log("🔌 Desconectando socket del cliente");
       socket.disconnect();
     };
-  }, [ruta?.id, guiaActiva?.id, guiaActiva, addToast]);
+  }, [ruta?.id, guiaActiva?.id, guiaActiva, addToast, fetchActivos]);
 
   const stopsRuta: Stop[] = useMemo(() => {
     if (!ruta?.stops?.length) return [];

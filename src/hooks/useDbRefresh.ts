@@ -11,7 +11,10 @@ export { getSharedSocketId }
  */
 export function useDbRefresh(entity: Entity, onRefresh: () => void) {
   const onRefreshRef = useRef(onRefresh)
-  onRefreshRef.current = onRefresh
+
+  useEffect(() => {
+    onRefreshRef.current = onRefresh
+  })
 
   useEffect(() => {
     const token = localStorage.getItem('token')
