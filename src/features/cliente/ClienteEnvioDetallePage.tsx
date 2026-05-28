@@ -49,6 +49,8 @@ interface GuiaDetalleApi {
   fotos: FotoApi[];
   novedades: NovedadApi[];
   ruta: RutaEnGuia;
+  cliente?: { id: string; nombre: string } | null;
+  stop?: { cliente: { nombre: string } } | null;
 }
 
 export function ClienteEnvioDetallePage() {
@@ -183,6 +185,7 @@ export function ClienteEnvioDetallePage() {
       [
         {
           "Nº Guía": guia.numeroGuia,
+          Cliente: guia.cliente?.nombre ?? guia.stop?.cliente?.nombre ?? "—",
           Descripción: guia.descripcion,
           Estado:
             guia.estado === "ENTREGADO"
@@ -217,6 +220,7 @@ export function ClienteEnvioDetallePage() {
       ["Campo", "Valor"],
       [
         ["Nº Guía", guia.numeroGuia],
+        ["Cliente", guia.cliente?.nombre ?? guia.stop?.cliente?.nombre ?? "—"],
         ["Descripción", guia.descripcion],
         ["Estado", estadoLabel],
         ["Recibido por", guia.receptorNombre ?? "—"],
@@ -237,7 +241,7 @@ export function ClienteEnvioDetallePage() {
       [
         {
           title: `${guia.numeroGuia} · ${estadoLabel}`,
-          subtitle: guia.descripcion,
+          subtitle: `${guia.cliente?.nombre ?? guia.stop?.cliente?.nombre ?? ""} · ${guia.descripcion}`,
           fields: [
             { label: "Recibido por", value: guia.receptorNombre ?? "—" },
             { label: "Hora llegada", value: guia.horaLlegada ?? "—" },
@@ -252,7 +256,7 @@ export function ClienteEnvioDetallePage() {
           imageUrls: fotosGuia.map((f) => f.urlPreview),
         },
       ],
-      { showMainTable: false },
+      { showMainTable: false, sourcePanel: "portal cliente" },
     );
   };
 

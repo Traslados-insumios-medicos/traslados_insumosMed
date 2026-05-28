@@ -61,6 +61,7 @@ export interface ExportDetailCard {
 
 export interface ExportPdfOptions {
   showMainTable?: boolean;
+  sourcePanel?: string; // ej: "panel administrativo", "portal cliente", "panel chofer"
 }
 
 async function urlToBase64(url: string): Promise<string> {
@@ -74,7 +75,47 @@ async function urlToBase64(url: string): Promise<string> {
   });
 }
 
-function imageFormatFromBase64(base64: string): "PNG" | "JPEG" | "WEBP" {
+/**
+ * Normaliza la orientación de una imagen horneando la rotación físicamente en canvas.
+ *
+ * Para imágenes nuevas: Cloudinary ya aplica angle:'exif' al subir, llegan orientadas.
+ * Para imágenes antiguas con EXIF: el browser corrige al cargar <img>,
+ * ctx.drawImage dibuja los píxeles ya orientados, y exportamos PNG sin EXIF.
+ *
+ * Exportar como PNG garantiza que jsPDF no reciba metadata de orientación que ignorar.
+ */
+async function normalizeImageOrientation(base64: string): Promise<string> {
+  return new Promise<string>((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      // naturalWidth/Height ya reflejan la orientación corregida por el browser
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        resolve(base64);
+        return;
+      }
+      ctx.drawImage(img, 0, 0);
+      // PNG no tiene campo EXIF de orientación — píxeles ya correctos
+      resolve(canvas.toDataURL("image/png"));
+    };
+    img.onerror = () => resolve(base64);
+    // crossOrigin necesario para imágenes de Cloudinary (CORS)
+    img.crossOrigin = "anonymous";
+    img.src = base64;
+  });
+}
+
+/** Versión exportada para uso en otros módulos (exportRuta.ts) */
+export async function normalizeImageOrientationPublic(
+  base64: string,
+): Promise<string> {
+  return normalizeImageOrientation(base64);
+}
+
+export function imageFormatFromBase64(base64: string): "PNG" | "JPEG" | "WEBP" {
   if (base64.startsWith("data:image/png")) return "PNG";
   if (base64.startsWith("data:image/webp")) return "WEBP";
   return "JPEG";
@@ -303,6 +344,7 @@ export async function exportToPDF(
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   const headerLogoBase64 = await getWhiteLogoBase64();
+  const panelOrigen = options?.sourcePanel ?? "panel administrativo";
 
   // Header visual del informe
   doc.setFillColor(37, 99, 235);
@@ -314,7 +356,7 @@ export async function exportToPDF(
   doc.text(`Generado: ${new Date().toLocaleString("es-ES")}`, 14, 19);
   doc.setFontSize(9);
   doc.text(
-    "LOGISTRANS S.A. - Informe corporativo generado desde panel administrativo",
+    `LOGISTRANS S.A. - Informe corporativo generado desde ${panelOrigen}`,
     14,
     24,
   );
@@ -630,7 +672,8 @@ export async function exportToPDF(
             11,
           );
           try {
-            const imgBase64 = await urlToBase64(evidenceUrls[i]);
+            const imgBase64Raw = await urlToBase64(evidenceUrls[i]);
+            const imgBase64 = await normalizeImageOrientation(imgBase64Raw);
             const format = imageFormatFromBase64(imgBase64);
             const imgMargin = 10;
             doc.addImage(

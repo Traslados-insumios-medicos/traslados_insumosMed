@@ -1,7 +1,12 @@
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { parseMultiField, parseMultiFieldSuffix } from "./exportUtils";
+import {
+  parseMultiField,
+  parseMultiFieldSuffix,
+  normalizeImageOrientationPublic,
+  imageFormatFromBase64,
+} from "./exportUtils";
 
 interface JsPdfWithAutoTable extends jsPDF {
   lastAutoTable?: { finalY?: number };
@@ -480,7 +485,9 @@ export async function exportarRutaPDF(ruta: RutaExport) {
           try {
             const maxImgWidth = 60;
             const maxImgHeight = 45;
-            const imgBase64 = await urlToBase64(foto.urlPreview);
+            const imgBase64Raw = await urlToBase64(foto.urlPreview);
+            const imgBase64 =
+              await normalizeImageOrientationPublic(imgBase64Raw);
             const imgProps = doc.getImageProperties(imgBase64);
             const imgRatio = imgProps.width / imgProps.height;
             let drawWidth = maxImgWidth;
@@ -499,7 +506,7 @@ export async function exportarRutaPDF(ruta: RutaExport) {
 
             doc.addImage(
               imgBase64,
-              "JPEG",
+              imageFormatFromBase64(imgBase64),
               18,
               currentY,
               drawWidth,
@@ -609,7 +616,8 @@ export async function exportarRutaPDF(ruta: RutaExport) {
       const foto = fotosHojaRuta[i];
 
       try {
-        const imgBase64 = await urlToBase64(foto.urlPreview);
+        const imgBase64Raw = await urlToBase64(foto.urlPreview);
+        const imgBase64 = await normalizeImageOrientationPublic(imgBase64Raw);
         const imgProps = doc.getImageProperties(imgBase64);
         const imgRatio = imgProps.width / imgProps.height;
         let drawWidth = maxImageWidth;
@@ -626,7 +634,14 @@ export async function exportarRutaPDF(ruta: RutaExport) {
         doc.text(`Documento ${i + 1} de ${fotosHojaRuta.length}`, 14, yPos);
         yPos += 5;
 
-        doc.addImage(imgBase64, "JPEG", 14, yPos, drawWidth, drawHeight);
+        doc.addImage(
+          imgBase64,
+          imageFormatFromBase64(imgBase64),
+          14,
+          yPos,
+          drawWidth,
+          drawHeight,
+        );
 
         yPos += drawHeight + 15;
       } catch (error) {
