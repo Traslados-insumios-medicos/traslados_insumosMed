@@ -23,7 +23,7 @@ const rutaEstadoLabel: Record<string, string> = {
   CANCELADA: "Cancelada",
 };
 
-type VistaTab = "activos" | "historial" | "todos";
+type Vista = "activos" | "entregadosHoy" | "incidencias" | "todos";
 
 interface RutaMini {
   id: string;
@@ -60,7 +60,7 @@ export function ClienteEnviosPage() {
   const addToast = useToastStore((s) => s.addToast);
   const rootRef = useRef<HTMLDivElement>(null);
 
-  const [vista, setVista] = useState<VistaTab>("activos");
+  const [vista, setVista] = useState<Vista>("activos");
   const [busqueda, setBusqueda] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -74,7 +74,7 @@ export function ClienteEnviosPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, vista]);
+  }, [vista, debouncedSearch]);
 
   const fetchEnvios = useCallback(async () => {
     setLoading(true);
@@ -109,8 +109,41 @@ export function ClienteEnviosPage() {
   const limit = payload?.limit ?? 10;
   const totalPages = Math.max(1, Math.ceil(total / limit));
 
+  const tabs: {
+    id: Vista;
+    label: string;
+    badge: number | undefined;
+    activeClass: string;
+  }[] = [
+    {
+      id: "activos",
+      label: "Envíos activos",
+      badge: resumen?.activas,
+      activeClass: "bg-primary text-white",
+    },
+    {
+      id: "entregadosHoy",
+      label: "Entregados hoy",
+      badge: resumen?.entregadosHoy,
+      activeClass: "bg-emerald-600 text-white",
+    },
+    {
+      id: "incidencias",
+      label: "Con incidencia",
+      badge: resumen?.incidencias,
+      activeClass: "bg-rose-600 text-white",
+    },
+    {
+      id: "todos",
+      label: "Todos",
+      badge: undefined,
+      activeClass: "bg-slate-700 text-white",
+    },
+  ];
+
   return (
     <div ref={rootRef} className="space-y-6 sm:space-y-8">
+      {/* Encabezado */}
       <div data-gsap-reveal>
         <h1 className="text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
           {resumen?.nombreEmpresa ?? "…"} · Panel
@@ -120,84 +153,39 @@ export function ClienteEnviosPage() {
         </p>
       </div>
 
+      {/* Tabs de navegación — un tab por vista */}
       <div
         data-gsap-reveal
         className="flex flex-wrap gap-2 border-b border-slate-200 pb-1"
       >
-        {[
-          { id: "activos" as const, label: "En curso" },
-          { id: "historial" as const, label: "Historial (entregados)" },
-          { id: "todos" as const, label: "Todos" },
-        ].map((t) => (
+        {tabs.map((t) => (
           <button
             key={t.id}
             type="button"
             onClick={() => setVista(t.id)}
-            className={`rounded-t-lg px-4 py-2 text-sm font-semibold transition-colors ${
+            className={`inline-flex items-center gap-2 rounded-t-lg px-4 py-2 text-sm font-semibold transition-colors ${
               vista === t.id
-                ? "bg-primary text-white"
+                ? t.activeClass
                 : "text-slate-600 hover:bg-slate-100"
             }`}
           >
             {t.label}
+            {t.badge !== undefined && (
+              <span
+                className={`rounded-full px-1.5 py-0.5 text-[11px] font-bold leading-none ${
+                  vista === t.id
+                    ? "bg-white/25 text-white"
+                    : "bg-slate-100 text-slate-500"
+                }`}
+              >
+                {t.badge}
+              </span>
+            )}
           </button>
         ))}
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:gap-6 sm:grid-cols-2 md:grid-cols-3">
-        <div
-          data-gsap-reveal
-          className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6"
-        >
-          <div className="flex items-start justify-between">
-            <p className="text-sm font-medium text-slate-500">Envíos activos</p>
-            <span className="rounded-lg bg-primary/10 p-2 text-primary">
-              <span className="material-symbols-outlined">local_shipping</span>
-            </span>
-          </div>
-          <p className="text-3xl font-bold leading-tight text-slate-900">
-            {resumen?.activas ?? "—"}
-          </p>
-          <p className="text-sm font-medium text-slate-500">
-            En curso o con incidencia
-          </p>
-        </div>
-        <div
-          data-gsap-reveal
-          className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6"
-        >
-          <div className="flex items-start justify-between">
-            <p className="text-sm font-medium text-slate-500">Entregados hoy</p>
-            <span className="rounded-lg bg-emerald-100 p-2 text-emerald-600">
-              <span className="material-symbols-outlined">task_alt</span>
-            </span>
-          </div>
-          <p className="text-3xl font-bold leading-tight text-slate-900">
-            {resumen?.entregadosHoy ?? "—"}
-          </p>
-          <p className="text-sm font-medium text-slate-500">
-            Según fecha del servidor
-          </p>
-        </div>
-        <div
-          data-gsap-reveal
-          className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6"
-        >
-          <div className="flex items-start justify-between">
-            <p className="text-sm font-medium text-slate-500">Con incidencia</p>
-            <span className="rounded-lg bg-amber-100 p-2 text-amber-600">
-              <span className="material-symbols-outlined">warning</span>
-            </span>
-          </div>
-          <p className="text-3xl font-bold leading-tight text-slate-900">
-            {resumen?.incidencias ?? "—"}
-          </p>
-          <p className="text-sm font-medium text-rose-600">
-            Requieren seguimiento
-          </p>
-        </div>
-      </div>
-
+      {/* Tabla de listado */}
       <div
         data-gsap-reveal
         className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
@@ -222,6 +210,7 @@ export function ClienteEnviosPage() {
             />
           </div>
         </div>
+
         <div className="overflow-x-auto">
           {loading ? (
             <div className="flex items-center justify-center py-16">
@@ -319,6 +308,7 @@ export function ClienteEnviosPage() {
             </table>
           )}
         </div>
+
         {totalPages > 1 && !loading && (
           <div className="flex items-center justify-between border-t border-slate-100 px-4 py-3 text-sm text-slate-600">
             <span>
