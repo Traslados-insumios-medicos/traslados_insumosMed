@@ -386,7 +386,7 @@ export function MainLayout() {
                                     </p>
                                   </div>
                                   <p className="text-[11px] font-medium text-primary">
-                                    Guía {n.guia.numeroGuia}
+                                    Guía {n.guia.numeroGuia ?? "Sin guía"}
                                   </p>
                                   <p className="mt-0.5 line-clamp-2 text-xs text-slate-500">
                                     {n.descripcion}

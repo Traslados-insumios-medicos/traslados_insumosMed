@@ -29,7 +29,7 @@ interface ResumenCliente {
   clientePrincipal?: { nombre: string } | null;
   guias: {
     id: string;
-    numeroGuia: string;
+    numeroGuia: string | null;
     descripcion: string;
     estado: string;
     receptorNombre?: string | null;
@@ -67,7 +67,7 @@ interface ResumenCliente {
 
 interface GuiaFecha {
   id: string;
-  numeroGuia: string;
+  numeroGuia: string | null;
   descripcion: string;
   estado: string;
   createdAt: string;
@@ -100,7 +100,7 @@ interface GuiaFecha {
 interface GuiaChofer {
   guiaId: string;
   stopId: string;
-  numeroGuia: string;
+  numeroGuia: string | null;
   descripcion: string;
   estado: string;
   cliente: string;
@@ -208,6 +208,9 @@ export function AdminReportesPage() {
     "" | "PRINCIPAL" | "SECUNDARIO"
   >("");
   const [filtroCiudad, setFiltroCiudad] = useState("");
+  const [filtroGuia, setFiltroGuia] = useState<"" | "con-guia" | "sin-guia">(
+    "",
+  );
 
   const [clientes, setClientes] = useState<ClienteOption[]>([]);
   const [choferes, setChoferes] = useState<ChoferOption[]>([]);
@@ -287,6 +290,7 @@ export function AdminReportesPage() {
         if (clienteId) params.set("clienteId", clienteId);
         if (choferId) params.set("choferId", choferId);
         if (filtroCiudad.trim()) params.set("ciudad", filtroCiudad.trim());
+        if (filtroGuia) params.set("filtroGuia", filtroGuia);
         const res = await api.get<GuiaFecha[]>(`/reportes/fechas?${params}`);
         setDataFechas(res.data);
         if (res.data.length >= 500)
@@ -311,6 +315,7 @@ export function AdminReportesPage() {
         if (choferId) params.set("choferId", choferId);
         if (tipoCliente) params.set("tipo", tipoCliente);
         if (filtroCiudad.trim()) params.set("ciudad", filtroCiudad.trim());
+        if (filtroGuia) params.set("filtroGuia", filtroGuia);
         const res = await api.get<GuiaFecha[]>(`/reportes/guias?${params}`);
         setDataGuia(res.data);
         if (res.data.length >= 500)
@@ -324,7 +329,16 @@ export function AdminReportesPage() {
     } finally {
       setLoading(false);
     }
-  }, [tab, fechaDesde, fechaHasta, clienteId, choferId, tipoCliente, filtroCiudad, addToast]);
+  }, [
+    tab,
+    fechaDesde,
+    fechaHasta,
+    clienteId,
+    choferId,
+    tipoCliente,
+    filtroCiudad,
+    addToast,
+  ]);
 
   useEffect(() => {
     fetchData();
@@ -372,7 +386,7 @@ export function AdminReportesPage() {
       cliente.guias.map((g) => [
         cliente.nombre,
         cliente.ciudad ?? "—",
-        g.numeroGuia,
+        g.numeroGuia ?? "—",
         g.descripcion,
         g.estado,
         new Date(g.createdAt).toLocaleString("es-ES"),
@@ -454,7 +468,7 @@ export function AdminReportesPage() {
             routeId: g.ruta.id,
             card: {
               groupTitle: `${rutaHojaLabel(g.ruta) !== "—" ? `${rutaHojaLabel(g.ruta)} · ` : ""}#${g.ruta.id.slice(-6).toUpperCase()} · Chofer: ${g.ruta.chofer.nombre} · Fecha ruta: ${new Date(g.ruta.fecha).toLocaleDateString("es-ES")} · Creada: ${new Date(g.ruta.createdAt).toLocaleString("es-ES")}`,
-              title: `${cliente.nombre} · Guia ${g.numeroGuia}`,
+              title: `${cliente.nombre} · Guia ${g.numeroGuia ?? "Sin guía"}`,
               subtitle: `Estado de la guia: ${g.estado}`,
               fields: [
                 {
@@ -602,7 +616,7 @@ export function AdminReportesPage() {
                 routeId: r.rutaId,
                 card: {
                   groupTitle: `${rutaHojaLabel({ hojaRuta: r.hojaRuta, nombre: r.nombre }) !== "—" ? `${rutaHojaLabel({ hojaRuta: r.hojaRuta, nombre: r.nombre })} · ` : ""}#${r.rutaId.slice(-6).toUpperCase()} · Chofer: ${ch.nombre} · Fecha ruta: ${new Date(r.fecha).toLocaleDateString("es-ES")}`,
-                  title: `${g.cliente} · Guia ${g.numeroGuia}`,
+                  title: `${g.cliente} · Guia ${g.numeroGuia ?? "Sin guía"}`,
                   subtitle: `Estado de la guia: ${g.estado}`,
                   fields: [
                     { label: "Recibido por", value: g.receptorNombre ?? "—" },
@@ -743,7 +757,7 @@ export function AdminReportesPage() {
           routeId: g.ruta.id,
           card: {
             groupTitle: `${rutaHojaLabel(g.ruta) !== "—" ? `${rutaHojaLabel(g.ruta)} · ` : ""}#${g.ruta.id.slice(-6).toUpperCase()} · Chofer: ${g.ruta.chofer.nombre} · Fecha ruta: ${new Date(g.ruta.fecha).toLocaleDateString("es-ES")}`,
-            title: `${g.cliente.nombre} · Guia ${g.numeroGuia}`,
+            title: `${g.cliente.nombre} · Guia ${g.numeroGuia ?? "Sin guía"}`,
             subtitle: `Estado de la guia: ${g.estado}`,
             fields: [
               { label: "Recibido por", value: g.receptorNombre ?? "—" },
@@ -892,7 +906,7 @@ export function AdminReportesPage() {
           routeId: g.ruta.id,
           card: {
             groupTitle: `${rutaHojaLabel(g.ruta) !== "—" ? `${rutaHojaLabel(g.ruta)} · ` : ""}#${g.ruta.id.slice(-6).toUpperCase()} · Chofer: ${g.ruta.chofer.nombre} · Fecha ruta: ${new Date(g.ruta.fecha).toLocaleDateString("es-ES")}`,
-            title: `${g.cliente.nombre} · Guía ${g.numeroGuia}`,
+            title: `${g.cliente.nombre} · Guía ${g.numeroGuia ?? "Sin guía"}`,
             subtitle: `Estado: ${g.estado} · ${g.descripcion}`,
             fields: [
               { label: "Recibido por", value: g.receptorNombre ?? "—" },
@@ -994,7 +1008,7 @@ export function AdminReportesPage() {
 
       {/* Filtros globales */}
       <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 shadow-sm">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7 gap-3">
           <FilterSelect
             label="Tipo de cliente"
             options={TIPO_CLIENTE_FILTER_OPTIONS}
@@ -1062,6 +1076,18 @@ export function AdminReportesPage() {
               placeholder="Todas..."
             />
           </div>
+          {(tab === "guia" || tab === "fechas") && (
+            <FilterSelect
+              label="Nº de guía"
+              placeholder="Todos"
+              value={filtroGuia}
+              onChange={(v) => setFiltroGuia(v as "" | "con-guia" | "sin-guia")}
+              options={[
+                { value: "con-guia", label: "Con guía" },
+                { value: "sin-guia", label: "Sin guía" },
+              ]}
+            />
+          )}
         </div>
       </div>
 
@@ -1611,7 +1637,7 @@ export function AdminReportesPage() {
                                                     e.stopPropagation();
                                                     downloadImage(
                                                       foto.urlPreview,
-                                                      `entrega-${g.numeroGuia}-${idx + 1}.jpg`,
+                                                      `entrega-${g.guiaId}-${idx + 1}.jpg`,
                                                     );
                                                   }}
                                                   className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100"

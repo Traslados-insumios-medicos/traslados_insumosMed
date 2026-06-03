@@ -43,7 +43,7 @@ interface RutaExport {
     direccion: string;
     cliente: { nombre: string };
     guias: Array<{
-      numeroGuia: string;
+      numeroGuia: string | null;
       descripcion: string;
       estado: string;
       receptorNombre?: string | null;
@@ -55,7 +55,7 @@ interface RutaExport {
     }>;
   }>;
   guias: Array<{
-    numeroGuia: string;
+    numeroGuia: string | null;
     descripcion: string;
     estado: string;
     receptorNombre?: string | null;
@@ -107,7 +107,7 @@ export function exportarRutaExcel(ruta: RutaExport) {
       Parada: `#${stop.orden}`,
       Cliente: stop.cliente.nombre,
       Dirección: stop.direccion,
-      "Número Guía": g.numeroGuia,
+      "Número Guía": g.numeroGuia ?? "Sin guía",
       Descripción: g.descripcion,
       Estado: g.estado,
       "Recibido por": parseMultiField(g.receptorNombre),
@@ -136,7 +136,7 @@ export function exportarRutaExcel(ruta: RutaExport) {
           return {
             Parada: `#${stop.orden}`,
             Cliente: stop.cliente.nombre,
-            "Número Guía": g.numeroGuia,
+            "Número Guía": g.numeroGuia ?? "Sin guía",
             "Tipo Incidencia": tipoIncidencia,
             "Temperatura (°C)": g.temperatura || "-",
             "Hora Llegada": g.horaLlegada || "-",
@@ -166,7 +166,7 @@ export function exportarRutaExcel(ruta: RutaExport) {
         g.fotos.forEach((foto) => {
           fotosData.push({
             Tipo: "Entrega",
-            Guía: g.numeroGuia,
+            Guía: g.numeroGuia ?? "Sin guía",
             Parada: `#${stop.orden}`,
             Cliente: stop.cliente.nombre,
             URL: foto.urlPreview,
@@ -292,7 +292,7 @@ export async function exportarRutaPDF(ruta: RutaExport) {
     stop.guias.map((g) => [
       `#${stop.orden}`,
       stop.cliente.nombre,
-      g.numeroGuia,
+      g.numeroGuia ?? "Sin guía",
       g.estado,
     ]),
   );
@@ -362,7 +362,7 @@ export async function exportarRutaPDF(ruta: RutaExport) {
       doc.setFont("helvetica", "bold");
       doc.setTextColor(255, 255, 255);
       doc.text(
-        `GUÍA ${guia.numeroGuia} - Parada #${stop.orden}`,
+        `GUÍA ${guia.numeroGuia ?? "SIN GUÍA"} - Parada #${stop.orden}`,
         16,
         currentY + 5.5,
       );
@@ -564,7 +564,7 @@ export async function exportarRutaPDF(ruta: RutaExport) {
           return [
             `#${stop.orden}`,
             stop.cliente.nombre,
-            g.numeroGuia,
+            g.numeroGuia ?? "Sin guía",
             tipoIncidencia,
             g.observaciones || "-",
           ];

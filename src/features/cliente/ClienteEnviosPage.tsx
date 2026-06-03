@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useGsapStaggerChildren } from "../../hooks/useGsapStaggerChildren";
 import { api } from "../../services/api";
 import { useToastStore } from "../../store/toastStore";
+import { FilterSelect } from "../../components/ui/FilterSelect";
 
 const estadoLabel: Record<string, string> = {
   ENTREGADO: "Entregado",
@@ -35,7 +36,7 @@ interface RutaMini {
 
 interface GuiaListItem {
   id: string;
-  numeroGuia: string;
+  numeroGuia: string | null;
   descripcion: string;
   estado: string;
   clienteId: string;
@@ -63,6 +64,7 @@ export function ClienteEnviosPage() {
   const [vista, setVista] = useState<Vista>("activos");
   const [busqueda, setBusqueda] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [filtroGuia, setFiltroGuia] = useState("");
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [payload, setPayload] = useState<MisEnviosResponse | null>(null);
@@ -72,9 +74,12 @@ export function ClienteEnviosPage() {
     return () => window.clearTimeout(t);
   }, [busqueda]);
 
+  // Activar loading síncronamente al cambiar cualquier filtro o tab,
+  // antes de que fetchEnvios se ejecute en el siguiente ciclo
   useEffect(() => {
+    setLoading(true);
     setPage(1);
-  }, [vista, debouncedSearch]);
+  }, [vista, debouncedSearch, filtroGuia]);
 
   const fetchEnvios = useCallback(async () => {
     setLoading(true);
@@ -85,6 +90,7 @@ export function ClienteEnviosPage() {
         limit: "10",
       });
       if (debouncedSearch) params.set("search", debouncedSearch);
+      if (filtroGuia) params.set("filtroGuia", filtroGuia);
       const res = await api.get<MisEnviosResponse>(
         `/guias/mis-envios?${params}`,
       );
@@ -95,7 +101,7 @@ export function ClienteEnviosPage() {
     } finally {
       setLoading(false);
     }
-  }, [vista, page, debouncedSearch, addToast]);
+  }, [vista, page, debouncedSearch, filtroGuia, addToast]);
 
   useEffect(() => {
     fetchEnvios();
@@ -197,17 +203,29 @@ export function ClienteEnviosPage() {
               ({loading ? "…" : total} registros)
             </span>
           </h3>
-          <div className="relative w-full sm:w-64">
-            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
-              search
-            </span>
-            <input
-              type="text"
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="Buscar por guía, descripción o HR…"
-              className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-10 pr-4 text-sm focus:ring-2 focus:ring-primary"
+          <div className="flex flex-wrap items-center gap-3">
+            <FilterSelect
+              placeholder="Nº de guía"
+              value={filtroGuia}
+              onChange={setFiltroGuia}
+              options={[
+                { value: "con-guia", label: "Con guía" },
+                { value: "sin-guia", label: "Sin guía" },
+              ]}
+              className="w-36"
             />
+            <div className="relative w-full sm:w-64">
+              <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                search
+              </span>
+              <input
+                type="text"
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                placeholder="Buscar por guía, descripción o HR…"
+                className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-10 pr-4 text-sm focus:ring-2 focus:ring-primary"
+              />
+            </div>
           </div>
         </div>
 
@@ -251,7 +269,7 @@ export function ClienteEnviosPage() {
                         className="transition-colors hover:bg-slate-50"
                       >
                         <td className="px-6 py-4 font-semibold text-primary">
-                          {g.numeroGuia}
+                          {g.numeroGuia ?? "Sin guía"}
                         </td>
                         <td className="px-6 py-4 text-sm text-slate-700">
                           {g.descripcion}

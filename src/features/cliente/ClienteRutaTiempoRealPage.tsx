@@ -8,12 +8,17 @@ import { useToastStore } from "../../store/toastStore";
 
 interface GuiaLista {
   id: string;
-  numeroGuia: string;
+  numeroGuia: string | null;
   estado: string;
   clienteId: string;
   rutaId: string;
   stopId: string;
-  ruta: { id: string; estado: string; hojaRuta?: string | null };
+  ruta: {
+    id: string;
+    estado: string;
+    hojaRuta?: string | null;
+    chofer?: { nombre: string } | null;
+  };
 }
 
 interface MisEnviosPayload {
@@ -436,11 +441,19 @@ export function ClienteRutaTiempoRealPage() {
                     Guía de envío
                   </p>
                   <h3 className="mt-1 text-lg font-bold text-slate-900">
-                    {guia.numeroGuia}
+                    {guia.numeroGuia ?? "Sin guía"}
                   </h3>
                   {guia.ruta?.hojaRuta && (
                     <p className="mt-0.5 text-xs font-semibold text-primary">
                       {guia.ruta.hojaRuta}
+                    </p>
+                  )}
+                  {guia.ruta?.chofer?.nombre && (
+                    <p className="mt-1 flex items-center gap-1 text-xs text-slate-500">
+                      <span className="material-symbols-outlined text-[13px]">
+                        person
+                      </span>
+                      {guia.ruta.chofer.nombre}
                     </p>
                   )}
                 </div>

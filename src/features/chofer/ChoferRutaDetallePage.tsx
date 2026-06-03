@@ -12,7 +12,7 @@ import { SeguimientoChoferStepper } from "../../components/cliente/SeguimientoCh
 import { ModalMotion } from "../../components/ui/ModalMotion";
 interface GuiaApi {
   id: string;
-  numeroGuia: string;
+  numeroGuia: string | null;
   descripcion: string;
   estado: string;
   receptorNombre?: string | null;
@@ -68,6 +68,8 @@ interface RutaApi {
   fecha: string;
   estado: string;
   createdAt: string;
+  nombre?: string | null;
+  hojaRuta?: string | null;
   seguimientoChofer?: string;
   chofer: { id: string; nombre: string };
   stops: StopApi[];
@@ -1007,7 +1009,9 @@ export function ChoferRutaDetallePage() {
             <div className="mb-3 flex items-start justify-between">
               <div>
                 <h3 className="text-sm font-bold text-slate-900">
-                  RUTA #{ruta.id.slice(-6).toUpperCase()}
+                  {ruta.nombre ??
+                    ruta.hojaRuta ??
+                    `RUTA #${ruta.id.slice(-6).toUpperCase()}`}
                 </h3>
                 <p className="text-xs text-slate-500">
                   Distribución de Insumos Médicos
@@ -1260,7 +1264,7 @@ export function ChoferRutaDetallePage() {
                           >
                             <div className="mb-2 flex items-center justify-between gap-2">
                               <span className="text-sm font-bold text-slate-700">
-                                Guía: #{g.numeroGuia}
+                                Guía: #{g.numeroGuia ?? "Sin guía"}
                               </span>
                               <div className="flex flex-wrap gap-1">
                                 <button

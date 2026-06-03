@@ -23,6 +23,7 @@ interface RutaApi {
   fecha: string;
   estado: string;
   createdAt: string;
+  nombre?: string | null;
   hojaRuta?: string | null;
   chofer: { id: string; nombre: string };
   stops: StopApi[];
@@ -429,9 +430,11 @@ export function ChoferRutasPage() {
                 <div className="flex items-start justify-between">
                   <div>
                     <h3 className="text-base font-bold text-slate-900">
-                      RUTA #{ruta.id.slice(-6).toUpperCase()}
+                      {ruta.nombre ??
+                        ruta.hojaRuta ??
+                        `RUTA #${ruta.id.slice(-6).toUpperCase()}`}
                     </h3>
-                    {ruta.hojaRuta && (
+                    {ruta.hojaRuta && !ruta.nombre && (
                       <p className="text-xs font-semibold text-primary">
                         {ruta.hojaRuta}
                       </p>

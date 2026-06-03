@@ -21,7 +21,7 @@ interface NovedadApi {
   createdAt: string;
   guia: {
     id: string;
-    numeroGuia: string;
+    numeroGuia: string | null;
     clienteId: string;
     descripcion: string;
     observaciones?: string | null;
@@ -190,7 +190,7 @@ export function AdminNovedadesPage() {
                     Guía
                   </p>
                   <p className="text-sm font-medium text-primary break-words">
-                    {modalNovedad.guia.numeroGuia}
+                    {modalNovedad.guia.numeroGuia ?? "Sin guía"}
                   </p>
                 </div>
                 <div className="rounded-lg border border-slate-200 bg-white p-3">
@@ -416,7 +416,7 @@ export function AdminNovedadesPage() {
                       <span className="text-xs text-slate-500">
                         Guía:{" "}
                         <span className="font-medium text-primary">
-                          {n.guia.numeroGuia}
+                          {n.guia.numeroGuia ?? "Sin guía"}
                         </span>
                       </span>
                     </div>

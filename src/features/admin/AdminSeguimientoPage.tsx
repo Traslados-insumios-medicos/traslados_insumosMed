@@ -10,7 +10,7 @@ mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN ?? "";
 
 interface GuiaMini {
   id: string;
-  numeroGuia: string;
+  numeroGuia: string | null;
   estado: string;
 }
 interface StopDetalle {
@@ -498,7 +498,7 @@ export function AdminSeguimientoPage() {
                                 className="flex items-center justify-between gap-2"
                               >
                                 <span className="text-[11px] font-mono text-slate-600 truncate">
-                                  {g.numeroGuia}
+                                  {g.numeroGuia ?? "Sin guía"}
                                 </span>
                                 <EstadoGuiaBadge estado={g.estado} size="sm" />
                               </div>

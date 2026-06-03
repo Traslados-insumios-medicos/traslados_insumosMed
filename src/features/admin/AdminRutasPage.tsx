@@ -17,7 +17,7 @@ import { useToastStore } from "../../store/toastStore";
 
 interface GuiaApi {
   id: string;
-  numeroGuia: string;
+  numeroGuia: string | null;
   descripcion: string;
   estado: string;
   clienteId: string;
@@ -87,9 +87,13 @@ interface ChoferOption {
   nombre: string;
 }
 
+// Etiqueta visible para un número de guía que puede ser null
+const guiaLabel = (numeroGuia: string | null | undefined): string =>
+  numeroGuia?.trim() ? numeroGuia.trim() : "Sin guía";
+
 interface GuiaForm {
   descripcion: string;
-  numeroGuia: string;
+  numeroGuia: string; // vacío = sin guía (se enviará como null al backend)
 }
 
 const generateNumeroGuia = () => {
@@ -185,7 +189,10 @@ export function AdminRutasPage() {
   }, [searchTerm]);
 
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedFiltroCiudad(filtroCiudad.trim()), 400);
+    const timer = setTimeout(
+      () => setDebouncedFiltroCiudad(filtroCiudad.trim()),
+      400,
+    );
     return () => clearTimeout(timer);
   }, [filtroCiudad]);
 
@@ -237,7 +244,14 @@ export function AdminRutasPage() {
         if (!silent) setLoading(false);
       }
     },
-    [addToast, fechaDesde, fechaHasta, filtroEstado, debouncedSearch, debouncedFiltroCiudad],
+    [
+      addToast,
+      fechaDesde,
+      fechaHasta,
+      filtroEstado,
+      debouncedSearch,
+      debouncedFiltroCiudad,
+    ],
   );
 
   useEffect(() => {
@@ -247,7 +261,14 @@ export function AdminRutasPage() {
   useEffect(() => {
     // Recargar cuando cambien los filtros
     fetchRutas(1);
-  }, [fechaDesde, fechaHasta, filtroEstado, debouncedSearch, debouncedFiltroCiudad, fetchRutas]);
+  }, [
+    fechaDesde,
+    fechaHasta,
+    filtroEstado,
+    debouncedSearch,
+    debouncedFiltroCiudad,
+    fetchRutas,
+  ]);
 
   useEffect(() => {
     // Load choferes and clientes for the form
@@ -445,9 +466,9 @@ export function AdminRutasPage() {
     stopsForm.every((s) => {
       const hasClienteId = !!s.clienteId;
       const hasDireccion = !!s.direccion && s.lat !== null;
+      // numeroGuia ahora es opcional — solo descripción es requerida
       const allGuiasValid = s.guias.every(
-        (g) =>
-          g.descripcion.trim().length > 0 && g.numeroGuia.trim().length > 0,
+        (g) => g.descripcion.trim().length > 0,
       );
       return hasClienteId && hasDireccion && allGuiasValid;
     });
@@ -475,10 +496,7 @@ export function AdminRutasPage() {
       const guiasErrors: { [guiaIdx: number]: string } = {};
       s.guias.forEach((g, gIdx) => {
         if (!g.descripcion.trim()) guiasErrors[gIdx] = REQUIRED_MESSAGE;
-        if (!g.numeroGuia.trim())
-          guiasErrors[gIdx] = guiasErrors[gIdx]
-            ? guiasErrors[gIdx] + " / Nº guía requerido"
-            : "Nº de guía requerido";
+        // numeroGuia es opcional — no se valida como requerido
       });
       if (Object.keys(guiasErrors).length > 0) {
         nextStopsErrors[i] = {
@@ -505,7 +523,8 @@ export function AdminRutasPage() {
         notas: s.notas || undefined,
         guias: s.guias.map((g) => ({
           descripcion: g.descripcion.trim() || "Insumos médicos",
-          numeroGuia: g.numeroGuia.trim(),
+          // Enviar null cuando no hay número — el backend lo acepta y lo guarda como null
+          numeroGuia: g.numeroGuia.trim() || undefined,
         })),
       }));
 
@@ -1181,7 +1200,10 @@ export function AdminRutasPage() {
                               <div className="mb-2">
                                 <div className="mb-1 flex items-center justify-between">
                                   <label className="text-[10px] font-medium text-slate-600">
-                                    Nº de guía *
+                                    Nº de guía
+                                    <span className="ml-1 text-slate-400">
+                                      (opcional)
+                                    </span>
                                   </label>
                                   <span
                                     className={`text-[9px] ${guia.numeroGuia.length > 40 ? "text-amber-500" : "text-slate-400"}`}
@@ -1192,7 +1214,7 @@ export function AdminRutasPage() {
                                 <div className="flex gap-1.5">
                                   <input
                                     type="text"
-                                    placeholder="Ej: G-123456"
+                                    placeholder="Vacío = Sin guía"
                                     value={guia.numeroGuia}
                                     onChange={(e) =>
                                       handleGuiaNumeroChange(
@@ -1567,7 +1589,7 @@ export function AdminRutasPage() {
                                             : "bg-slate-100 text-slate-600"
                                       }`}
                                     >
-                                      {g.numeroGuia}
+                                      {guiaLabel(g.numeroGuia)}
                                     </span>
                                   ))}
                                 </div>
@@ -1701,7 +1723,7 @@ export function AdminRutasPage() {
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <p className="text-sm font-bold text-slate-900">
-                          Guía #{g.numeroGuia}
+                          Guía #{guiaLabel(g.numeroGuia)}
                         </p>
                         <p className="text-xs text-slate-500">
                           {g.descripcion}
@@ -1814,7 +1836,7 @@ export function AdminRutasPage() {
                                   e.stopPropagation();
                                   downloadImage(
                                     f.urlPreview,
-                                    `entrega-${g.numeroGuia}-${idx + 1}.jpg`,
+                                    `entrega-${g.id}-${idx + 1}.jpg`,
                                   );
                                 }}
                                 className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100"

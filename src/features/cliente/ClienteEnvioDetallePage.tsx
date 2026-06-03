@@ -36,7 +36,7 @@ interface RutaEnGuia {
 
 interface GuiaDetalleApi {
   id: string;
-  numeroGuia: string;
+  numeroGuia: string | null;
   descripcion: string;
   estado: string;
   createdAt: string;
@@ -180,11 +180,13 @@ export function ClienteEnvioDetallePage() {
           ? "Ruta cancelada"
           : "Ruta planificada";
 
+  const guiaNumeroLabel = guia.numeroGuia ?? "Sin guía";
+
   const handleExportExcel = () => {
     exportToExcel(
       [
         {
-          "Nº Guía": guia.numeroGuia,
+          "Nº Guía": guiaNumeroLabel,
           Cliente: guia.cliente?.nombre ?? guia.stop?.cliente?.nombre ?? "—",
           Descripción: guia.descripcion,
           Estado:
@@ -202,7 +204,7 @@ export function ClienteEnvioDetallePage() {
           "Fecha creación": new Date(guia.createdAt).toLocaleString("es-ES"),
         },
       ],
-      `reporte-guia-${guia.numeroGuia}`,
+      `reporte-guia-${guia.id}`,
       "Detalle Envío",
     );
   };
@@ -216,10 +218,10 @@ export function ClienteEnvioDetallePage() {
           : "En camino";
 
     exportToPDF(
-      `Reporte de Envío · ${guia.numeroGuia}`,
+      `Reporte de Envío · ${guiaNumeroLabel}`,
       ["Campo", "Valor"],
       [
-        ["Nº Guía", guia.numeroGuia],
+        ["Nº Guía", guiaNumeroLabel],
         ["Cliente", guia.cliente?.nombre ?? guia.stop?.cliente?.nombre ?? "—"],
         ["Descripción", guia.descripcion],
         ["Estado", estadoLabel],
@@ -234,13 +236,13 @@ export function ClienteEnvioDetallePage() {
         ],
         ["Fecha creación", new Date(guia.createdAt).toLocaleString("es-ES")],
       ],
-      `reporte-guia-${guia.numeroGuia}`,
+      `reporte-guia-${guia.id}`,
       undefined,
       undefined,
       undefined,
       [
         {
-          title: `${guia.numeroGuia} · ${estadoLabel}`,
+          title: `${guiaNumeroLabel} · ${estadoLabel}`,
           subtitle: `${guia.cliente?.nombre ?? guia.stop?.cliente?.nombre ?? ""} · ${guia.descripcion}`,
           fields: [
             { label: "Recibido por", value: guia.receptorNombre ?? "—" },
@@ -269,7 +271,7 @@ export function ClienteEnvioDetallePage() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">
-            Detalle de envío · {guia.numeroGuia}
+            Detalle de envío · {guiaNumeroLabel}
           </h1>
           <p className="text-sm text-slate-500">{guia.descripcion}</p>
         </div>
@@ -527,7 +529,7 @@ export function ClienteEnvioDetallePage() {
                         e.stopPropagation();
                         handleDownloadFoto(
                           f.urlPreview,
-                          `foto-${guia.numeroGuia}-${i + 1}.jpg`,
+                          `foto-${guia.id}-${i + 1}.jpg`,
                         );
                       }}
                       className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100"
