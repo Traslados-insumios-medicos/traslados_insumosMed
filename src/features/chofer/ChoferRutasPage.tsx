@@ -430,14 +430,12 @@ export function ChoferRutasPage() {
                 <div className="flex items-start justify-between">
                   <div>
                     <h3 className="text-base font-bold text-slate-900">
-                      {ruta.nombre ??
-                        ruta.hojaRuta ??
+                      {ruta.hojaRuta ??
+                        ruta.nombre ??
                         `RUTA #${ruta.id.slice(-6).toUpperCase()}`}
                     </h3>
-                    {ruta.hojaRuta && !ruta.nombre && (
-                      <p className="text-xs font-semibold text-primary">
-                        {ruta.hojaRuta}
-                      </p>
+                    {ruta.hojaRuta && ruta.nombre && (
+                      <p className="text-xs text-slate-500">{ruta.nombre}</p>
                     )}
                     <p className="text-xs text-slate-500">
                       {ruta.fecha} • {ruta.stops.length} paradas
