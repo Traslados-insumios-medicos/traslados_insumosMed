@@ -1511,8 +1511,8 @@ export function ChoferRutaDetallePage() {
                                                   >
                                                     <input
                                                       type="text"
-                                                      inputMode="decimal"
-                                                      placeholder="Ej: 18"
+                                                      inputMode="text"
+                                                      placeholder="Ej: -18"
                                                       value={temp}
                                                       onChange={(e) =>
                                                         setTemperaturaItem(
@@ -1987,8 +1987,8 @@ export function ChoferRutaDetallePage() {
                                                 >
                                                   <input
                                                     type="text"
-                                                    inputMode="decimal"
-                                                    placeholder="Ej: 18"
+                                                    inputMode="text"
+                                                    placeholder="Ej: -18"
                                                     value={temp}
                                                     onChange={(e) =>
                                                       setTemperaturaItem(
