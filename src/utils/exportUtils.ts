@@ -220,6 +220,26 @@ async function getWhiteLogoBase64(): Promise<string | null> {
   }
 }
 
+function getColumnMaxAndMin(header: string, defaultMax = 48) {
+  const h = header.toLowerCase();
+  if (h.includes("guía") || h.includes("guia")) {
+    return { min: 11, max: 18 };
+  }
+  if (h.includes("estado")) {
+    return { min: 11, max: 14 };
+  }
+  if (h.includes("fecha") || h.includes("hora")) {
+    return { min: 11, max: 18 };
+  }
+  if (h.includes("ruc")) {
+    return { min: 14, max: 16 };
+  }
+  if (h.includes("temperatura")) {
+    return { min: 11, max: 14 };
+  }
+  return { min: 14, max: defaultMax };
+}
+
 export function exportToExcel(
   rows: ExportRow[],
   filename: string,
@@ -260,22 +280,23 @@ export function exportToExcel(
   // Auto-ajustar ancho de columnas en base al contenido
   const dataStartRow = 7 + effectiveFilters.length;
   const colWidths = headers.map((header, colIdx) => {
+    const { min, max } = getColumnMaxAndMin(header, 48);
     let maxLen = String(header).length;
     for (let r = dataStartRow; r < aoa.length; r++) {
       const val = aoa[r]?.[colIdx];
       const len = String(val ?? "").length;
       if (len > maxLen) maxLen = len;
     }
-    return { wch: Math.min(Math.max(maxLen + 2, 14), 48) };
+    return { wch: Math.min(Math.max(maxLen + 2, min), max) };
   });
   ws["!cols"] = colWidths;
 
   // Autofiltro para la tabla de datos
-  const headerRowIdx = 7 + effectiveFilters.length;
-  const lastRowIdx = Math.max(headerRowIdx, aoa.length - 1);
+  const headerRowNumber = 7 + effectiveFilters.length;
+  const lastRowNumber = aoa.length;
   const lastColName = XLSX.utils.encode_col(Math.max(headers.length - 1, 0));
   ws["!autofilter"] = {
-    ref: `A${headerRowIdx + 1}:${lastColName}${lastRowIdx + 1}`,
+    ref: `A${headerRowNumber}:${lastColName}${lastRowNumber}`,
   };
 
   // Columna de mapa: dejar como URL de texto (IMAGE() corrompe archivos en Excel no-365)
@@ -308,7 +329,7 @@ export function exportToExcel(
     };
   }
   for (let c = 0; c < headers.length; c++) {
-    const cellRef = `${XLSX.utils.encode_col(c)}${headerRowIdx + 1}`;
+    const cellRef = `${XLSX.utils.encode_col(c)}${headerRowNumber}`;
     if (ws[cellRef]) {
       ws[cellRef].s = {
         font: { bold: true, color: { rgb: "FFFFFF" } },
@@ -340,12 +361,13 @@ export function exportToExcel(
         },
       ];
       detailWs["!cols"] = sheet.headers.map((h, colIdx) => {
+        const { min, max } = getColumnMaxAndMin(h, 55);
         let maxLen = String(h).length;
         for (let r = 4; r < detailAoa.length; r++) {
           const len = String(detailAoa[r]?.[colIdx] ?? "").length;
           if (len > maxLen) maxLen = len;
         }
-        return { wch: Math.min(Math.max(maxLen + 2, 14), 55) };
+        return { wch: Math.min(Math.max(maxLen + 2, min), max) };
       });
       const detailLastCol = XLSX.utils.encode_col(
         Math.max(sheet.headers.length - 1, 0),
