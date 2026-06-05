@@ -323,9 +323,9 @@ export function AdminRutaTiempoRealPage() {
                       {stop.guias.map((g) => (
                         <div
                           key={g.id}
-                          className="flex items-center justify-between gap-2"
+                          className="flex min-w-0 items-center justify-between gap-2"
                         >
-                          <span className="text-[11px] font-mono text-slate-600 truncate">
+                          <span className="min-w-0 truncate text-[11px] font-mono text-slate-600" title={g.numeroGuia ?? "Sin guía"}>
                             {g.numeroGuia ?? "Sin guía"}
                           </span>
                           <EstadoGuiaBadge estado={g.estado} size="sm" />

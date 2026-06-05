@@ -1581,7 +1581,8 @@ export function AdminRutasPage() {
                                   {stop.guias.map((g) => (
                                     <span
                                       key={g.id}
-                                      className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${
+                                      title={guiaLabel(g.numeroGuia)}
+                                      className={`inline-block max-w-[12rem] truncate rounded px-1.5 py-0.5 text-[10px] font-semibold ${
                                         g.estado === "ENTREGADO"
                                           ? "bg-emerald-100 text-emerald-700"
                                           : g.estado === "INCIDENCIA"
@@ -1721,8 +1722,8 @@ export function AdminRutasPage() {
                   >
                     {/* Header guía */}
                     <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-bold text-slate-900">
+                      <div className="min-w-0">
+                        <p className="break-all text-sm font-bold text-slate-900">
                           Guía #{guiaLabel(g.numeroGuia)}
                         </p>
                         <p className="text-xs text-slate-500">

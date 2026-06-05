@@ -270,7 +270,7 @@ export function ClienteEnvioDetallePage() {
     <div className="space-y-8">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">
+          <h1 className="break-all text-2xl font-bold text-slate-900">
             Detalle de envío · {guiaNumeroLabel}
           </h1>
           <p className="text-sm text-slate-500">{guia.descripcion}</p>

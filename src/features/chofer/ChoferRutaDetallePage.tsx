@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence } from "framer-motion";
 import { io } from "socket.io-client";
 import { Link, useParams } from "react-router-dom";
@@ -1265,8 +1265,8 @@ export function ChoferRutaDetallePage() {
                                 : "border-slate-100 bg-slate-50"
                             }`}
                           >
-                            <div className="mb-2 flex items-center justify-between gap-2">
-                              <span className="text-sm font-bold text-slate-700">
+                            <div className="mb-2 flex items-start justify-between gap-2">
+                              <span className="min-w-0 break-all text-sm font-bold text-slate-700">
                                 Guía: #{g.numeroGuia ?? "Sin guía"}
                               </span>
                               <div className="flex flex-wrap gap-1">

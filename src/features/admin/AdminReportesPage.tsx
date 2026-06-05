@@ -155,7 +155,7 @@ const tabs: { id: TabId; label: string }[] = [
 
 const LIMIT = 10;
 
-const trunc = (str: string | undefined | null, max = 50) => {
+const trunc = (str: string | undefined | null, max = 80) => {
   if (!str) return "";
   return str.length > max ? str.slice(0, max - 3) + "..." : str;
 };

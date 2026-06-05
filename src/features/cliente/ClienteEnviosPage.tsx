@@ -268,7 +268,7 @@ export function ClienteEnviosPage() {
                         key={g.id}
                         className="transition-colors hover:bg-slate-50"
                       >
-                        <td className="px-6 py-4 font-semibold text-primary">
+                        <td className="max-w-[16rem] break-all px-6 py-4 font-semibold text-primary">
                           {g.numeroGuia ?? "Sin guía"}
                         </td>
                         <td className="px-6 py-4 text-sm text-slate-700">

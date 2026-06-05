@@ -440,7 +440,7 @@ export function ClienteRutaTiempoRealPage() {
                   <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
                     Guía de envío
                   </p>
-                  <h3 className="mt-1 text-lg font-bold text-slate-900">
+                  <h3 className="mt-1 break-all text-lg font-bold text-slate-900">
                     {guia.numeroGuia ?? "Sin guía"}
                   </h3>
                   {guia.ruta?.hojaRuta && (
@@ -623,9 +623,9 @@ export function ClienteRutaTiempoRealPage() {
                 Tu envío
               </p>
               <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">Guía</span>
-                  <span className="font-semibold text-primary">
+                <div className="flex items-start justify-between gap-3 text-sm">
+                  <span className="shrink-0 text-slate-500">Guía</span>
+                  <span className="min-w-0 break-all text-right font-semibold text-primary">
                     {guiaActiva.numeroGuia}
                   </span>
                 </div>
