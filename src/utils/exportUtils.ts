@@ -2,6 +2,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx-js-style";
 import logoUrl from "../assets/logo.png";
+import { useGlobalLoadingStore } from "../store/globalLoadingStore";
 
 /** Parsea un campo serializado con | y devuelve texto legible separado por coma o salto */
 export function parseMultiField(
@@ -390,6 +391,8 @@ export async function exportToPDF(
   detailCards?: ExportDetailCard[],
   options?: ExportPdfOptions,
 ): Promise<void> {
+  const { setMessage } = useGlobalLoadingStore.getState();
+  setMessage("Preparando datos para exportación...");
   const doc = new jsPDF();
   const pageWidth = doc.internal.pageSize.getWidth();
   const headerLogoBase64 = await getWhiteLogoBase64();
@@ -472,6 +475,7 @@ export async function exportToPDF(
   });
   startY = startY + 5 + effectiveFilters.length * 4 + 5;
 
+  setMessage("Generando tablas del documento...");
   const showMainTable = options?.showMainTable ?? true;
   if (showMainTable) {
     autoTable(doc, {
@@ -610,6 +614,8 @@ export async function exportToPDF(
       ),
     ];
     const IMG_BATCH = 8; // lote seguro: no satura el navegador ni las APIs externas
+    let processedCount = 0;
+    const totalImages = allCardUrls.length;
     for (let bi = 0; bi < allCardUrls.length; bi += IMG_BATCH) {
       const batch = allCardUrls.slice(bi, bi + IMG_BATCH);
       const batchResults = await Promise.allSettled(
@@ -625,10 +631,13 @@ export async function exportToPDF(
         }
         // rejected: imagen no disponible — el loop usará "" y activará el catch
       }
+      processedCount += batch.length;
+      setMessage(`Procesando evidencias y mapas (${processedCount} de ${totalImages})`);
     }
 
     for (let idx = 0; idx < detailCards.length; idx++) {
       const card = detailCards[idx];
+      setMessage(`Generando páginas del PDF (${idx + 1} de ${detailCards.length})`);
       const cardHeight = calcCardHeight(card);
       if (card.groupTitle && card.groupTitle !== currentGroup) {
         if (y + 16 > pageHeight - 16) {
@@ -803,5 +812,6 @@ export async function exportToPDF(
     doc.text(`Pagina ${page} de ${totalPages}`, pageWidth - 35, pageHeight - 6);
   }
 
+  setMessage("Preparando archivo para descarga...");
   doc.save(`${filename}.pdf`);
 }

@@ -7,6 +7,7 @@ import {
   normalizeImageOrientationPublic,
   imageFormatFromBase64,
 } from "./exportUtils";
+import { useGlobalLoadingStore } from "../store/globalLoadingStore";
 
 interface JsPdfWithAutoTable extends jsPDF {
   lastAutoTable?: { finalY?: number };
@@ -217,6 +218,8 @@ export function exportarRutaExcel(ruta: RutaExport) {
 }
 
 export async function exportarRutaPDF(ruta: RutaExport) {
+  const { setMessage } = useGlobalLoadingStore.getState();
+  setMessage("Preparando datos de la ruta...");
   console.log("📄 Iniciando exportación PDF de ruta:", ruta.id);
   console.log("📦 Datos de ruta:", {
     totalStops: ruta.stops.length,
@@ -315,6 +318,7 @@ export async function exportarRutaPDF(ruta: RutaExport) {
     ]),
   );
 
+  setMessage("Generando tablas del documento...");
   autoTable(doc, {
     startY: 90,
     head: [["Parada", "Cliente", "Número Guía", "Estado"]],
@@ -366,6 +370,8 @@ export async function exportarRutaPDF(ruta: RutaExport) {
     ]),
   ];
   const FOTO_BATCH = 6; // lote conservador para ruta individual
+  let processedCount = 0;
+  const totalImages = allFotoUrls.length;
   for (let bi = 0; bi < allFotoUrls.length; bi += FOTO_BATCH) {
     const batch = allFotoUrls.slice(bi, bi + FOTO_BATCH);
     const batchResults = await Promise.allSettled(
@@ -380,10 +386,15 @@ export async function exportarRutaPDF(ruta: RutaExport) {
         imageCache.set(res.value.url, res.value.processed);
       }
     }
+    processedCount += batch.length;
+    setMessage(`Procesando evidencias y mapas (${processedCount} de ${totalImages})`);
   }
   console.log(`📷 ${imageCache.size} imágenes pre-cargadas en paralelo`);
 
+  let stopIndex = 0;
   for (const stop of ruta.stops) {
+    stopIndex++;
+    setMessage(`Generando paradas de la ruta (${stopIndex} de ${ruta.stops.length})`);
     console.log(`  📍 Parada #${stop.orden}: ${stop.guias.length} guías`);
 
     for (const guia of stop.guias) {
@@ -720,6 +731,7 @@ export async function exportarRutaPDF(ruta: RutaExport) {
   }
 
   // Descargar archivo
+  setMessage("Preparando archivo para descarga...");
   const fileName = `Ruta_${ruta.id.slice(-6)}_${new Date(ruta.fecha).toISOString().split("T")[0]}.pdf`;
   doc.save(fileName);
 }
