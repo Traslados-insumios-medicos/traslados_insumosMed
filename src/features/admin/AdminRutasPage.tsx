@@ -254,9 +254,6 @@ export function AdminRutasPage() {
     ],
   );
 
-  useEffect(() => {
-    fetchRutas(1);
-  }, [fetchRutas]);
 
   useEffect(() => {
     // Recargar cuando cambien los filtros

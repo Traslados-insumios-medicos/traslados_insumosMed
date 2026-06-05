@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { io } from "socket.io-client";
 import { SeguimientoChoferStepper } from "../../components/cliente/SeguimientoChoferStepper";
 import { api } from "../../services/api";
@@ -97,6 +97,16 @@ export function ClienteRutaTiempoRealPage() {
     return () => clearInterval(interval);
   }, [fetchActivos]);
 
+  // Auto-seleccionar cuando hay exactamente 1 envío activo
+  const autoSelectedRef = useRef(false);
+  useEffect(() => {
+    if (candidates.length === 1 && !selectedGuiaId && !autoSelectedRef.current) {
+      autoSelectedRef.current = true;
+      setSelectedGuiaId(candidates[0].id);
+      setShowSelection(false);
+    }
+  }, [candidates, selectedGuiaId]);
+
   const guiaActiva = useMemo(() => {
     // Si hay una guía seleccionada manualmente, usarla
     if (selectedGuiaId) {
@@ -163,39 +173,31 @@ export function ClienteRutaTiempoRealPage() {
   useEffect(() => {
     const rutaId = ruta?.id;
     if (!rutaId || !guiaActiva) {
-      console.log("❌ No se conecta socket cliente:", {
-        rutaId,
-        guiaActiva: !!guiaActiva,
-      });
       return;
     }
     const token = localStorage.getItem("token");
     if (!token) {
-      console.log("❌ No hay token para socket cliente");
       return;
     }
 
-    console.log("🔌 Conectando socket cliente para ruta:", rutaId);
+
     const socket = io(import.meta.env.VITE_WS_URL ?? "http://localhost:3000", {
       auth: { token },
       transports: ["websocket"],
     });
 
     socket.on("connect", () => {
-      console.log("✅ Cliente conectado al socket, uniéndose a ruta:", rutaId);
       socket.emit("join:ruta", rutaId);
-      console.log("📨 Evento join:ruta emitido para:", rutaId);
     });
 
-    socket.on("connect_error", (error) => {
-      console.error("❌ Error de conexión socket cliente:", error);
+    socket.on("connect_error", () => {
+      // Error de conexión socket
     });
 
     socket.on(
       "seguimiento_ruta",
       (p: { rutaId: string; seguimientoChofer: string }) => {
         if (p.rutaId !== rutaId) return;
-        console.log("🔄 Seguimiento actualizado:", p.seguimientoChofer);
         setRuta((prev) =>
           prev ? { ...prev, seguimientoChofer: p.seguimientoChofer } : prev,
         );
@@ -206,7 +208,6 @@ export function ClienteRutaTiempoRealPage() {
     socket.on(
       "posicion_chofer",
       (p: { lat: number; lng: number; timestamp?: number }) => {
-        console.log("📍 Posición del chofer recibida:", p);
         setChoferPosicion({ lat: p.lat, lng: p.lng });
         setChoferGpsAt(
           p.timestamp
@@ -220,7 +221,6 @@ export function ClienteRutaTiempoRealPage() {
     socket.on(
       "guia:incidencia",
       async (p: { guiaId: string; numeroGuia: string; rutaId: string }) => {
-        console.log("⚠️ Incidencia detectada:", p);
 
         // Si es la guía del cliente, mostrar mensaje y redirigir
         if (p.guiaId === guiaActiva.id) {
@@ -241,8 +241,8 @@ export function ClienteRutaTiempoRealPage() {
           try {
             const res = await api.get<RutaApi>(`/rutas/${rutaId}`);
             setRuta(res.data);
-          } catch (error) {
-            console.error("Error al recargar ruta:", error);
+          } catch {
+            // Error al recargar ruta
           }
         }
       },
@@ -252,7 +252,6 @@ export function ClienteRutaTiempoRealPage() {
     socket.on(
       "guia:entregada",
       async (p: { guiaId: string; numeroGuia: string; rutaId: string }) => {
-        console.log("✅ Guía entregada:", p);
 
         // Si es la guía del cliente, recargar y redirigir
         if (p.guiaId === guiaActiva.id) {
@@ -281,7 +280,6 @@ export function ClienteRutaTiempoRealPage() {
     socket.on(
       "ruta:completada",
       async (p: { rutaId: string; estado: string }) => {
-        console.log("🏁 Ruta completada:", p);
         if (p.rutaId === rutaId) {
           // Recargar la lista de candidatos para actualizar el estado
           await fetchActivos(true);
@@ -302,7 +300,6 @@ export function ClienteRutaTiempoRealPage() {
     );
 
     return () => {
-      console.log("🔌 Desconectando socket del cliente");
       socket.disconnect();
     };
   }, [ruta?.id, guiaActiva?.id, guiaActiva, addToast, fetchActivos]);
@@ -492,11 +489,7 @@ export function ClienteRutaTiempoRealPage() {
     );
   }
 
-  // Si solo hay un envío, continuar automáticamente al rastreo
-  if (candidates.length === 1 && !selectedGuiaId) {
-    setSelectedGuiaId(candidates[0].id);
-    setShowSelection(false);
-  }
+
 
   return (
     <div className="space-y-6">

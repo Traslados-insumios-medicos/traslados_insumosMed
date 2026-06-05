@@ -88,38 +88,20 @@ function guiaTieneDetallePersistido(g: GuiaApi) {
 
   if (esIncidencia) {
     // Para incidencias: debe tener temperatura, horas y al menos 1 foto
-    const resultado =
-      tieneFotos && tieneTemperatura && tieneHoraLlegada && tieneHoraSalida;
-    console.log(`[VALIDACIÓN INCIDENCIA] Guía ${g.numeroGuia}:`, {
-      resultado,
-      tieneFotos,
-      tieneTemperatura,
-      tieneHoraLlegada,
-      tieneHoraSalida,
-      cantidadFotos: g.fotos?.length ?? 0,
-    });
-    return resultado;
+    return (
+      tieneFotos && tieneTemperatura && tieneHoraLlegada && tieneHoraSalida
+    );
   }
 
   // Para entregas normales: debe tener receptor, temperatura, horas y al menos 1 foto
   const tieneReceptor = !!g.receptorNombre?.trim();
-  const resultado =
+  return (
     tieneReceptor &&
     tieneFotos &&
     tieneTemperatura &&
     tieneHoraLlegada &&
-    tieneHoraSalida;
-  console.log(`[VALIDACIÓN ENTREGA] Guía ${g.numeroGuia}:`, {
-    resultado,
-    tieneReceptor,
-    tieneFotos,
-    tieneTemperatura,
-    tieneHoraLlegada,
-    tieneHoraSalida,
-    cantidadFotos: g.fotos?.length ?? 0,
-    receptorNombre: g.receptorNombre,
-  });
-  return resultado;
+    tieneHoraSalida
+  );
 }
 
 export function ChoferRutaDetallePage() {
@@ -338,7 +320,7 @@ export function ChoferRutaDetallePage() {
     // Primero intentar obtener posición actual una vez
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        console.log("✅ Ubicación obtenida:", pos.coords);
+
         const ubicacion = {
           lat: pos.coords.latitude,
           lng: pos.coords.longitude,
@@ -351,7 +333,7 @@ export function ChoferRutaDetallePage() {
         // Luego iniciar el watch
         geoWatchRef.current = navigator.geolocation.watchPosition(
           (pos) => {
-            console.log("📍 Ubicación actualizada:", pos.coords);
+
             const nuevaUbicacion = {
               lat: pos.coords.latitude,
               lng: pos.coords.longitude,
@@ -422,27 +404,21 @@ export function ChoferRutaDetallePage() {
   // Enviar posición al servidor (cliente en tiempo real) mientras la ruta está en curso
   useEffect(() => {
     if (!ubicacionActiva || ruta?.estado !== "EN_CURSO" || !id) {
-      console.log("❌ No se envía ubicación:", {
-        ubicacionActiva,
-        rutaEstado: ruta?.estado,
-        rutaId: id,
-      });
       return;
     }
     const token = localStorage.getItem("token");
     if (!token) {
-      console.log("❌ No hay token para socket");
       return;
     }
 
-    console.log("🔌 Conectando socket para enviar ubicación...");
+
     const socket = io(import.meta.env.VITE_WS_URL ?? "http://localhost:3000", {
       auth: { token },
       transports: ["websocket"],
     });
 
     socket.on("connect", () => {
-      console.log("✅ Socket conectado para ubicación");
+
       socket.emit("join:ruta", id);
     });
 
@@ -453,14 +429,9 @@ export function ChoferRutaDetallePage() {
     const enviar = () => {
       const p = miUbicacionRef.current;
       if (p && socket.connected) {
-        console.log("📍 Enviando posición:", p);
         socket.emit("posicion_chofer", { rutaId: id, lat: p.lat, lng: p.lng });
       } else {
-        console.log("⚠️ No se puede enviar posición:", {
-          tienePosicion: !!p,
-          socketConectado: socket.connected,
-          posicion: p,
-        });
+        // Sin posición o socket desconectado
       }
     };
 
@@ -469,7 +440,7 @@ export function ChoferRutaDetallePage() {
 
     const interval = window.setInterval(enviar, 4000);
     return () => {
-      console.log("🔌 Desconectando socket de ubicación");
+
       window.clearInterval(interval);
       socket.disconnect();
     };
@@ -490,12 +461,12 @@ export function ChoferRutaDetallePage() {
 
     // Escuchar cuando cambia el estado de una guía
     socket.on("guia:incidencia", () => {
-      console.log("🔄 Incidencia detectada, recargando ruta...");
+
       void fetchRuta();
     });
 
     socket.on("guia:entregada", () => {
-      console.log("🔄 Guía entregada detectada, recargando ruta...");
+
       void fetchRuta();
     });
 
@@ -504,7 +475,7 @@ export function ChoferRutaDetallePage() {
       "seguimiento_ruta",
       (p: { rutaId: string; seguimientoChofer: string }) => {
         if (p.rutaId === id) {
-          console.log("🔄 Seguimiento actualizado:", p.seguimientoChofer);
+
           setRuta((prev) =>
             prev ? { ...prev, seguimientoChofer: p.seguimientoChofer } : prev,
           );
@@ -516,7 +487,7 @@ export function ChoferRutaDetallePage() {
     // Escuchar cuando la ruta se completa
     socket.on("ruta:completada", (p: { rutaId: string }) => {
       if (p.rutaId === id) {
-        console.log("🔄 Ruta completada, recargando...");
+
         void fetchRuta();
       }
     });
@@ -543,44 +514,11 @@ export function ChoferRutaDetallePage() {
   const totalFotos = ruta?.fotos?.length ?? 0;
 
   // Verificar que todas las guías tengan datos guardados (lo que implica que tienen fotos)
-  const todasLasGuiasTienenDatosGuardados = guiasPorRuta.every((g) => {
-    const tieneDatos = guiaTieneDetallePersistido(g);
-    console.log(`Guía ${g.numeroGuia}:`, {
-      tieneDatos,
-      estado: g.estado,
-      receptorNombre: g.receptorNombre,
-      temperatura: g.temperatura,
-      horaLlegada: g.horaLlegada,
-      horaSalida: g.horaSalida,
-      observaciones: g.observaciones,
-      cantidadFotos: g.fotos?.length ?? 0,
-      fotosArray: g.fotos,
-    });
-    return tieneDatos;
-  });
-
-  console.log("=== RESUMEN VALIDACIÓN ===");
-  console.log("Total guías:", total);
-  console.log(
-    "Guías con datos guardados:",
-    guiasPorRuta.filter((g) => guiaTieneDetallePersistido(g)).length,
-  );
-  console.log(
-    "Guías SIN datos guardados:",
-    guiasPorRuta
-      .filter((g) => !guiaTieneDetallePersistido(g))
-      .map((g) => g.numeroGuia),
+  const todasLasGuiasTienenDatosGuardados = guiasPorRuta.every((g) =>
+    guiaTieneDetallePersistido(g),
   );
 
-  console.log("Validación finalizar jornada:", {
-    total,
-    totalFotos,
-    todasConEstadoFinal: guiasPorRuta.every(
-      (g) => g.estado === "ENTREGADO" || g.estado === "INCIDENCIA",
-    ),
-    todasLasGuiasTienenDatosGuardados,
-    guiasEnEdicion: guiaIdsEnEdicion.size,
-    puedeFinalizar:
+  const puedeFinalizar =
       total > 0 &&
       guiasPorRuta.every(
         (g) => g.estado === "ENTREGADO" || g.estado === "INCIDENCIA",

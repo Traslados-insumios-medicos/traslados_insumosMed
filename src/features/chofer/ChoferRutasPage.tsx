@@ -123,9 +123,6 @@ export function ChoferRutasPage() {
     [addToast, getFechaFiltro, filtroEstado, debouncedSearch],
   );
 
-  useEffect(() => {
-    fetchRutas(1);
-  }, [fetchRutas]);
 
   useEffect(() => {
     // Recargar cuando cambie el filtro de fecha
@@ -151,18 +148,18 @@ export function ChoferRutasPage() {
 
     // Escuchar cuando cambia el estado de una guía
     socket.on("guia:incidencia", () => {
-      console.log("🔄 Incidencia detectada, recargando lista de rutas...");
+
       void fetchRutas(page);
     });
 
     socket.on("guia:entregada", () => {
-      console.log("🔄 Guía entregada detectada, recargando lista de rutas...");
+
       void fetchRutas(page);
     });
 
     // Escuchar cuando la ruta se completa
     socket.on("ruta:completada", () => {
-      console.log("🔄 Ruta completada, recargando lista...");
+
       void fetchRutas(page);
     });
 
@@ -405,11 +402,7 @@ export function ChoferRutasPage() {
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {rutasFiltradas.map((ruta) => {
-            console.log("Ruta data:", {
-              id: ruta.id,
-              createdAt: ruta.createdAt,
-              fecha: ruta.fecha,
-            });
+
             const entregadas = ruta.guias.filter(
               (g) => g.estado === "ENTREGADO",
             ).length;

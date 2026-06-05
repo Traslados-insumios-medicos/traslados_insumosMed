@@ -220,12 +220,7 @@ export function exportarRutaExcel(ruta: RutaExport) {
 export async function exportarRutaPDF(ruta: RutaExport) {
   const { setMessage } = useGlobalLoadingStore.getState();
   setMessage("Preparando datos de la ruta...");
-  console.log("📄 Iniciando exportación PDF de ruta:", ruta.id);
-  console.log("📦 Datos de ruta:", {
-    totalStops: ruta.stops.length,
-    totalGuias: ruta.guias.length,
-    totalFotosRuta: ruta.fotos?.length || 0,
-  });
+
 
   const doc = new jsPDF();
   const pageHeight = doc.internal.pageSize.height;
@@ -354,7 +349,7 @@ export async function exportarRutaPDF(ruta: RutaExport) {
 
   currentY = 30;
 
-  console.log(`📋 Procesando ${ruta.stops.length} paradas con guías`);
+
 
   // OPT-4: Pre-cargar todas las fotos de guías y hoja de ruta en lotes paralelos
   // ANTES del bucle de escritura. Convierte O(N) fetches secuenciales en paralelos.
@@ -389,24 +384,16 @@ export async function exportarRutaPDF(ruta: RutaExport) {
     processedCount += batch.length;
     setMessage(`Procesando evidencias y mapas (${processedCount} de ${totalImages})`);
   }
-  console.log(`📷 ${imageCache.size} imágenes pre-cargadas en paralelo`);
+
 
   let stopIndex = 0;
   for (const stop of ruta.stops) {
     stopIndex++;
     setMessage(`Generando paradas de la ruta (${stopIndex} de ${ruta.stops.length})`);
-    console.log(`  📍 Parada #${stop.orden}: ${stop.guias.length} guías`);
+
 
     for (const guia of stop.guias) {
-      console.log(`    📦 Guía ${guia.numeroGuia}:`, {
-        estado: guia.estado,
-        receptor: guia.receptorNombre,
-        temp: guia.temperatura,
-        llegada: guia.horaLlegada,
-        salida: guia.horaSalida,
-        obs: guia.observaciones,
-        fotos: guia.fotos?.length || 0,
-      });
+
 
       // Verificar si necesitamos nueva página
       if (currentY > doc.internal.pageSize.height - 80) {
@@ -601,7 +588,7 @@ export async function exportarRutaPDF(ruta: RutaExport) {
     }
   }
 
-  console.log("✅ Detalle de guías completado");
+
 
   // SECCIÓN DE INCIDENCIAS (resumen)
   if (incidencias > 0) {
