@@ -1206,9 +1206,9 @@ export function AdminRutasPage() {
                                     </span>
                                   </label>
                                   <span
-                                    className={`text-[9px] ${guia.numeroGuia.length > 40 ? "text-amber-500" : "text-slate-400"}`}
+                                    className={`text-[9px] ${guia.numeroGuia.length > 450 ? "text-amber-500" : "text-slate-400"}`}
                                   >
-                                    {guia.numeroGuia.length}/50
+                                    {guia.numeroGuia.length}/500
                                   </span>
                                 </div>
                                 <div className="flex gap-1.5">
@@ -1223,7 +1223,7 @@ export function AdminRutasPage() {
                                         e.target.value.toUpperCase(),
                                       )
                                     }
-                                    maxLength={50}
+                                    maxLength={500}
                                     className={`w-full rounded-md border bg-white px-2.5 py-1.5 text-xs font-mono ${
                                       stopsErrors[i]?.guias?.[gIdx]
                                         ? "border-red-400"
