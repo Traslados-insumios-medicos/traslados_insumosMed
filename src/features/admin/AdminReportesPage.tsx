@@ -196,10 +196,39 @@ const buildStaticMapUrl = (
   return "";
 };
 
+const PDF_LOADING_MESSAGES = [
+  "Generando reporte...",
+  "Recopilando información...",
+  "Procesando evidencias fotográficas...",
+  "Generando mapas de seguimiento...",
+  "Optimizando imágenes para el PDF...",
+  "Preparando archivo para descarga..."
+];
+
+const startPdfLoadingRotation = (
+  setMessage: (msg: string | null) => void,
+  setShowSubText: (val: boolean) => void
+) => {
+  let index = 0;
+  setMessage(PDF_LOADING_MESSAGES[0]);
+  setShowSubText(true);
+  
+  const intervalId = setInterval(() => {
+    index = (index + 1) % PDF_LOADING_MESSAGES.length;
+    setMessage(PDF_LOADING_MESSAGES[index]);
+  }, 3000);
+
+  return () => {
+    clearInterval(intervalId);
+    setMessage(null);
+    setShowSubText(false);
+  };
+};
+
 export function AdminReportesPage() {
   const ciudadesOptions = useCiudadesOptions();
   const addToast = useToastStore((s) => s.addToast);
-  const { show: showLoading, hide: hideLoading } = useGlobalLoadingStore();
+  const { show: showLoading, hide: hideLoading, setMessage, setShowSubText } = useGlobalLoadingStore();
   const { downloadImage } = useImageDownload();
 
   const [tab, setTab] = useState<TabId>("cliente");
@@ -455,6 +484,7 @@ export function AdminReportesPage() {
   };
   const handleExportClientePDF = async () => {
     showLoading();
+    const stopRotation = startPdfLoadingRotation(setMessage, setShowSubText);
     try {
       const totalGuias = dataCliente.reduce((acc, r) => acc + r.total, 0);
       const totalEntregados = dataCliente.reduce(
@@ -537,6 +567,7 @@ export function AdminReportesPage() {
     } catch {
       // error silencioso
     } finally {
+      stopRotation();
       hideLoading();
     }
   };
@@ -589,6 +620,7 @@ export function AdminReportesPage() {
     );
   const handleExportChoferPDF = async () => {
     showLoading();
+    const stopRotation = startPdfLoadingRotation(setMessage, setShowSubText);
     try {
       const rows = buildChoferRows();
       const totalRutas = dataChofer.reduce(
@@ -708,6 +740,7 @@ export function AdminReportesPage() {
     } catch {
       /* silencioso */
     } finally {
+      stopRotation();
       hideLoading();
     }
   };
@@ -747,6 +780,7 @@ export function AdminReportesPage() {
 
   const handleExportFechasPDF = async () => {
     showLoading();
+    const stopRotation = startPdfLoadingRotation(setMessage, setShowSubText);
     try {
       const rows = buildFechasRows();
       const entregadas = dataFechas.filter(
@@ -847,6 +881,7 @@ export function AdminReportesPage() {
     } catch {
       /* silencioso */
     } finally {
+      stopRotation();
       hideLoading();
     }
   };
@@ -892,6 +927,7 @@ export function AdminReportesPage() {
 
   const handleExportGuiaPDF = async () => {
     showLoading();
+    const stopRotation = startPdfLoadingRotation(setMessage, setShowSubText);
     try {
       const rows = buildGuiaRows();
       const entregadas = dataGuia.filter(
@@ -996,6 +1032,7 @@ export function AdminReportesPage() {
     } catch {
       /* silencioso */
     } finally {
+      stopRotation();
       hideLoading();
     }
   };
