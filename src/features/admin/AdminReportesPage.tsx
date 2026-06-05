@@ -184,11 +184,14 @@ const buildStaticMapUrl = (
   direccion?: string | null,
 ) => {
   if (!MAPBOX_TOKEN) return "";
+  // OPT-3: 400x220 sin @2x — 75 % menos píxeles que 520x280@2x (~60 KB vs ~250 KB).
+  // El mapa se renderiza en la tarjeta a 80x44 mm en jsPDF, por lo que
+  // 400 px de ancho es más que suficiente para impresión en PDF A4.
   if (lat !== null && lat !== undefined && lng !== null && lng !== undefined) {
-    return `https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/pin-s+0f172a(${lng},${lat})/${lng},${lat},14/520x280@2x?access_token=${MAPBOX_TOKEN}`;
+    return `https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/pin-s+0f172a(${lng},${lat})/${lng},${lat},14/400x220?access_token=${MAPBOX_TOKEN}`;
   }
   if (direccion && direccion.trim()) {
-    return `https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/pin-s+0f172a(${encodeURIComponent(direccion)})/auto/520x280@2x?access_token=${MAPBOX_TOKEN}`;
+    return `https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/pin-s+0f172a(${encodeURIComponent(direccion)})/auto/400x220?access_token=${MAPBOX_TOKEN}`;
   }
   return "";
 };

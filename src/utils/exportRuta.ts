@@ -12,10 +12,28 @@ interface JsPdfWithAutoTable extends jsPDF {
   lastAutoTable?: { finalY?: number };
 }
 
+// OPT-1: Aplica transformaciones Cloudinary (w_1200, c_limit, q_70, f_jpg)
+// para reducir peso de imágenes antes de descargarlas para el PDF.
+function optimizeUrlForPDF(url: string): string {
+  if (!url) return url;
+  const idx = url.indexOf("/upload/");
+  if (idx === -1) return url; // No es Cloudinary
+  const afterUpload = url.slice(idx + 8);
+  if (
+    afterUpload.startsWith("w_") ||
+    afterUpload.includes(",q_") ||
+    afterUpload.includes(",f_")
+  ) {
+    return url; // Ya tiene transforms, no duplicar
+  }
+  return url.slice(0, idx + 8) + "w_1200,c_limit,q_70,f_jpg/" + afterUpload;
+}
+
 // Helper para convertir imagen URL a base64
 async function urlToBase64(url: string): Promise<string> {
   try {
-    const response = await fetch(url);
+    const optimizedUrl = optimizeUrlForPDF(url); // OPT-1
+    const response = await fetch(optimizedUrl);
     const blob = await response.blob();
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -334,6 +352,37 @@ export async function exportarRutaPDF(ruta: RutaExport) {
 
   console.log(`📋 Procesando ${ruta.stops.length} paradas con guías`);
 
+  // OPT-4: Pre-cargar todas las fotos de guías y hoja de ruta en lotes paralelos
+  // ANTES del bucle de escritura. Convierte O(N) fetches secuenciales en paralelos.
+  const imageCache = new Map<string, string>();
+  const allFotoUrls = [
+    ...new Set([
+      ...ruta.stops.flatMap((s) =>
+        s.guias.flatMap((g) => (g.fotos ?? []).map((f) => f.urlPreview)),
+      ),
+      ...(ruta.fotos
+        ?.filter((f) => f.tipo === "HOJA_RUTA")
+        .map((f) => f.urlPreview) ?? []),
+    ]),
+  ];
+  const FOTO_BATCH = 6; // lote conservador para ruta individual
+  for (let bi = 0; bi < allFotoUrls.length; bi += FOTO_BATCH) {
+    const batch = allFotoUrls.slice(bi, bi + FOTO_BATCH);
+    const batchResults = await Promise.allSettled(
+      batch.map(async (url) => {
+        const raw = await urlToBase64(url);           // OPT-1 ya aplicado
+        const processed = await normalizeImageOrientationPublic(raw); // OPT-2
+        return { url, processed };
+      }),
+    );
+    for (const res of batchResults) {
+      if (res.status === "fulfilled") {
+        imageCache.set(res.value.url, res.value.processed);
+      }
+    }
+  }
+  console.log(`📷 ${imageCache.size} imágenes pre-cargadas en paralelo`);
+
   for (const stop of ruta.stops) {
     console.log(`  📍 Parada #${stop.orden}: ${stop.guias.length} guías`);
 
@@ -485,9 +534,10 @@ export async function exportarRutaPDF(ruta: RutaExport) {
           try {
             const maxImgWidth = 60;
             const maxImgHeight = 45;
-            const imgBase64Raw = await urlToBase64(foto.urlPreview);
-            const imgBase64 =
-              await normalizeImageOrientationPublic(imgBase64Raw);
+            // OPT-4: leer de cache pre-cargada | OPT-5: liberar RAM tras uso
+            const imgBase64 = imageCache.get(foto.urlPreview) ?? "";
+            imageCache.delete(foto.urlPreview);
+            if (!imgBase64) throw new Error("foto not preloaded");
             const imgProps = doc.getImageProperties(imgBase64);
             const imgRatio = imgProps.width / imgProps.height;
             let drawWidth = maxImgWidth;
@@ -616,8 +666,10 @@ export async function exportarRutaPDF(ruta: RutaExport) {
       const foto = fotosHojaRuta[i];
 
       try {
-        const imgBase64Raw = await urlToBase64(foto.urlPreview);
-        const imgBase64 = await normalizeImageOrientationPublic(imgBase64Raw);
+        // OPT-4: leer de cache pre-cargada | OPT-5: liberar RAM tras uso
+        const imgBase64 = imageCache.get(foto.urlPreview) ?? "";
+        imageCache.delete(foto.urlPreview);
+        if (!imgBase64) throw new Error("foto hoja ruta not preloaded");
         const imgProps = doc.getImageProperties(imgBase64);
         const imgRatio = imgProps.width / imgProps.height;
         let drawWidth = maxImageWidth;

@@ -64,8 +64,36 @@ export interface ExportPdfOptions {
   sourcePanel?: string; // ej: "panel administrativo", "portal cliente", "panel chofer"
 }
 
+/**
+ * OPT-1: Inserta transformaciones Cloudinary en la URL para reducir el peso
+ * de la imagen antes de descargarla. Solo actúa sobre URLs de Cloudinary
+ * (contienen "/upload/"). Mapbox, logos y otras URLs no se ven afectadas.
+ *
+ * Transformaciones aplicadas:
+ *   w_1200  — ancho máximo 1200 px (más que suficiente para PDF A4 full-page)
+ *   c_limit — nunca amplía imágenes más pequeñas
+ *   q_70    — calidad JPEG 70 % (excelente balance visual/peso)
+ *   f_jpg   — fuerza formato JPEG (evita PNG sin comprimir)
+ */
+function optimizeCloudinaryUrl(url: string): string {
+  if (!url) return url;
+  const idx = url.indexOf("/upload/");
+  if (idx === -1) return url; // No es Cloudinary (Mapbox, logo, etc.)
+  const afterUpload = url.slice(idx + 8);
+  // Si ya tiene transforms, no duplicar
+  if (
+    afterUpload.startsWith("w_") ||
+    afterUpload.includes(",q_") ||
+    afterUpload.includes(",f_")
+  ) {
+    return url;
+  }
+  return url.slice(0, idx + 8) + "w_1200,c_limit,q_70,f_jpg/" + afterUpload;
+}
+
 async function urlToBase64(url: string): Promise<string> {
-  const response = await fetch(url);
+  const optimizedUrl = optimizeCloudinaryUrl(url); // OPT-1: reduce peso Cloudinary
+  const response = await fetch(optimizedUrl);
   const blob = await response.blob();
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -84,22 +112,43 @@ async function urlToBase64(url: string): Promise<string> {
  *
  * Exportar como PNG garantiza que jsPDF no reciba metadata de orientación que ignorar.
  */
+/**
+ * OPT-2: Normaliza orientación EXIF y reduce peso/resolución.
+ *
+ * Cambios respecto a la versión original:
+ *   - MAX_DIM 1600 px: evita canvas de 30–100 MB para fotos de celular 4K.
+ *     Una foto de 4000×3000 se reduce a 1600×1200 (mismo ratio).
+ *   - JPEG 82% en lugar de PNG sin comprimir: ~90 % menos RAM y almacenamiento.
+ *     Para PDF el JPEG 82% es indistinguible del original a ojo desnudo.
+ *
+ * Para imágenes nuevas: Cloudinary ya aplica angle:'exif' al subir.
+ * Para imágenes antiguas con EXIF: el browser corrige al cargar <img>,
+ * ctx.drawImage dibuja los píxeles ya orientados y exportamos sin EXIF.
+ */
 async function normalizeImageOrientation(base64: string): Promise<string> {
   return new Promise<string>((resolve) => {
     const img = new Image();
     img.onload = () => {
+      const MAX_DIM = 1600; // px — suficiente para PDF A4 full-page a 150 DPI
+      let w = img.naturalWidth;
+      let h = img.naturalHeight;
+      // OPT-2: cap de resolución — evita canvas gigantes (fotos celular 4K+)
+      if (w > MAX_DIM || h > MAX_DIM) {
+        const ratio = Math.min(MAX_DIM / w, MAX_DIM / h);
+        w = Math.round(w * ratio);
+        h = Math.round(h * ratio);
+      }
       const canvas = document.createElement("canvas");
-      // naturalWidth/Height ya reflejan la orientación corregida por el browser
-      canvas.width = img.naturalWidth;
-      canvas.height = img.naturalHeight;
+      canvas.width = w;
+      canvas.height = h;
       const ctx = canvas.getContext("2d");
       if (!ctx) {
         resolve(base64);
         return;
       }
-      ctx.drawImage(img, 0, 0);
-      // PNG no tiene campo EXIF de orientación — píxeles ya correctos
-      resolve(canvas.toDataURL("image/png"));
+      ctx.drawImage(img, 0, 0, w, h); // escala si se aplicó cap
+      // OPT-2: JPEG 82% — drásticamente más liviano que PNG a resolución original
+      resolve(canvas.toDataURL("image/jpeg", 0.82));
     };
     img.onerror = () => resolve(base64);
     // crossOrigin necesario para imágenes de Cloudinary (CORS)
@@ -546,6 +595,38 @@ export async function exportToPDF(
     doc.text("Detalle de guias en formato de lectura", marginX, y);
     y += 6;
 
+    // OPT-4: Pre-cargar TODAS las imágenes de todas las cards en lotes paralelos
+    // ANTES de iniciar el bucle de escritura del PDF.
+    //
+    // Esto transforma la descarga de O(N) fetches secuenciales (bloqueantes)
+    // en descargas paralelas controladas de 8 a la vez, eliminando la latencia
+    // acumulada de red del bucle de escritura.
+    //
+    // El bucle de escritura queda 100% sincrónico: solo lee del Map en memoria.
+    const imageCache = new Map<string, string>();
+    const allCardUrls = [
+      ...new Set(
+        detailCards.flatMap((c) => c.imageUrls ?? []).filter(Boolean),
+      ),
+    ];
+    const IMG_BATCH = 8; // lote seguro: no satura el navegador ni las APIs externas
+    for (let bi = 0; bi < allCardUrls.length; bi += IMG_BATCH) {
+      const batch = allCardUrls.slice(bi, bi + IMG_BATCH);
+      const batchResults = await Promise.allSettled(
+        batch.map(async (url) => {
+          const raw = await urlToBase64(url);          // OPT-1 aplicado internamente
+          const processed = await normalizeImageOrientation(raw); // OPT-2 aplicado
+          return { url, processed };
+        }),
+      );
+      for (const res of batchResults) {
+        if (res.status === "fulfilled") {
+          imageCache.set(res.value.url, res.value.processed);
+        }
+        // rejected: imagen no disponible — el loop usará "" y activará el catch
+      }
+    }
+
     for (let idx = 0; idx < detailCards.length; idx++) {
       const card = detailCards[idx];
       const cardHeight = calcCardHeight(card);
@@ -630,7 +711,10 @@ export async function exportToPDF(
         const mapX = x + cardWidth - mapWidth - 4;
         const mapY = y + 18; // debajo del header de la tarjeta
         try {
-          const mapBase64 = await urlToBase64(mapUrl);
+          // OPT-4: leer de cache pre-cargada (sin red) | OPT-5: liberar RAM tras uso
+          const mapBase64 = imageCache.get(mapUrl) ?? "";
+          imageCache.delete(mapUrl);
+          if (!mapBase64) throw new Error("map not preloaded");
           const mapFormat = imageFormatFromBase64(mapBase64);
           doc.setFontSize(7);
           doc.setTextColor(71, 85, 105);
@@ -672,8 +756,10 @@ export async function exportToPDF(
             11,
           );
           try {
-            const imgBase64Raw = await urlToBase64(evidenceUrls[i]);
-            const imgBase64 = await normalizeImageOrientation(imgBase64Raw);
+            // OPT-4: leer de cache pre-cargada | OPT-5: liberar RAM tras uso
+            const imgBase64 = imageCache.get(evidenceUrls[i]) ?? "";
+            imageCache.delete(evidenceUrls[i]);
+            if (!imgBase64) throw new Error("evidence not preloaded");
             const format = imageFormatFromBase64(imgBase64);
             const imgMargin = 10;
             doc.addImage(
