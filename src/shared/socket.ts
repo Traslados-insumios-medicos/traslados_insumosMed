@@ -1,6 +1,7 @@
 import { io, Socket } from 'socket.io-client'
 
 let sharedSocket: Socket | null = null
+let socketToken: string | null = null
 let refCount = 0
 
 export function getSharedSocketId(): string | undefined {
@@ -8,10 +9,17 @@ export function getSharedSocketId(): string | undefined {
 }
 
 export function getSharedSocket(): Socket {
+  const currentToken = localStorage.getItem('token')
+  
+  if (sharedSocket && socketToken !== currentToken) {
+    sharedSocket.disconnect()
+    sharedSocket = null
+  }
+
   if (!sharedSocket) {
-    const token = localStorage.getItem('token')
+    socketToken = currentToken
     sharedSocket = io(import.meta.env.VITE_WS_URL ?? 'http://localhost:3000', {
-      auth: { token },
+      auth: { token: currentToken },
       transports: ['websocket'],
       reconnection: true,
     })

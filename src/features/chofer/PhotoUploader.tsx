@@ -76,6 +76,8 @@ export function PhotoUploader({
   const [fotos, setFotos] = useState<FotoDisplay[]>([]);
   const [uploading, setUploading] = useState(false);
 
+  const initialFilesLength = initialDraftFiles?.length ?? 0;
+
   // Cargar fotos existentes del servidor
   useEffect(() => {
     const url =
@@ -91,7 +93,7 @@ export function PhotoUploader({
       .get<FotoApi[]>(url)
       .then((r) => {
         // Si hay fotos en borrador, combinarlas con las del servidor
-        if (draftMode && initialDraftFiles.length > 0) {
+        if (draftMode && initialDraftFiles && initialDraftFiles.length > 0) {
           const borradores: FotoBorrador[] = initialDraftFiles.map((file) => ({
             file,
             preview: URL.createObjectURL(file),
@@ -104,7 +106,7 @@ export function PhotoUploader({
       })
       .catch(() => {
         // Si falla la carga del servidor pero hay borradores, mostrar solo borradores
-        if (draftMode && initialDraftFiles.length > 0) {
+        if (draftMode && initialDraftFiles && initialDraftFiles.length > 0) {
           const borradores: FotoBorrador[] = initialDraftFiles.map((file) => ({
             file,
             preview: URL.createObjectURL(file),
@@ -113,7 +115,7 @@ export function PhotoUploader({
           setFotos(borradores);
         }
       });
-  }, [scope, guiaId, rutaId, draftMode, initialDraftFiles]);
+  }, [scope, guiaId, rutaId, draftMode, initialFilesLength]);
 
   const [, setPendingImageLoads] = useState(0);
 

@@ -45,6 +45,7 @@ interface RutaActiva {
     lat: number;
     lng: number;
     direccion: string;
+    guias: { id: string; estado: string }[];
   }[];
   guias: { id: string; estado: string }[];
 }
@@ -180,7 +181,9 @@ export function AdminSeguimientoPage() {
       lng: number;
       timestamp?: number;
     }) => {
-      console.log("📍 ADMIN RECIBIÓ POSICION:", p);
+      console.log("📍 [ADMIN WS] RECIBIÓ POSICION - rutaId:", p.rutaId, "choferId:", p.choferId, "lat:", p.lat, "lng:", p.lng);
+      console.log("📍 [ADMIN WS] ¿Coincide rutaId con selectedRutaId?", p.rutaId === selectedRutaId, "rutaId:", p.rutaId, "selectedRutaId:", selectedRutaId);
+      
       setPosiciones((prev) => {
         const next = new Map(prev);
         next.set(p.rutaId, {
@@ -198,7 +201,11 @@ export function AdminSeguimientoPage() {
     return () => {
       socket.off("posicion_chofer", handler);
     };
-  }, []);
+  }, [selectedRutaId]);
+
+  useEffect(() => {
+    console.log("📊 [ADMIN STATE] Posiciones actualizado - Tamaño del Map:", posiciones.size, "Rutas almacenadas:", Array.from(posiciones.keys()));
+  }, [posiciones]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -267,20 +274,55 @@ export function AdminSeguimientoPage() {
 
     const sortedStops = [...ruta.stops].sort((a, b) => a.orden - b.orden);
 
+    const isStopCompletada = (stop: any) => {
+      return (
+        stop.guias &&
+        stop.guias.length > 0 &&
+        stop.guias.every(
+          (g: any) => g.estado === "ENTREGADO" || g.estado === "INCIDENCIA"
+        )
+      );
+    };
+
     // Dibujar marcadores de paradas
     sortedStops.forEach((stop) => {
+      const done = isStopCompletada(stop);
+      const hasIncident = stop.guias && stop.guias.some((g: any) => g.estado === "INCIDENCIA");
       const el = document.createElement("div");
-      el.style.cssText = `
-        background:#0f172a;color:white;width:28px;height:28px;
-        border-radius:50%;display:flex;align-items:center;
-        justify-content:center;font-size:12px;font-weight:bold;
-        border:2px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.2);
-        cursor:pointer;
-      `;
-      el.textContent = String(stop.orden);
 
+      if (hasIncident) {
+        el.style.cssText = `
+          background:#dc2626;color:white;width:28px;height:28px;
+          border-radius:50%;display:flex;align-items:center;
+          justify-content:center;font-size:16px;font-weight:bold;
+          border:2px solid white;box-shadow:0 2px 4px rgba(220,38,38,0.3);
+          cursor:pointer;
+        `;
+        el.textContent = "⚠";
+      } else if (done) {
+        el.style.cssText = `
+          opacity:0.85;
+          background:#16a34a;color:white;width:28px;height:28px;
+          border-radius:50%;display:flex;align-items:center;
+          justify-content:center;font-size:14px;font-weight:bold;
+          border:2px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.15);
+          cursor:pointer;
+        `;
+        el.textContent = "✓";
+      } else {
+        el.style.cssText = `
+          background:#0f172a;color:white;width:28px;height:28px;
+          border-radius:50%;display:flex;align-items:center;
+          justify-content:center;font-size:12px;font-weight:bold;
+          border:2px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.2);
+          cursor:pointer;
+        `;
+        el.textContent = String(stop.orden);
+      }
+
+      const statusText = hasIncident ? "Incidencia" : done ? "Completada" : "Pendiente";
       const popup = new mapboxgl.Popup({ offset: 16 }).setHTML(
-        `<strong>Parada ${stop.orden}</strong><br/>${stop.direccion}`
+        `<strong>Parada ${stop.orden}</strong> (${statusText})<br/>${stop.direccion}`
       );
 
       const marker = new mapboxgl.Marker({ element: el })
@@ -294,8 +336,28 @@ export function AdminSeguimientoPage() {
     // Trazar línea de ruta
     let cancelled = false;
     (async () => {
-      if (sortedStops.length < 2) return;
-      const points = sortedStops.map((s) => [s.lng, s.lat] as [number, number]);
+      const pendientes = sortedStops.filter((s) => !isStopCompletada(s));
+      const pos = posiciones.get(selectedRutaId);
+
+      let points: [number, number][] = [];
+      if (pendientes.length === 0) {
+        points = [];
+      } else if (pos) {
+        points.push([pos.lng, pos.lat]);
+        pendientes.forEach((s) => points.push([s.lng, s.lat]));
+      } else if (pendientes.length >= 2) {
+        points = pendientes.map((s) => [s.lng, s.lat]);
+      } else {
+        points = sortedStops.map((s) => [s.lng, s.lat]);
+      }
+
+      if (points.length < 2) {
+        if (map.getLayer(srcId)) {
+          map.setLayoutProperty(srcId, "visibility", "none");
+        }
+        return;
+      }
+
       const coords = await getRouteCoordinates(points);
 
       if (cancelled) return;
