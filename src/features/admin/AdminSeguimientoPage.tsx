@@ -70,10 +70,31 @@ const COLORES = [
 ];
 const QUITO: [number, number] = [-78.47, -0.18];
 
+async function getRouteCoordinates(points: [number, number][]): Promise<[number, number][]> {
+  if (points.length < 2) return [];
+  const fallback = points;
+  if (!mapboxgl.accessToken) return fallback;
+
+  try {
+    const coords = points.map((p) => `${p[0]},${p[1]}`).join(";");
+    const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${coords}?geometries=geojson&overview=full&access_token=${mapboxgl.accessToken}`;
+    const res = await fetch(url);
+    if (!res.ok) return fallback;
+    const data = (await res.json()) as {
+      routes?: Array<{ geometry?: { coordinates?: [number, number][] } }>;
+    };
+    const routeCoords = data.routes?.[0]?.geometry?.coordinates;
+    return routeCoords?.length ? routeCoords : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 export function AdminSeguimientoPage() {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<mapboxgl.Map | null>(null);
   const markersRef = useRef<Map<string, mapboxgl.Marker>>(new Map());
+  const stopMarkersRef = useRef<mapboxgl.Marker[]>([]);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [rutasActivas, setRutasActivas] = useState<RutaActiva[]>([]);
   const [posiciones, setPosiciones] = useState<Map<string, ChoferPosicion>>(
@@ -141,6 +162,8 @@ export function AdminSeguimientoPage() {
     return () => {
       markers.forEach((m) => m.remove());
       markers.clear();
+      stopMarkersRef.current.forEach((m) => m.remove());
+      stopMarkersRef.current = [];
       map.remove();
       mapRef.current = null;
       setMapLoaded(false);
@@ -149,7 +172,6 @@ export function AdminSeguimientoPage() {
 
   useEffect(() => {
     const socket = getSharedSocket();
-    socket.emit("join:admin:seguimiento");
     const handler = (p: {
       rutaId: string;
       choferId: string;
@@ -158,6 +180,7 @@ export function AdminSeguimientoPage() {
       lng: number;
       timestamp?: number;
     }) => {
+      console.log("📍 ADMIN RECIBIÓ POSICION:", p);
       setPosiciones((prev) => {
         const next = new Map(prev);
         next.set(p.rutaId, {
@@ -174,7 +197,6 @@ export function AdminSeguimientoPage() {
     socket.on("posicion_chofer", handler);
     return () => {
       socket.off("posicion_chofer", handler);
-      socket.emit("leave:admin:seguimiento");
     };
   }, []);
 
@@ -217,22 +239,118 @@ export function AdminSeguimientoPage() {
     });
   }, [posiciones, rutasActivas, mapLoaded]);
 
+  // Dibujar paradas y ruta vectorizada de la ruta seleccionada
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapLoaded) return;
+
+    // Limpieza de marcadores de paradas existentes
+    stopMarkersRef.current.forEach((m) => m.remove());
+    stopMarkersRef.current = [];
+
+    const srcId = "selected-route";
+
+    if (!selectedRutaId) {
+      if (map.getLayer(srcId)) {
+        map.setLayoutProperty(srcId, "visibility", "none");
+      }
+      return;
+    }
+
+    const ruta = rutasActivas.find((r) => r.id === selectedRutaId);
+    if (!ruta) {
+      if (map.getLayer(srcId)) {
+        map.setLayoutProperty(srcId, "visibility", "none");
+      }
+      return;
+    }
+
+    const sortedStops = [...ruta.stops].sort((a, b) => a.orden - b.orden);
+
+    // Dibujar marcadores de paradas
+    sortedStops.forEach((stop) => {
+      const el = document.createElement("div");
+      el.style.cssText = `
+        background:#0f172a;color:white;width:28px;height:28px;
+        border-radius:50%;display:flex;align-items:center;
+        justify-content:center;font-size:12px;font-weight:bold;
+        border:2px solid white;box-shadow:0 2px 4px rgba(0,0,0,0.2);
+        cursor:pointer;
+      `;
+      el.textContent = String(stop.orden);
+
+      const popup = new mapboxgl.Popup({ offset: 16 }).setHTML(
+        `<strong>Parada ${stop.orden}</strong><br/>${stop.direccion}`
+      );
+
+      const marker = new mapboxgl.Marker({ element: el })
+        .setLngLat([stop.lng, stop.lat])
+        .setPopup(popup)
+        .addTo(map);
+
+      stopMarkersRef.current.push(marker);
+    });
+
+    // Trazar línea de ruta
+    let cancelled = false;
+    (async () => {
+      if (sortedStops.length < 2) return;
+      const points = sortedStops.map((s) => [s.lng, s.lat] as [number, number]);
+      const coords = await getRouteCoordinates(points);
+
+      if (cancelled) return;
+
+      const routeFeature = {
+        type: "Feature" as const,
+        properties: {},
+        geometry: {
+          type: "LineString" as const,
+          coordinates: coords,
+        },
+      };
+
+      if (map.getSource(srcId)) {
+        (map.getSource(srcId) as mapboxgl.GeoJSONSource).setData(routeFeature);
+      } else {
+        map.addSource(srcId, { type: "geojson", data: routeFeature });
+        map.addLayer({
+          id: srcId,
+          type: "line",
+          source: srcId,
+          layout: { "line-join": "round", "line-cap": "round" },
+          paint: { "line-color": "#0284c7", "line-width": 4, "line-opacity": 0.85 },
+        });
+      }
+
+      if (map.getLayer(srcId)) {
+        map.setLayoutProperty(srcId, "visibility", "visible");
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedRutaId, rutasActivas, mapLoaded]);
+
+  // Volar a la ruta seleccionada únicamente cuando cambia la selección
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapLoaded || !selectedRutaId) return;
+
     const pos = posiciones.get(selectedRutaId);
     if (pos) {
       map.flyTo({ center: [pos.lng, pos.lat], zoom: 15, duration: 800 });
       return;
     }
     const ruta = rutasActivas.find((r) => r.id === selectedRutaId);
-    if (ruta?.stops.length)
+    if (ruta?.stops.length) {
       map.flyTo({
         center: [ruta.stops[0].lng, ruta.stops[0].lat],
         zoom: 14,
         duration: 800,
       });
-  }, [selectedRutaId, posiciones, rutasActivas, mapLoaded]);
+    }
+  }, [selectedRutaId, mapLoaded]);
 
   const getProgreso = (ruta: RutaActiva) => {
     const total = ruta.guias.length;

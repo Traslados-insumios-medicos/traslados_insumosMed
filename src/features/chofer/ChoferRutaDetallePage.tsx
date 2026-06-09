@@ -429,7 +429,13 @@ export function ChoferRutaDetallePage() {
     const enviar = () => {
       const p = miUbicacionRef.current;
       if (p && socket.connected) {
-        socket.emit("posicion_chofer", { rutaId: id, lat: p.lat, lng: p.lng });
+        socket.emit("posicion_chofer", { 
+          rutaId: id, 
+          choferId: currentUser?.id ?? "",
+          choferNombre: currentUser?.nombre ?? "",
+          lat: p.lat, 
+          lng: p.lng 
+        });
       } else {
         // Sin posición o socket desconectado
       }
@@ -517,16 +523,6 @@ export function ChoferRutaDetallePage() {
   const todasLasGuiasTienenDatosGuardados = guiasPorRuta.every((g) =>
     guiaTieneDetallePersistido(g),
   );
-
-  const puedeFinalizar =
-      total > 0 &&
-      guiasPorRuta.every(
-        (g) => g.estado === "ENTREGADO" || g.estado === "INCIDENCIA",
-      ) &&
-      todasLasGuiasTienenDatosGuardados &&
-      totalFotos > 0 &&
-      guiaIdsEnEdicion.size === 0,
-  });
 
   // La hoja de ruta es OBLIGATORIA para finalizar
   const puedeFinalizar =
