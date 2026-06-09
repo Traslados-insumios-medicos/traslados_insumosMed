@@ -320,7 +320,6 @@ export function ChoferRutaDetallePage() {
     // Primero intentar obtener posición actual una vez
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        console.log("📍 [CHOFER GPS] Geoposición inicial recibida - lat:", pos.coords.latitude, "lng:", pos.coords.longitude);
         const ubicacion = {
           lat: pos.coords.latitude,
           lng: pos.coords.longitude,
@@ -333,7 +332,6 @@ export function ChoferRutaDetallePage() {
         // Luego iniciar el watch
         geoWatchRef.current = navigator.geolocation.watchPosition(
           (pos) => {
-            console.log("📍 [CHOFER GPS] Geoposición watch recibida - lat:", pos.coords.latitude, "lng:", pos.coords.longitude);
             const nuevaUbicacion = {
               lat: pos.coords.latitude,
               lng: pos.coords.longitude,
@@ -428,7 +426,6 @@ export function ChoferRutaDetallePage() {
 
     const enviar = () => {
       const p = miUbicacionRef.current;
-      console.log("📡 [CHOFER WS] Intentando enviar posición. Ubicación en ref (miUbicacionRef):", p, "Socket conectado (socket.connected):", socket.connected, "Socket ID:", socket.id);
       if (p && socket.connected) {
         const payload = { 
           rutaId: id, 
@@ -437,10 +434,7 @@ export function ChoferRutaDetallePage() {
           lat: p.lat, 
           lng: p.lng 
         };
-        console.log("📡 [CHOFER WS] EMITIENDO posicion_chofer - payload:", payload);
         socket.emit("posicion_chofer", payload);
-      } else {
-        console.log("⚠️ [CHOFER WS] NO EMITIDO: falta geolocalización o socket desconectado.");
       }
     };
 

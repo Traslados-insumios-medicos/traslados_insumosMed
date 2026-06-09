@@ -181,9 +181,6 @@ export function AdminSeguimientoPage() {
       lng: number;
       timestamp?: number;
     }) => {
-      console.log("📍 [ADMIN WS] RECIBIÓ POSICION - rutaId:", p.rutaId, "choferId:", p.choferId, "lat:", p.lat, "lng:", p.lng);
-      console.log("📍 [ADMIN WS] ¿Coincide rutaId con selectedRutaId?", p.rutaId === selectedRutaId, "rutaId:", p.rutaId, "selectedRutaId:", selectedRutaId);
-      
       setPosiciones((prev) => {
         const next = new Map(prev);
         next.set(p.rutaId, {
@@ -202,10 +199,6 @@ export function AdminSeguimientoPage() {
       socket.off("posicion_chofer", handler);
     };
   }, [selectedRutaId]);
-
-  useEffect(() => {
-    console.log("📊 [ADMIN STATE] Posiciones actualizado - Tamaño del Map:", posiciones.size, "Rutas almacenadas:", Array.from(posiciones.keys()));
-  }, [posiciones]);
 
   useEffect(() => {
     const map = mapRef.current;
