@@ -890,14 +890,17 @@ export function ChoferRutaDetallePage() {
   const handleIniciarRuta = async () => {
     if (!id || iniciandoRutaRef.current) return;
     iniciandoRutaRef.current = true;
+
+    // Activar ubicación automáticamente (se llama de forma síncrona al click
+    // para que el navegador móvil no bloquee la solicitud de permisos tras el await)
+    activarUbicacion();
+
     try {
       const res = await api.patch<RutaApi>(`/rutas/${id}/estado`, {
         estado: "EN_CURSO",
       });
       setRuta(res.data);
       addToast("Ruta iniciada", "success");
-      // Activar ubicación automáticamente al iniciar la ruta
-      activarUbicacion();
     } catch {
       addToast("Error al iniciar ruta", "error");
     } finally {
