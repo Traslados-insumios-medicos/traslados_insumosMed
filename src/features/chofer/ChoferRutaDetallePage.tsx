@@ -800,18 +800,43 @@ export function ChoferRutaDetallePage() {
 
       // 3. Subir fotos en borrador
       const fotosBorrador = fotosBorradorPorGuia[guiaId] || [];
+      let fotosSubidas = 0;
+      let fotosFallidas = 0;
+      const archivosExitosos: File[] = [];
+
       if (fotosBorrador.length > 0) {
+        console.log(`[DEBUG] Iniciando subida de ${fotosBorrador.length} fotos para guía ${guiaId}`);
+        const startTimeTotal = performance.now();
+        let fotoIndex = 1;
         for (const file of fotosBorrador) {
+          addToast(`Subiendo foto ${fotoIndex} de ${fotosBorrador.length}...`, "info");
+          const startTimeFoto = performance.now();
           const formData = new FormData();
           formData.append("foto", file);
-          await api.post(`/fotos/guia/${guiaId}`, formData, {
-            headers: { "Content-Type": "multipart/form-data" },
-          });
+          try {
+            await api.post(`/fotos/guia/${guiaId}`, formData, {
+              headers: { "Content-Type": "multipart/form-data" },
+            });
+            console.log(`[DEBUG] Foto ${fotoIndex} subida en ${((performance.now() - startTimeFoto) / 1000).toFixed(2)}s`);
+            fotosSubidas++;
+            archivosExitosos.push(file);
+          } catch (fotoErr: any) {
+            console.error(`[DEBUG] Error subiendo foto ${fotoIndex} (Tamaño: ${(file.size / 1024 / 1024).toFixed(2)} MB):`, fotoErr);
+            fotosFallidas++;
+          }
+          fotoIndex++;
         }
-        // Limpiar fotos en borrador
+        console.log(`[DEBUG] Total tiempo subida fotos: ${((performance.now() - startTimeTotal) / 1000).toFixed(2)}s`);
+        
+        // Limpiar fotos en borrador (mantener las que fallaron para que el usuario pueda reintentar)
         setFotosBorradorPorGuia((prev) => {
           const next = { ...prev };
-          delete next[guiaId];
+          const remaining = fotosBorrador.filter(f => !archivosExitosos.includes(f));
+          if (remaining.length === 0) {
+            delete next[guiaId];
+          } else {
+            next[guiaId] = remaining;
+          }
           return next;
         });
       }
@@ -833,15 +858,28 @@ export function ChoferRutaDetallePage() {
         return next;
       });
 
-      addToast(
-        "Datos y fotos guardados. El administrador los ve en Rutas • expandir ruta.",
-        "success",
-      );
+      if (fotosBorrador.length > 0) {
+        if (fotosFallidas === 0) {
+          addToast(`Datos guardados. ${fotosSubidas} fotos subidas correctamente.`, "success");
+        } else if (fotosSubidas > 0) {
+          addToast(`Datos guardados. ${fotosSubidas} subidas, ${fotosFallidas} fallidas.`, "warning");
+        } else {
+          addToast(`Datos guardados, pero fallaron las ${fotosFallidas} fotos.`, "error");
+        }
+      } else {
+        addToast("Datos guardados. El administrador los ve en Rutas • expandir ruta.", "success");
+      }
 
       // Recargar para mostrar las fotos subidas y actualizar validaciones
       await fetchRuta();
-    } catch {
-      addToast("No se pudieron guardar los datos de entrega", "error");
+    } catch (error: any) {
+      console.error("[DEBUG] Error capturado en handleGuardarDetalleGuia:", error);
+      console.error("[DEBUG] Response Backend:", error.response?.data);
+      console.error("[DEBUG] Status HTTP:", error.response?.status);
+      addToast(
+        error.response?.data?.message || "No se pudieron guardar los datos de entrega", 
+        "error"
+      );
     } finally {
       setGuardandoGuiaId(null);
       hideLoading();

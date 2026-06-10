@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import imageCompression from "browser-image-compression";
 import { ImageSourceSheet } from "../../components/ui/ImageSourceSheet";
 import { api } from "../../services/api";
 import { useToastStore } from "../../store/toastStore";
@@ -117,7 +118,7 @@ export function PhotoUploader({
       });
   }, [scope, guiaId, rutaId, draftMode, initialFilesLength]);
 
-  const [, setPendingImageLoads] = useState(0);
+  // Eliminamos setPendingImageLoads para no causar side-effects durante el render
 
   // Sin límite si max no está definido
   const hasLimit = max !== undefined;
@@ -143,38 +144,58 @@ export function PhotoUploader({
       return;
     }
 
-    if (draftMode) {
-      showLoading();
-      await new Promise((resolve) => setTimeout(resolve, 100));
-
-      const nuevasFotos: FotoBorrador[] = files.map((file) => ({
-        file,
-        preview: URL.createObjectURL(file),
-        isLocal: true as const,
-      }));
-
-      // Registrar cuántas imágenes nuevas hay que esperar antes de quitar el overlay
-      setPendingImageLoads((prev) => prev + nuevasFotos.length);
-
-      const todasLasFotos = [...fotos, ...nuevasFotos];
-      setFotos(todasLasFotos);
-
-      const todosLosArchivos = todasLasFotos
-        .filter(isFotoBorrador)
-        .map((f) => f.file);
-      onDraftChange?.(todosLosArchivos);
-
-      e.target.value = "";
-      // El overlay se quita en handleImageLoad cuando todas las imágenes cargan
-      return;
-    }
-
-    // Modo normal: subir inmediatamente
     showLoading();
     onProcessingStart?.();
     setUploading(true);
+
     try {
-      for (const file of files) {
+      const compressedFiles: File[] = [];
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        
+        try {
+          addToast(`Comprimiendo imagen ${i + 1} de ${files.length}...`, "info");
+          const options = {
+            maxSizeMB: 1,
+            maxWidthOrHeight: 1600,
+            useWebWorker: true,
+          };
+          const compressedFile = await imageCompression(file, options);
+          compressedFiles.push(compressedFile);
+          
+          console.log(`[DEBUG] Foto ${i+1}: Original ${(file.size / 1024 / 1024).toFixed(2)} MB -> Comprimida ${(compressedFile.size / 1024 / 1024).toFixed(2)} MB. Ahorro: ${(((file.size - compressedFile.size) / file.size) * 100).toFixed(1)}%`);
+        } catch (error) {
+          console.error("Error al comprimir foto", error);
+          if (file.size < 10 * 1024 * 1024) {
+            compressedFiles.push(file);
+          } else {
+            addToast(`No se pudo comprimir la foto y es demasiado grande (${(file.size/1024/1024).toFixed(2)} MB).`, "error");
+          }
+        }
+      }
+
+      if (compressedFiles.length === 0) return;
+
+      if (draftMode) {
+        const nuevasFotos: FotoBorrador[] = compressedFiles.map((file) => ({
+          file,
+          preview: URL.createObjectURL(file), // createObjectURL solo en el archivo final comprimido
+          isLocal: true as const,
+        }));
+
+        const todasLasFotos = [...fotos, ...nuevasFotos];
+        setFotos(todasLasFotos);
+
+        const todosLosArchivos = todasLasFotos
+          .filter(isFotoBorrador)
+          .map((f) => f.file);
+        onDraftChange?.(todosLosArchivos);
+        return;
+      }
+
+      // Modo normal: subir inmediatamente
+      for (const file of compressedFiles) {
         const formData = new FormData();
         formData.append("foto", file);
         const url =
@@ -199,7 +220,7 @@ export function PhotoUploader({
       setUploading(false);
       hideLoading();
       onProcessingEnd?.();
-      e.target.value = "";
+      if (e.target) e.target.value = "";
     }
   };
 
@@ -255,17 +276,7 @@ export function PhotoUploader({
     };
   }, [fotos]);
 
-  // Quitar overlay cuando una imagen nueva termina de cargar
-  const handleImageLoad = () => {
-    setPendingImageLoads((prev) => {
-      const next = prev - 1;
-      if (next <= 0) {
-        hideLoading();
-        return 0;
-      }
-      return next;
-    });
-  };
+  // Eliminado handleImageLoad
 
   const triggerInput = (input: HTMLInputElement | null) => {
     if (!input) return;
@@ -303,7 +314,6 @@ export function PhotoUploader({
               <img
                 src={preview}
                 alt="Preview"
-                onLoad={isFotoBorrador(f) ? handleImageLoad : undefined}
                 className="h-16 w-16 rounded-lg border border-slate-200 object-cover sm:h-20 sm:w-20"
               />
               {canDelete && (
