@@ -160,6 +160,12 @@ export function ChoferRutaDetallePage() {
   const ubicacionErrorShownRef = useRef(false);
   const [procesandoFotos, setProcesandoFotos] = useState(false);
 
+  // Action locks against double submit
+  const guardandoGuiaRef = useRef<Record<string, boolean>>({});
+  const iniciandoRutaRef = useRef(false);
+  const seguimientoRutaRef = useRef(false);
+  const finalizandoRutaRef = useRef(false);
+
   const fetchRuta = useCallback(async () => {
     if (!id) return;
     try {
@@ -747,13 +753,22 @@ export function ChoferRutaDetallePage() {
   };
 
   const handleGuardarDetalleGuia = async (guiaId: string) => {
+    if (guardandoGuiaRef.current[guiaId]) return;
+    guardandoGuiaRef.current[guiaId] = true;
+
     const f = detalleFormPorGuia[guiaId];
-    if (!f) return;
+    if (!f) {
+      guardandoGuiaRef.current[guiaId] = false;
+      return;
+    }
 
     const guia = guiasPorRuta.find((g) => g.id === guiaId);
     const esIncidencia = guia?.estado === "INCIDENCIA";
 
-    if (marcarErroresObligatoriosDetalle(guiaId, f, esIncidencia)) return;
+    if (marcarErroresObligatoriosDetalle(guiaId, f, esIncidencia)) {
+      guardandoGuiaRef.current[guiaId] = false;
+      return;
+    }
 
     const showLoading = useGlobalLoadingStore.getState().show;
     const hideLoading = useGlobalLoadingStore.getState().hide;
@@ -830,11 +845,13 @@ export function ChoferRutaDetallePage() {
     } finally {
       setGuardandoGuiaId(null);
       hideLoading();
+      guardandoGuiaRef.current[guiaId] = false;
     }
   };
 
   const handleIniciarRuta = async () => {
-    if (!id) return;
+    if (!id || iniciandoRutaRef.current) return;
+    iniciandoRutaRef.current = true;
     try {
       const res = await api.patch<RutaApi>(`/rutas/${id}/estado`, {
         estado: "EN_CURSO",
@@ -845,13 +862,16 @@ export function ChoferRutaDetallePage() {
       activarUbicacion();
     } catch {
       addToast("Error al iniciar ruta", "error");
+    } finally {
+      iniciandoRutaRef.current = false;
     }
   };
 
   const handleSeguimientoCliente = async (
     seguimientoChofer: "EN_CAMINO" | "CERCA_DESTINO",
   ) => {
-    if (!id) return;
+    if (!id || seguimientoRutaRef.current) return;
+    seguimientoRutaRef.current = true;
     try {
       const res = await api.patch<RutaApi>(`/rutas/${id}/seguimiento`, {
         seguimientoChofer,
@@ -861,11 +881,14 @@ export function ChoferRutaDetallePage() {
       addToast("Estado enviado al cliente", "success");
     } catch {
       addToast("No se pudo actualizar el seguimiento", "error");
+    } finally {
+      seguimientoRutaRef.current = false;
     }
   };
 
   const handleFinalizarRuta = async () => {
-    if (!id || !puedeFinalizar) return;
+    if (!id || !puedeFinalizar || finalizandoRutaRef.current) return;
+    finalizandoRutaRef.current = true;
     const showLoading = useGlobalLoadingStore.getState().show;
     const hideLoading = useGlobalLoadingStore.getState().hide;
 
@@ -880,6 +903,7 @@ export function ChoferRutaDetallePage() {
       addToast("Error al finalizar ruta", "error");
     } finally {
       hideLoading();
+      finalizandoRutaRef.current = false;
     }
   };
 
