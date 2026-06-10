@@ -862,7 +862,7 @@ export function ChoferRutaDetallePage() {
         if (fotosFallidas === 0) {
           addToast(`Datos guardados. ${fotosSubidas} fotos subidas correctamente.`, "success");
         } else if (fotosSubidas > 0) {
-          addToast(`Datos guardados. ${fotosSubidas} subidas, ${fotosFallidas} fallidas.`, "warning");
+          addToast(`Datos guardados. ${fotosSubidas} subidas, ${fotosFallidas} fallidas.`, "info");
         } else {
           addToast(`Datos guardados, pero fallaron las ${fotosFallidas} fotos.`, "error");
         }
