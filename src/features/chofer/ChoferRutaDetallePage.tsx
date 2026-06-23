@@ -420,57 +420,8 @@ export function ChoferRutaDetallePage() {
     }
   }, [ruta?.estado, ubicacionActiva, buscandoGPS, activarUbicacion]);
 
-  // Enviar posición al servidor (cliente en tiempo real) mientras la ruta está en curso
-  useEffect(() => {
-    if (!ubicacionActiva || ruta?.estado !== "EN_CURSO" || !id) {
-      return;
-    }
-    const token = localStorage.getItem("token");
-    if (!token) {
-      return;
-    }
-
-
-    const socket = io(import.meta.env.VITE_WS_URL ?? "http://localhost:3000", {
-      auth: { token },
-      transports: ["websocket"],
-    });
-
-    socket.on("connect", () => {
-
-      socket.emit("join:ruta", id);
-    });
-
-    socket.on("connect_error", (error) => {
-      console.error("❌ Error de conexión socket:", error);
-    });
-
-    const enviar = () => {
-      const p = miUbicacionRef.current;
-      if (p && socket.connected) {
-        const payload = {
-          rutaId: id,
-          choferId: currentUser?.id ?? "",
-          choferNombre: currentUser?.nombre ?? "",
-          lat: p.lat,
-          lng: p.lng
-        };
-        socket.emit("posicion_chofer", payload);
-      }
-    };
-
-    // Enviar inmediatamente al conectar
-    enviar();
-
-    const interval = window.setInterval(enviar, 4000);
-    return () => {
-
-      window.clearInterval(interval);
-      socket.disconnect();
-    };
-  }, [ubicacionActiva, ruta?.estado, id]);
-
-  // Escuchar actualizaciones en tiempo real de la ruta
+  // Socket unificado: gestiona eventos de ruta y emisión de posición GPS
+  // con una sola conexión WebSocket en lugar de dos instancias independientes.
   useEffect(() => {
     if (!id) return;
     const token = localStorage.getItem("token");
@@ -479,27 +430,21 @@ export function ChoferRutaDetallePage() {
     const socket = io(import.meta.env.VITE_WS_URL ?? "http://localhost:3000", {
       auth: { token },
       transports: ["websocket"],
+      reconnection: true,
     });
 
-    socket.emit("join:ruta", id);
-
-    // Escuchar cuando cambia el estado de una guía
-    socket.on("guia:incidencia", () => {
-
-      void fetchRuta();
+    socket.on("connect", () => {
+      socket.emit("join:ruta", id);
     });
 
-    socket.on("guia:entregada", () => {
+    // Eventos de actualización de ruta
+    socket.on("guia:incidencia", () => { void fetchRuta(); });
+    socket.on("guia:entregada", () => { void fetchRuta(); });
 
-      void fetchRuta();
-    });
-
-    // Escuchar cuando se actualiza el seguimiento
     socket.on(
       "seguimiento_ruta",
       (p: { rutaId: string; seguimientoChofer: string }) => {
         if (p.rutaId === id) {
-
           setRuta((prev) =>
             prev ? { ...prev, seguimientoChofer: p.seguimientoChofer } : prev,
           );
@@ -508,18 +453,47 @@ export function ChoferRutaDetallePage() {
       },
     );
 
-    // Escuchar cuando la ruta se completa
     socket.on("ruta:completada", (p: { rutaId: string }) => {
-      if (p.rutaId === id) {
-
-        void fetchRuta();
-      }
+      if (p.rutaId === id) { void fetchRuta(); }
     });
 
+    // Emisión periódica de posición GPS (solo cuando la ruta está EN_CURSO y hay GPS activo)
+    let interval: ReturnType<typeof window.setInterval> | null = null;
+
+    const iniciarEmision = () => {
+      if (interval != null) return;
+      const enviar = () => {
+        const p = miUbicacionRef.current;
+        if (p && socket.connected) {
+          socket.emit("posicion_chofer", {
+            rutaId: id,
+            choferId: currentUser?.id ?? "",
+            choferNombre: currentUser?.nombre ?? "",
+            lat: p.lat,
+            lng: p.lng,
+          });
+        }
+      };
+      enviar();
+      interval = window.setInterval(enviar, 4000);
+    };
+
+    const detenerEmision = () => {
+      if (interval != null) {
+        window.clearInterval(interval);
+        interval = null;
+      }
+    };
+
+    if (ubicacionActiva && ruta?.estado === "EN_CURSO") {
+      iniciarEmision();
+    }
+
     return () => {
+      detenerEmision();
       socket.disconnect();
     };
-  }, [id, fetchRuta]);
+  }, [id, ubicacionActiva, ruta?.estado, fetchRuta]);
 
   // All guias flat from stops
   const guiasPorRuta = useMemo(() => ruta?.guias ?? [], [ruta]);

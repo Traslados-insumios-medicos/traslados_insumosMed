@@ -209,9 +209,6 @@ export function PhotoUploader({
       }
       addToast("Foto(s) subida(s)", "success");
       onUploaded?.();
-
-      // Esperar un poco más para que se refleje la foto en la UI
-      await new Promise((resolve) => setTimeout(resolve, 800));
     } catch (err: unknown) {
       const message = (err as { response?: { data?: { message?: string } } })
         ?.response?.data?.message;

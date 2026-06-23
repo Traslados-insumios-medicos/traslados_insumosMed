@@ -198,7 +198,7 @@ export function AdminSeguimientoPage() {
     return () => {
       socket.off("posicion_chofer", handler);
     };
-  }, [selectedRutaId]);
+  }, []);
 
   useEffect(() => {
     const map = mapRef.current;
