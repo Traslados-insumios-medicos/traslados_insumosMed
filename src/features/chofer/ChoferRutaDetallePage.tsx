@@ -123,6 +123,8 @@ export function ChoferRutaDetallePage() {
   const [selectedStopId, setSelectedStopId] = useState<string | null>(null);
   const [fitBoundsTrigger, setFitBoundsTrigger] = useState(0);
   const [ubicacionActiva, setUbicacionActiva] = useState(false);
+  // true mientras watchPosition ya fue solicitado pero aún no entregó la primera coordenada real
+  const [buscandoGPS, setBuscandoGPS] = useState(false);
   const [miUbicacion, setMiUbicacion] = useState<{
     lat: number;
     lng: number;
@@ -162,9 +164,12 @@ export function ChoferRutaDetallePage() {
 
   // Action locks against double submit
   const guardandoGuiaRef = useRef<Record<string, boolean>>({});
-  const iniciandoRutaRef = useRef(false);
+  // P1: useState en lugar de useRef para que el botón re-renderice inmediatamente
+  const [iniciandoRuta, setIniciandoRuta] = useState(false);
   const seguimientoRutaRef = useRef(false);
   const finalizandoRutaRef = useRef(false);
+  // P3: Ref para ejecutar la auto-activación de GPS solo una vez por montaje de ruta
+  const autoActivacionGPSRef = useRef(false);
 
   const fetchRuta = useCallback(async () => {
     if (!id) return;
@@ -304,10 +309,15 @@ export function ChoferRutaDetallePage() {
       geoWatchRef.current = null;
     }
     setUbicacionActiva(false);
+    setBuscandoGPS(false);
     setMiUbicacion(null);
     miUbicacionRef.current = null;
+    autoActivacionGPSRef.current = false;
   }, []);
 
+  // P2: Un único watchPosition en lugar de getCurrentPosition + watchPosition anidados.
+  // buscandoGPS = true  → hardware escuchando, sin coordenadas reales aún.
+  // ubicacionActiva = true → primera coordenada real recibida, tracking activo.
   const activarUbicacion = useCallback(() => {
     if (!navigator.geolocation) {
       if (!ubicacionErrorShownRef.current) {
@@ -323,66 +333,55 @@ export function ChoferRutaDetallePage() {
       geoWatchRef.current = null;
     }
 
-    // Primero intentar obtener posición actual una vez
-    navigator.geolocation.getCurrentPosition(
+    // Indicar que la búsqueda ya comenzó (UI puede mostrar "Buscando señal...")
+    setBuscandoGPS(true);
+    setUbicacionActiva(false);
+
+    geoWatchRef.current = navigator.geolocation.watchPosition(
       (pos) => {
-        const ubicacion = {
+        const nuevaUbicacion = {
           lat: pos.coords.latitude,
           lng: pos.coords.longitude,
         };
-        setMiUbicacion(ubicacion);
-        miUbicacionRef.current = ubicacion;
-        setUbicacionActiva(true);
-        addToast("Ubicación GPS activada correctamente", "success");
+        setMiUbicacion(nuevaUbicacion);
+        miUbicacionRef.current = nuevaUbicacion;
 
-        // Luego iniciar el watch
-        geoWatchRef.current = navigator.geolocation.watchPosition(
-          (pos) => {
-            const nuevaUbicacion = {
-              lat: pos.coords.latitude,
-              lng: pos.coords.longitude,
-            };
-            setMiUbicacion(nuevaUbicacion);
-            miUbicacionRef.current = nuevaUbicacion;
-          },
-          (error) => {
-            console.error("⚠️ Error de geolocalización (watch):", error);
-            // No detener si ya tenemos una posición inicial
-          },
-          {
-            enableHighAccuracy: true,
-            maximumAge: 10000,
-            timeout: 10000,
-          },
-        );
+        // Primera posición real recibida: marcar GPS como activo
+        setUbicacionActiva((prev) => {
+          if (!prev) {
+            // Solo mostrar toast la primera vez que se activa
+            addToast("Ubicación GPS activada correctamente", "success");
+          }
+          return true;
+        });
+        setBuscandoGPS(false);
       },
       (error) => {
-        console.error("❌ Error de geolocalización (inicial):", error);
+        console.error("❌ Error de geolocalización:", error);
 
-        // Detener ubicación activa cuando hay error
-        detenerUbicacion();
-
-        if (!ubicacionErrorShownRef.current) {
-          ubicacionErrorShownRef.current = true;
-          setShowUbicacionErrorModal(true);
-        }
-
-        // Mostrar mensaje específico según el tipo de error
         if (error.code === error.PERMISSION_DENIED) {
+          // Permiso denegado: detener todo y mostrar modal
+          detenerUbicacion();
+          if (!ubicacionErrorShownRef.current) {
+            ubicacionErrorShownRef.current = true;
+            setShowUbicacionErrorModal(true);
+          }
           addToast("Permisos de ubicación denegados", "error");
         } else if (error.code === error.POSITION_UNAVAILABLE) {
+          // GPS no disponible: dejar buscandoGPS activo, watchPosition reintentará
           addToast(
-            "Ubicación no disponible. Verifica que el GPS esté activado.",
+            "Ubicación no disponible. Verificá que el GPS esté activado.",
             "error",
           );
         } else if (error.code === error.TIMEOUT) {
+          // Timeout: watchPosition reintentará automáticamente
           addToast("Tiempo de espera agotado al obtener ubicación", "error");
         }
       },
       {
         enableHighAccuracy: true,
-        maximumAge: 0, // No usar caché para la primera posición
-        timeout: 15000, // Más tiempo para la primera obtención
+        maximumAge: 5000,
+        timeout: 15000,
       },
     );
   }, [addToast, detenerUbicacion]);
@@ -397,13 +396,29 @@ export function ChoferRutaDetallePage() {
 
   useEffect(() => {
     setUbicacionActiva(false);
+    setBuscandoGPS(false);
     setMiUbicacion(null);
     miUbicacionRef.current = null;
+    autoActivacionGPSRef.current = false;
     if (geoWatchRef.current != null) {
       navigator.geolocation.clearWatch(geoWatchRef.current);
       geoWatchRef.current = null;
     }
   }, [id]);
+
+  // P3: Auto-reconexión GPS cuando la ruta ya está EN_CURSO al cargar/recargar la página.
+  // Garantiza que el tracking no se pierda tras un F5 o reapertura de la app.
+  useEffect(() => {
+    if (
+      ruta?.estado === "EN_CURSO" &&
+      !ubicacionActiva &&
+      !buscandoGPS &&
+      !autoActivacionGPSRef.current
+    ) {
+      autoActivacionGPSRef.current = true;
+      activarUbicacion();
+    }
+  }, [ruta?.estado, ubicacionActiva, buscandoGPS, activarUbicacion]);
 
   // Enviar posición al servidor (cliente en tiempo real) mientras la ruta está en curso
   useEffect(() => {
@@ -433,12 +448,12 @@ export function ChoferRutaDetallePage() {
     const enviar = () => {
       const p = miUbicacionRef.current;
       if (p && socket.connected) {
-        const payload = { 
-          rutaId: id, 
+        const payload = {
+          rutaId: id,
           choferId: currentUser?.id ?? "",
           choferNombre: currentUser?.nombre ?? "",
-          lat: p.lat, 
-          lng: p.lng 
+          lat: p.lat,
+          lng: p.lng
         };
         socket.emit("posicion_chofer", payload);
       }
@@ -543,17 +558,17 @@ export function ChoferRutaDetallePage() {
     setRuta((prev) =>
       prev
         ? {
-            ...prev,
-            guias: prev.guias.map((g) =>
+          ...prev,
+          guias: prev.guias.map((g) =>
+            g.id === guiaId ? { ...g, estado: "INCIDENCIA" } : g,
+          ),
+          stops: prev.stops.map((s) => ({
+            ...s,
+            guias: s.guias.map((g) =>
               g.id === guiaId ? { ...g, estado: "INCIDENCIA" } : g,
             ),
-            stops: prev.stops.map((s) => ({
-              ...s,
-              guias: s.guias.map((g) =>
-                g.id === guiaId ? { ...g, estado: "INCIDENCIA" } : g,
-              ),
-            })),
-          }
+          })),
+        }
         : prev,
     );
 
@@ -572,17 +587,17 @@ export function ChoferRutaDetallePage() {
     setRuta((prev) =>
       prev
         ? {
-            ...prev,
-            guias: prev.guias.map((g) =>
+          ...prev,
+          guias: prev.guias.map((g) =>
+            g.id === guiaId ? { ...g, estado: "ENTREGADO" } : g,
+          ),
+          stops: prev.stops.map((s) => ({
+            ...s,
+            guias: s.guias.map((g) =>
               g.id === guiaId ? { ...g, estado: "ENTREGADO" } : g,
             ),
-            stops: prev.stops.map((s) => ({
-              ...s,
-              guias: s.guias.map((g) =>
-                g.id === guiaId ? { ...g, estado: "ENTREGADO" } : g,
-              ),
-            })),
-          }
+          })),
+        }
         : prev,
     );
   };
@@ -594,17 +609,17 @@ export function ChoferRutaDetallePage() {
     setRuta((prev) =>
       prev
         ? {
-            ...prev,
-            guias: prev.guias.map((g) =>
+          ...prev,
+          guias: prev.guias.map((g) =>
+            g.id === guiaId ? { ...g, ...patch } : g,
+          ),
+          stops: prev.stops.map((s) => ({
+            ...s,
+            guias: s.guias.map((g) =>
               g.id === guiaId ? { ...g, ...patch } : g,
             ),
-            stops: prev.stops.map((s) => ({
-              ...s,
-              guias: s.guias.map((g) =>
-                g.id === guiaId ? { ...g, ...patch } : g,
-              ),
-            })),
-          }
+          })),
+        }
         : prev,
     );
   };
@@ -827,7 +842,7 @@ export function ChoferRutaDetallePage() {
           fotoIndex++;
         }
         console.log(`[DEBUG] Total tiempo subida fotos: ${((performance.now() - startTimeTotal) / 1000).toFixed(2)}s`);
-        
+
         // Limpiar fotos en borrador (mantener las que fallaron para que el usuario pueda reintentar)
         setFotosBorradorPorGuia((prev) => {
           const next = { ...prev };
@@ -877,7 +892,7 @@ export function ChoferRutaDetallePage() {
       console.error("[DEBUG] Response Backend:", error.response?.data);
       console.error("[DEBUG] Status HTTP:", error.response?.status);
       addToast(
-        error.response?.data?.message || "No se pudieron guardar los datos de entrega", 
+        error.response?.data?.message || "No se pudieron guardar los datos de entrega",
         "error"
       );
     } finally {
@@ -888,11 +903,12 @@ export function ChoferRutaDetallePage() {
   };
 
   const handleIniciarRuta = async () => {
-    if (!id || iniciandoRutaRef.current) return;
-    iniciandoRutaRef.current = true;
+    if (!id || iniciandoRuta) return;
+    // P1: useState provoca re-render inmediato → el botón cambia de aspecto en <16ms
+    setIniciandoRuta(true);
 
-    // Activar ubicación automáticamente (se llama de forma síncrona al click
-    // para que el navegador móvil no bloquee la solicitud de permisos tras el await)
+    // Activar ubicación inmediatamente (llamada síncrona antes del primer await para
+    // que el navegador móvil no bloquee el diálogo de permisos de geolocalización)
     activarUbicacion();
 
     try {
@@ -904,7 +920,7 @@ export function ChoferRutaDetallePage() {
     } catch {
       addToast("Error al iniciar ruta", "error");
     } finally {
-      iniciandoRutaRef.current = false;
+      setIniciandoRuta(false);
     }
   };
 
@@ -1027,13 +1043,12 @@ export function ChoferRutaDetallePage() {
                 </p>
               </div>
               <span
-                className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${
-                  ruta.estado === "EN_CURSO"
-                    ? "bg-emerald-100 text-emerald-700"
-                    : ruta.estado === "COMPLETADA"
-                      ? "bg-slate-100 text-slate-600"
-                      : "bg-amber-100 text-amber-700"
-                }`}
+                className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${ruta.estado === "EN_CURSO"
+                  ? "bg-emerald-100 text-emerald-700"
+                  : ruta.estado === "COMPLETADA"
+                    ? "bg-slate-100 text-slate-600"
+                    : "bg-amber-100 text-amber-700"
+                  }`}
               >
                 {ruta.estado === "PENDIENTE"
                   ? "Planificada"
@@ -1085,22 +1100,20 @@ export function ChoferRutaDetallePage() {
                 <button
                   type="button"
                   onClick={() => handleSeguimientoCliente("EN_CAMINO")}
-                  className={`rounded-lg px-2.5 py-1.5 text-[10px] font-bold transition-colors ${
-                    ruta.seguimientoChofer === "EN_CAMINO"
-                      ? "bg-primary text-white"
-                      : "bg-white text-slate-800 ring-1 ring-slate-200 hover:bg-slate-50"
-                  }`}
+                  className={`rounded-lg px-2.5 py-1.5 text-[10px] font-bold transition-colors ${ruta.seguimientoChofer === "EN_CAMINO"
+                    ? "bg-primary text-white"
+                    : "bg-white text-slate-800 ring-1 ring-slate-200 hover:bg-slate-50"
+                    }`}
                 >
                   En camino
                 </button>
                 <button
                   type="button"
                   onClick={() => handleSeguimientoCliente("CERCA_DESTINO")}
-                  className={`rounded-lg px-2.5 py-1.5 text-[10px] font-bold transition-colors ${
-                    ruta.seguimientoChofer === "CERCA_DESTINO"
-                      ? "bg-emerald-600 text-white"
-                      : "bg-white text-slate-800 ring-1 ring-slate-200 hover:bg-emerald-50"
-                  }`}
+                  className={`rounded-lg px-2.5 py-1.5 text-[10px] font-bold transition-colors ${ruta.seguimientoChofer === "CERCA_DESTINO"
+                    ? "bg-emerald-600 text-white"
+                    : "bg-white text-slate-800 ring-1 ring-slate-200 hover:bg-emerald-50"
+                    }`}
                 >
                   Cerca del destino
                 </button>
@@ -1109,8 +1122,8 @@ export function ChoferRutaDetallePage() {
                 Última actualización:{" "}
                 {ultimaActualizacionSeguimiento
                   ? new Date(ultimaActualizacionSeguimiento).toLocaleString(
-                      "es-ES",
-                    )
+                    "es-ES",
+                  )
                   : "•"}
               </p>
             </div>
@@ -1149,20 +1162,35 @@ export function ChoferRutaDetallePage() {
                   <button
                     type="button"
                     onClick={() =>
-                      ubicacionActiva ? detenerUbicacion() : activarUbicacion()
+                      ubicacionActiva || buscandoGPS
+                        ? detenerUbicacion()
+                        : activarUbicacion()
                     }
-                    className={`rounded-lg px-3 py-1.5 text-xs font-bold ${
+                    disabled={buscandoGPS}
+                    className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
                       ubicacionActiva
                         ? "bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200"
-                        : "bg-slate-100 text-slate-700 ring-1 ring-slate-200 hover:bg-slate-200"
+                        : buscandoGPS
+                          ? "bg-amber-50 text-amber-700 ring-1 ring-amber-200 cursor-wait"
+                          : "bg-slate-100 text-slate-700 ring-1 ring-slate-200 hover:bg-slate-200"
                     }`}
                   >
-                    <span className="material-symbols-outlined align-middle text-sm">
-                      my_location
+                    <span
+                      className={`material-symbols-outlined align-middle text-sm ${
+                        buscandoGPS ? "animate-pulse" : ""
+                      }`}
+                    >
+                      {ubicacionActiva
+                        ? "my_location"
+                        : buscandoGPS
+                          ? "gps_not_fixed"
+                          : "my_location"}
                     </span>{" "}
                     {ubicacionActiva
                       ? "Ubicación activa"
-                      : "Activar mi ubicación"}
+                      : buscandoGPS
+                        ? "Buscando señal..."
+                        : "Activar mi ubicación"}
                   </button>
                 )}
               </div>
@@ -1212,13 +1240,12 @@ export function ChoferRutaDetallePage() {
                 return (
                   <div
                     key={stop.id}
-                    className={`overflow-hidden rounded-xl border bg-white shadow-sm ring-1 transition-colors ${
-                      paradaDetalleCompleto
-                        ? "border-emerald-300 bg-emerald-50/50 ring-emerald-200/70"
-                        : isSelected
-                          ? "border-primary/40 ring-primary/15"
-                          : "border-slate-200 ring-slate-900/5"
-                    } ${isSelected && !paradaDetalleCompleto ? "ring-primary/25" : ""}`}
+                    className={`overflow-hidden rounded-xl border bg-white shadow-sm ring-1 transition-colors ${paradaDetalleCompleto
+                      ? "border-emerald-300 bg-emerald-50/50 ring-emerald-200/70"
+                      : isSelected
+                        ? "border-primary/40 ring-primary/15"
+                        : "border-slate-200 ring-slate-900/5"
+                      } ${isSelected && !paradaDetalleCompleto ? "ring-primary/25" : ""}`}
                   >
                     <button
                       type="button"
@@ -1255,11 +1282,10 @@ export function ChoferRutaDetallePage() {
                         {guiasStop.map((g) => (
                           <div
                             key={g.id}
-                            className={`rounded-lg border p-3 ${
-                              g.estado === "INCIDENCIA"
-                                ? "border-amber-200 bg-amber-50"
-                                : "border-slate-100 bg-slate-50"
-                            }`}
+                            className={`rounded-lg border p-3 ${g.estado === "INCIDENCIA"
+                              ? "border-amber-200 bg-amber-50"
+                              : "border-slate-100 bg-slate-50"
+                              }`}
                           >
                             <div className="mb-2 flex items-start justify-between gap-2">
                               <span className="min-w-0 break-all text-sm font-bold text-slate-700">
@@ -1275,16 +1301,15 @@ export function ChoferRutaDetallePage() {
                                     (guiaIdsDetalleGuardado.has(g.id) &&
                                       !guiaIdsEnEdicion.has(g.id))
                                   }
-                                  className={`rounded px-2 py-1 text-[10px] font-medium ${
-                                    g.estado === "ENTREGADO"
-                                      ? "bg-emerald-600 text-white"
-                                      : ruta.estado === "PENDIENTE" ||
-                                          ruta.estado === "COMPLETADA" ||
-                                          (guiaIdsDetalleGuardado.has(g.id) &&
-                                            !guiaIdsEnEdicion.has(g.id))
-                                        ? "border border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed"
-                                        : "border border-slate-200 bg-white hover:bg-slate-50"
-                                  }`}
+                                  className={`rounded px-2 py-1 text-[10px] font-medium ${g.estado === "ENTREGADO"
+                                    ? "bg-emerald-600 text-white"
+                                    : ruta.estado === "PENDIENTE" ||
+                                      ruta.estado === "COMPLETADA" ||
+                                      (guiaIdsDetalleGuardado.has(g.id) &&
+                                        !guiaIdsEnEdicion.has(g.id))
+                                      ? "border border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed"
+                                      : "border border-slate-200 bg-white hover:bg-slate-50"
+                                    }`}
                                 >
                                   Entregado
                                 </button>
@@ -1297,16 +1322,15 @@ export function ChoferRutaDetallePage() {
                                     (guiaIdsDetalleGuardado.has(g.id) &&
                                       !guiaIdsEnEdicion.has(g.id))
                                   }
-                                  className={`rounded px-2 py-1 text-[10px] font-medium ${
-                                    g.estado === "INCIDENCIA"
-                                      ? "bg-amber-600 text-white"
-                                      : ruta.estado === "PENDIENTE" ||
-                                          ruta.estado === "COMPLETADA" ||
-                                          (guiaIdsDetalleGuardado.has(g.id) &&
-                                            !guiaIdsEnEdicion.has(g.id))
-                                        ? "border border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed"
-                                        : "border border-slate-200 bg-white hover:bg-amber-50"
-                                  }`}
+                                  className={`rounded px-2 py-1 text-[10px] font-medium ${g.estado === "INCIDENCIA"
+                                    ? "bg-amber-600 text-white"
+                                    : ruta.estado === "PENDIENTE" ||
+                                      ruta.estado === "COMPLETADA" ||
+                                      (guiaIdsDetalleGuardado.has(g.id) &&
+                                        !guiaIdsEnEdicion.has(g.id))
+                                      ? "border border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed"
+                                      : "border border-slate-200 bg-white hover:bg-amber-50"
+                                    }`}
                                 >
                                   Incidencia
                                 </button>
@@ -1318,7 +1342,7 @@ export function ChoferRutaDetallePage() {
 
                             {/* Entrega: formulario • fotos • guardar (todo el bloque de esta guía) */}
                             {ruta.estado === "PENDIENTE" ||
-                            ruta.estado === "COMPLETADA" ? (
+                              ruta.estado === "COMPLETADA" ? (
                               <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
                                 <p className="flex items-center gap-2 text-xs font-medium text-amber-800">
                                   <span className="material-symbols-outlined text-base">
@@ -1391,19 +1415,19 @@ export function ChoferRutaDetallePage() {
                                               g.id,
                                             ) ||
                                               guiaIdsEnEdicion.has(g.id)) && (
-                                              <button
-                                                type="button"
-                                                onClick={() =>
-                                                  addReceptorItem(g.id)
-                                                }
-                                                className="flex items-center gap-0.5 rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary hover:bg-primary/20"
-                                              >
-                                                <span className="material-symbols-outlined text-[12px]">
-                                                  add
-                                                </span>
-                                                Agregar
-                                              </button>
-                                            )}
+                                                <button
+                                                  type="button"
+                                                  onClick={() =>
+                                                    addReceptorItem(g.id)
+                                                  }
+                                                  className="flex items-center gap-0.5 rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary hover:bg-primary/20"
+                                                >
+                                                  <span className="material-symbols-outlined text-[12px]">
+                                                    add
+                                                  </span>
+                                                  Agregar
+                                                </button>
+                                              )}
                                           </div>
                                           <div className="space-y-1.5">
                                             {getReceptoresList(g.id).map(
@@ -1475,19 +1499,19 @@ export function ChoferRutaDetallePage() {
                                               g.id,
                                             ) ||
                                               guiaIdsEnEdicion.has(g.id)) && (
-                                              <button
-                                                type="button"
-                                                onClick={() =>
-                                                  addTemperaturaItem(g.id)
-                                                }
-                                                className="flex items-center gap-0.5 rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary hover:bg-primary/20"
-                                              >
-                                                <span className="material-symbols-outlined text-[12px]">
-                                                  add
-                                                </span>
-                                                Agregar
-                                              </button>
-                                            )}
+                                                <button
+                                                  type="button"
+                                                  onClick={() =>
+                                                    addTemperaturaItem(g.id)
+                                                  }
+                                                  className="flex items-center gap-0.5 rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary hover:bg-primary/20"
+                                                >
+                                                  <span className="material-symbols-outlined text-[12px]">
+                                                    add
+                                                  </span>
+                                                  Agregar
+                                                </button>
+                                              )}
                                           </div>
                                           <div className="space-y-1.5">
                                             {getTemperaturasList(g.id).map(
@@ -1562,13 +1586,13 @@ export function ChoferRutaDetallePage() {
                                           </div>
                                           {erroresDetallePorGuia[g.id]
                                             ?.temperatura && (
-                                            <p className="mt-1 text-xs text-red-500">
-                                              {
-                                                erroresDetallePorGuia[g.id]
-                                                  ?.temperatura
-                                              }
-                                            </p>
-                                          )}
+                                              <p className="mt-1 text-xs text-red-500">
+                                                {
+                                                  erroresDetallePorGuia[g.id]
+                                                    ?.temperatura
+                                                }
+                                              </p>
+                                            )}
                                         </div>
                                       </div>
                                       {/* cierra grid receptor+temperatura */}
@@ -1611,22 +1635,21 @@ export function ChoferRutaDetallePage() {
                                                 g.id,
                                               ) && !guiaIdsEnEdicion.has(g.id)
                                             }
-                                            className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 ${
-                                              erroresDetallePorGuia[g.id]
-                                                ?.horaLlegada
-                                                ? "border-red-400 focus:border-red-400 focus:ring-red-100"
-                                                : "border-slate-200 focus:border-primary focus:ring-primary/15"
-                                            }`}
+                                            className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 ${erroresDetallePorGuia[g.id]
+                                              ?.horaLlegada
+                                              ? "border-red-400 focus:border-red-400 focus:ring-red-100"
+                                              : "border-slate-200 focus:border-primary focus:ring-primary/15"
+                                              }`}
                                           />
                                           {erroresDetallePorGuia[g.id]
                                             ?.horaLlegada && (
-                                            <p className="mt-1 text-xs text-red-500">
-                                              {
-                                                erroresDetallePorGuia[g.id]
-                                                  ?.horaLlegada
-                                              }
-                                            </p>
-                                          )}
+                                              <p className="mt-1 text-xs text-red-500">
+                                                {
+                                                  erroresDetallePorGuia[g.id]
+                                                    ?.horaLlegada
+                                                }
+                                              </p>
+                                            )}
                                         </div>
                                         <div>
                                           <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
@@ -1666,22 +1689,21 @@ export function ChoferRutaDetallePage() {
                                                 g.id,
                                               ) && !guiaIdsEnEdicion.has(g.id)
                                             }
-                                            className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 ${
-                                              erroresDetallePorGuia[g.id]
-                                                ?.horaSalida
-                                                ? "border-red-400 focus:border-red-400 focus:ring-red-100"
-                                                : "border-slate-200 focus:border-primary focus:ring-primary/15"
-                                            }`}
+                                            className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 ${erroresDetallePorGuia[g.id]
+                                              ?.horaSalida
+                                              ? "border-red-400 focus:border-red-400 focus:ring-red-100"
+                                              : "border-slate-200 focus:border-primary focus:ring-primary/15"
+                                              }`}
                                           />
                                           {erroresDetallePorGuia[g.id]
                                             ?.horaSalida && (
-                                            <p className="mt-1 text-xs text-red-500">
-                                              {
-                                                erroresDetallePorGuia[g.id]
-                                                  ?.horaSalida
-                                              }
-                                            </p>
-                                          )}
+                                              <p className="mt-1 text-xs text-red-500">
+                                                {
+                                                  erroresDetallePorGuia[g.id]
+                                                    ?.horaSalida
+                                                }
+                                              </p>
+                                            )}
                                         </div>
                                       </div>
                                       <div>
@@ -1752,7 +1774,7 @@ export function ChoferRutaDetallePage() {
                                     <div className="border-t border-slate-200 pt-4">
                                       <div className="w-full sm:flex sm:justify-end sm:gap-2">
                                         {guiaIdsDetalleGuardado.has(g.id) &&
-                                        !guiaIdsEnEdicion.has(g.id) ? (
+                                          !guiaIdsEnEdicion.has(g.id) ? (
                                           <button
                                             type="button"
                                             onClick={() =>
@@ -1779,8 +1801,8 @@ export function ChoferRutaDetallePage() {
                                                 ?.horaSalida ||
                                               (fotosBorradorPorGuia[g.id]
                                                 ?.length ?? 0) +
-                                                (g.fotos?.length ?? 0) ===
-                                                0
+                                              (g.fotos?.length ?? 0) ===
+                                              0
                                             }
                                             className="w-full rounded-lg bg-primary px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-primary/90 disabled:opacity-60 sm:w-auto"
                                           >
@@ -1798,17 +1820,17 @@ export function ChoferRutaDetallePage() {
                                         !detalleFormPorGuia[g.id]?.horaSalida ||
                                         (fotosBorradorPorGuia[g.id]?.length ??
                                           0) +
-                                          (g.fotos?.length ?? 0) ===
-                                          0) && (
-                                        <p className="mt-2 text-xs text-amber-600 text-center sm:text-right">
-                                          {(fotosBorradorPorGuia[g.id]
-                                            ?.length ?? 0) +
-                                            (g.fotos?.length ?? 0) ===
-                                          0
-                                            ? "Debes subir al menos 1 foto para guardar"
-                                            : "Completa todos los campos obligatorios para guardar"}
-                                        </p>
-                                      )}
+                                        (g.fotos?.length ?? 0) ===
+                                        0) && (
+                                          <p className="mt-2 text-xs text-amber-600 text-center sm:text-right">
+                                            {(fotosBorradorPorGuia[g.id]
+                                              ?.length ?? 0) +
+                                              (g.fotos?.length ?? 0) ===
+                                              0
+                                              ? "Debes subir al menos 1 foto para guardar"
+                                              : "Completa todos los campos obligatorios para guardar"}
+                                          </p>
+                                        )}
                                     </div>
                                   </>
                                 ) : (
@@ -1882,7 +1904,7 @@ export function ChoferRutaDetallePage() {
                                                   maxLength={50}
                                                   disabled={
                                                     ruta.estado ===
-                                                      "COMPLETADA" ||
+                                                    "COMPLETADA" ||
                                                     (guiaIdsDetalleGuardado.has(
                                                       g.id,
                                                     ) &&
@@ -1890,9 +1912,8 @@ export function ChoferRutaDetallePage() {
                                                         g.id,
                                                       ))
                                                   }
-                                                  className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 ${
-                                                    getReceptoresList(g.id)
-                                                      .length > 1 &&
+                                                  className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 ${getReceptoresList(g.id)
+                                                    .length > 1 &&
                                                     !(
                                                       guiaIdsDetalleGuardado.has(
                                                         g.id,
@@ -1902,9 +1923,9 @@ export function ChoferRutaDetallePage() {
                                                       )
                                                     ) &&
                                                     ruta.estado !== "COMPLETADA"
-                                                      ? "pr-8"
-                                                      : ""
-                                                  } ${erroresDetallePorGuia[g.id]?.receptorNombre ? "border-red-400 focus:border-red-400 focus:ring-red-100" : "border-slate-200 focus:border-primary focus:ring-primary/15"}`}
+                                                    ? "pr-8"
+                                                    : ""
+                                                    } ${erroresDetallePorGuia[g.id]?.receptorNombre ? "border-red-400 focus:border-red-400 focus:ring-red-100" : "border-slate-200 focus:border-primary focus:ring-primary/15"}`}
                                                 />
                                                 {getReceptoresList(g.id)
                                                   .length > 1 &&
@@ -1915,7 +1936,7 @@ export function ChoferRutaDetallePage() {
                                                     !guiaIdsEnEdicion.has(g.id)
                                                   ) &&
                                                   ruta.estado !==
-                                                    "COMPLETADA" && (
+                                                  "COMPLETADA" && (
                                                     <button
                                                       type="button"
                                                       onClick={() =>
@@ -1937,13 +1958,13 @@ export function ChoferRutaDetallePage() {
                                         </div>
                                         {erroresDetallePorGuia[g.id]
                                           ?.receptorNombre && (
-                                          <p className="mt-1 text-xs text-red-500">
-                                            {
-                                              erroresDetallePorGuia[g.id]
-                                                ?.receptorNombre
-                                            }
-                                          </p>
-                                        )}
+                                            <p className="mt-1 text-xs text-red-500">
+                                              {
+                                                erroresDetallePorGuia[g.id]
+                                                  ?.receptorNombre
+                                              }
+                                            </p>
+                                          )}
                                       </div>
                                       <div>
                                         <div className="mb-1.5 flex items-center justify-between">
@@ -1952,19 +1973,19 @@ export function ChoferRutaDetallePage() {
                                           </label>
                                           {(!guiaIdsDetalleGuardado.has(g.id) ||
                                             guiaIdsEnEdicion.has(g.id)) && (
-                                            <button
-                                              type="button"
-                                              onClick={() =>
-                                                addTemperaturaItem(g.id)
-                                              }
-                                              className="flex items-center gap-0.5 rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary hover:bg-primary/20"
-                                            >
-                                              <span className="material-symbols-outlined text-[12px]">
-                                                add
-                                              </span>
-                                              Agregar
-                                            </button>
-                                          )}
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  addTemperaturaItem(g.id)
+                                                }
+                                                className="flex items-center gap-0.5 rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary hover:bg-primary/20"
+                                              >
+                                                <span className="material-symbols-outlined text-[12px]">
+                                                  add
+                                                </span>
+                                                Agregar
+                                              </button>
+                                            )}
                                         </div>
                                         <div className="space-y-1.5">
                                           {getTemperaturasList(g.id).map(
@@ -2036,13 +2057,13 @@ export function ChoferRutaDetallePage() {
                                         </div>
                                         {erroresDetallePorGuia[g.id]
                                           ?.temperatura && (
-                                          <p className="mt-1 text-xs text-red-500">
-                                            {
-                                              erroresDetallePorGuia[g.id]
-                                                ?.temperatura
-                                            }
-                                          </p>
-                                        )}
+                                            <p className="mt-1 text-xs text-red-500">
+                                              {
+                                                erroresDetallePorGuia[g.id]
+                                                  ?.temperatura
+                                              }
+                                            </p>
+                                          )}
                                       </div>
                                       <div>
                                         <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
@@ -2081,22 +2102,21 @@ export function ChoferRutaDetallePage() {
                                             guiaIdsDetalleGuardado.has(g.id) &&
                                             !guiaIdsEnEdicion.has(g.id)
                                           }
-                                          className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 ${
-                                            erroresDetallePorGuia[g.id]
-                                              ?.horaLlegada
-                                              ? "border-red-400 focus:border-red-400 focus:ring-red-100"
-                                              : "border-slate-200 focus:border-primary focus:ring-primary/15"
-                                          }`}
+                                          className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 ${erroresDetallePorGuia[g.id]
+                                            ?.horaLlegada
+                                            ? "border-red-400 focus:border-red-400 focus:ring-red-100"
+                                            : "border-slate-200 focus:border-primary focus:ring-primary/15"
+                                            }`}
                                         />
                                         {erroresDetallePorGuia[g.id]
                                           ?.horaLlegada && (
-                                          <p className="mt-1 text-xs text-red-500">
-                                            {
-                                              erroresDetallePorGuia[g.id]
-                                                ?.horaLlegada
-                                            }
-                                          </p>
-                                        )}
+                                            <p className="mt-1 text-xs text-red-500">
+                                              {
+                                                erroresDetallePorGuia[g.id]
+                                                  ?.horaLlegada
+                                              }
+                                            </p>
+                                          )}
                                       </div>
                                       <div>
                                         <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
@@ -2135,22 +2155,21 @@ export function ChoferRutaDetallePage() {
                                             guiaIdsDetalleGuardado.has(g.id) &&
                                             !guiaIdsEnEdicion.has(g.id)
                                           }
-                                          className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 ${
-                                            erroresDetallePorGuia[g.id]
-                                              ?.horaSalida
-                                              ? "border-red-400 focus:border-red-400 focus:ring-red-100"
-                                              : "border-slate-200 focus:border-primary focus:ring-primary/15"
-                                          }`}
+                                          className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 ${erroresDetallePorGuia[g.id]
+                                            ?.horaSalida
+                                            ? "border-red-400 focus:border-red-400 focus:ring-red-100"
+                                            : "border-slate-200 focus:border-primary focus:ring-primary/15"
+                                            }`}
                                         />
                                         {erroresDetallePorGuia[g.id]
                                           ?.horaSalida && (
-                                          <p className="mt-1 text-xs text-red-500">
-                                            {
-                                              erroresDetallePorGuia[g.id]
-                                                ?.horaSalida
-                                            }
-                                          </p>
-                                        )}
+                                            <p className="mt-1 text-xs text-red-500">
+                                              {
+                                                erroresDetallePorGuia[g.id]
+                                                  ?.horaSalida
+                                              }
+                                            </p>
+                                          )}
                                       </div>
                                       <div className="sm:col-span-2">
                                         <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
@@ -2220,7 +2239,7 @@ export function ChoferRutaDetallePage() {
                                     <div className="border-t border-slate-200 pt-4">
                                       <div className="w-full sm:flex sm:justify-end sm:gap-2">
                                         {guiaIdsDetalleGuardado.has(g.id) &&
-                                        !guiaIdsEnEdicion.has(g.id) ? (
+                                          !guiaIdsEnEdicion.has(g.id) ? (
                                           <button
                                             type="button"
                                             onClick={() =>
@@ -2251,8 +2270,8 @@ export function ChoferRutaDetallePage() {
                                               g.estado === "PENDIENTE" ||
                                               (fotosBorradorPorGuia[g.id]
                                                 ?.length ?? 0) +
-                                                (g.fotos?.length ?? 0) ===
-                                                0
+                                              (g.fotos?.length ?? 0) ===
+                                              0
                                             }
                                             className="w-full rounded-lg bg-primary px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-primary/90 disabled:opacity-60 sm:w-auto"
                                           >
@@ -2274,19 +2293,19 @@ export function ChoferRutaDetallePage() {
                                         g.estado === "PENDIENTE" ||
                                         (fotosBorradorPorGuia[g.id]?.length ??
                                           0) +
-                                          (g.fotos?.length ?? 0) ===
-                                          0) && (
-                                        <p className="mt-2 text-xs text-amber-600 text-center sm:text-right">
-                                          {(fotosBorradorPorGuia[g.id]
-                                            ?.length ?? 0) +
-                                            (g.fotos?.length ?? 0) ===
-                                          0
-                                            ? "Debes subir al menos 1 foto para guardar"
-                                            : g.estado === "PENDIENTE"
-                                              ? 'Marca la guía como "Entregado" para guardar'
-                                              : "Completa todos los campos obligatorios para guardar"}
-                                        </p>
-                                      )}
+                                        (g.fotos?.length ?? 0) ===
+                                        0) && (
+                                          <p className="mt-2 text-xs text-amber-600 text-center sm:text-right">
+                                            {(fotosBorradorPorGuia[g.id]
+                                              ?.length ?? 0) +
+                                              (g.fotos?.length ?? 0) ===
+                                              0
+                                              ? "Debes subir al menos 1 foto para guardar"
+                                              : g.estado === "PENDIENTE"
+                                                ? 'Marca la guía como "Entregado" para guardar'
+                                                : "Completa todos los campos obligatorios para guardar"}
+                                          </p>
+                                        )}
                                     </div>
                                   </>
                                 )}
@@ -2393,10 +2412,22 @@ export function ChoferRutaDetallePage() {
               <button
                 type="button"
                 onClick={handleIniciarRuta}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-4 font-bold text-white shadow-lg hover:bg-primary/90 active:scale-[0.98]"
+                disabled={iniciandoRuta}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-4 font-bold text-white shadow-lg transition-all hover:bg-primary/90 active:scale-[0.98] disabled:opacity-75 disabled:cursor-wait"
               >
-                <span className="material-symbols-outlined">play_arrow</span>
-                Iniciar ruta
+                {iniciandoRuta ? (
+                  <>
+                    <span className="material-symbols-outlined animate-spin text-xl">
+                      progress_activity
+                    </span>
+                    Iniciando ruta...
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined">play_arrow</span>
+                    Iniciar ruta
+                  </>
+                )}
               </button>
             )}
             {ruta.estado === "EN_CURSO" && (

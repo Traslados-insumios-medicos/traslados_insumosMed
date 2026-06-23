@@ -8,7 +8,7 @@ import {
 import gsap from "gsap";
 import { useNavigate } from "react-router-dom";
 import { useAuthStore } from "../store/authStore";
-import { getApiErrorMessage, getApiErrorStatus } from "../utils/apiError";
+import { getLoginErrorMessage, getApiErrorStatus } from "../utils/apiError";
 import { ModalMotion } from "../components/ui/ModalMotion";
 import logo from "../assets/logo.png";
 
@@ -61,6 +61,7 @@ export function LoginPage() {
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [errorIsConnectivity, setErrorIsConnectivity] = useState(false);
   const [requiredErrors, setRequiredErrors] = useState({
     email: "",
     password: "",
@@ -116,14 +117,27 @@ export function LoginPage() {
       else if (rol === "CHOFER") navigate("/chofer/rutas");
       else navigate("/cliente/envios");
     } catch (err: unknown) {
+      const { message, isAuthError } = getLoginErrorMessage(err);
       const status = getApiErrorStatus(err);
-      const msg = getApiErrorMessage(err, "Credenciales incorrectas");
-      if (status === 403 && String(msg).toLowerCase().includes("inactivo")) {
-        setInactiveMsg(msg);
+      // 403 inactivo: mostrar modal específico
+      if (
+        status === 403 &&
+        String(
+          (err as { response?: { data?: { message?: string } } })?.response
+            ?.data?.message ?? "",
+        )
+          .toLowerCase()
+          .includes("inactivo")
+      ) {
+        const backendMsg =
+          (err as { response?: { data?: { message?: string } } })?.response
+            ?.data?.message ?? inactiveMsg;
+        setInactiveMsg(backendMsg);
         setShowInactiveModal(true);
         setError("");
       } else {
-        setError(msg);
+        setError(message);
+        setErrorIsConnectivity(!isAuthError);
       }
     } finally {
       setLoading(false);
@@ -324,11 +338,17 @@ export function LoginPage() {
             </div>
 
             {error && (
-              <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-600">
-                <span className="material-symbols-outlined text-base">
-                  error
+              <div
+                className={`flex items-start gap-2.5 rounded-lg border px-3 py-2.5 text-sm ${
+                  errorIsConnectivity
+                    ? "border-amber-200 bg-amber-50 text-amber-700"
+                    : "border-red-200 bg-red-50 text-red-600"
+                }`}
+              >
+                <span className="material-symbols-outlined mt-0.5 shrink-0 text-base">
+                  {errorIsConnectivity ? "wifi_off" : "lock"}
                 </span>
-                {error}
+                <span>{error}</span>
               </div>
             )}
 

@@ -71,8 +71,30 @@ export const useAuthStore = create<AuthState>((set) => ({
     const token = localStorage.getItem('token')
     if (!token) return
     set({ sessionLoading: true })
+
+    // P8: Timeout de 10s para evitar que la pantalla "Cargando sesión..."
+    // quede bloqueada indefinidamente (cold start de Railway, red lenta, etc.)
+    let timeoutId: ReturnType<typeof setTimeout> | null = null
+    const timeoutPromise = new Promise<null>((resolve) => {
+      timeoutId = setTimeout(() => resolve(null), 10000)
+    })
+
     try {
-      const { data } = await api.get('/auth/me')
+      const result = await Promise.race([
+        api.get('/auth/me'),
+        timeoutPromise,
+      ])
+
+      if (result === null) {
+        // Timeout alcanzado: liberar el loading sin borrar el token
+        // El usuario verá login y podrá reintentar
+        console.warn('[authStore] restoreSession timeout — backend no respondió en 10s')
+        set({ sessionLoading: false })
+        return
+      }
+
+      if (timeoutId) clearTimeout(timeoutId)
+      const { data } = result
       const usuario: Usuario = { ...data, activo: true }
       set({
         currentUser: usuario,
@@ -81,6 +103,7 @@ export const useAuthStore = create<AuthState>((set) => ({
         sessionLoading: false,
       })
     } catch (err: unknown) {
+      if (timeoutId) clearTimeout(timeoutId)
       // Solo limpiar sesión si el servidor explícitamente rechaza el token (401)
       // No limpiar por errores de red o timeouts
       if (getApiErrorStatus(err) === 401) {
