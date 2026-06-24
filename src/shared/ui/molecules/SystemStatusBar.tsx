@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { InternetStatus, SocketStatus } from '../../hooks/useConnectionStatus'
+import type { InternetStatus, SocketStatus } from '../../../hooks/useConnectionStatus'
 
 export type GpsStatus = 'idle' | 'searching' | 'active' | 'denied'
 

@@ -7,12 +7,10 @@ export type SocketStatus = 'connected' | 'reconnecting' | 'disconnected'
 export interface ConnectionStatus {
   internet: InternetStatus
   socket: SocketStatus
-  lastSync: number | null
 }
 
 export function useConnectionStatus(
   enabled: boolean,
-  onLastSync?: (ts: number) => void,
 ): {
   status: ConnectionStatus
   socketRef: React.MutableRefObject<Socket | null>
@@ -21,7 +19,6 @@ export function useConnectionStatus(
     navigator.onLine ? 'online' : 'offline',
   )
   const [socketStatus, setSocketStatus] = useState<SocketStatus>('disconnected')
-  const [lastSync, setLastSync] = useState<number | null>(null)
   const socketRef = useRef<Socket | null>(null)
 
   useEffect(() => {
@@ -62,13 +59,8 @@ export function useConnectionStatus(
     }
   }, [enabled])
 
-  const recordSync = (ts: number) => {
-    setLastSync(ts)
-    onLastSync?.(ts)
-  }
-
   return {
-    status: { internet, socket: socketStatus, lastSync },
+    status: { internet, socket: socketStatus },
     socketRef,
   }
 }
