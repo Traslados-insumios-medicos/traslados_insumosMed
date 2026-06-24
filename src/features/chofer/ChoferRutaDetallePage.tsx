@@ -10,6 +10,7 @@ import { RouteMap } from "../../components/map/RouteMap";
 import { PhotoUploader } from "./PhotoUploader";
 import { SeguimientoChoferStepper } from "../../components/cliente/SeguimientoChoferStepper";
 import { ModalMotion } from "../../components/ui/ModalMotion";
+import { SystemStatusBar } from "../../shared/ui/molecules/SystemStatusBar";
 interface GuiaApi {
   id: string;
   numeroGuia: string | null;
@@ -164,12 +165,13 @@ export function ChoferRutaDetallePage() {
 
   // Action locks against double submit
   const guardandoGuiaRef = useRef<Record<string, boolean>>({});
-  // P1: useState en lugar de useRef para que el botón re-renderice inmediatamente
   const [iniciandoRuta, setIniciandoRuta] = useState(false);
   const seguimientoRutaRef = useRef(false);
   const finalizandoRutaRef = useRef(false);
-  // P3: Ref para ejecutar la auto-activación de GPS solo una vez por montaje de ruta
   const autoActivacionGPSRef = useRef(false);
+
+  const [socketStatus, setSocketStatus] = useState<'connected' | 'reconnecting' | 'disconnected'>('disconnected');
+  const [lastSync, setLastSync] = useState<number | null>(null);
 
   const fetchRuta = useCallback(async () => {
     if (!id) return;
@@ -434,10 +436,14 @@ export function ChoferRutaDetallePage() {
     });
 
     socket.on("connect", () => {
+      setSocketStatus('connected');
       socket.emit("join:ruta", id);
     });
+    socket.on("disconnect", () => setSocketStatus('disconnected'));
+    socket.on("reconnect_attempt", () => setSocketStatus('reconnecting'));
+    socket.on("reconnect", () => setSocketStatus('connected'));
+    socket.on("connect_error", () => setSocketStatus('disconnected'));
 
-    // Eventos de actualización de ruta
     socket.on("guia:incidencia", () => { void fetchRuta(); });
     socket.on("guia:entregada", () => { void fetchRuta(); });
 
@@ -457,7 +463,6 @@ export function ChoferRutaDetallePage() {
       if (p.rutaId === id) { void fetchRuta(); }
     });
 
-    // Emisión periódica de posición GPS (solo cuando la ruta está EN_CURSO y hay GPS activo)
     let interval: ReturnType<typeof window.setInterval> | null = null;
 
     const iniciarEmision = () => {
@@ -472,6 +477,7 @@ export function ChoferRutaDetallePage() {
             lat: p.lat,
             lng: p.lng,
           });
+          setLastSync(Date.now());
         }
       };
       enviar();
@@ -986,6 +992,23 @@ export function ChoferRutaDetallePage() {
           <span className="text-lg font-bold leading-none">{dia}</span>
         </div>
       </div>
+
+      {ruta.estado === "EN_CURSO" && (
+        <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+          <SystemStatusBar
+            internet={navigator.onLine ? 'online' : 'offline'}
+            gps={
+              ubicacionActiva
+                ? 'active'
+                : buscandoGPS
+                  ? 'searching'
+                  : 'idle'
+            }
+            socket={socketStatus}
+            lastSync={lastSync}
+          />
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_380px] lg:gap-6">
         {/* Columna izquierda */}
