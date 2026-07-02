@@ -104,6 +104,8 @@ interface GuiaChofer {
   descripcion: string;
   estado: string;
   cliente: string;
+  /** Ciudad del cliente expuesta por el backend (CORRECCIÓN F1) */
+  ciudadCliente?: string | null;
   receptorNombre?: string;
   horaLlegada?: string;
   horaSalida?: string;
@@ -388,7 +390,7 @@ export function AdminReportesPage() {
     const detalleRows = dataCliente.flatMap((cliente) =>
       cliente.guias.map((g) => [
         cliente.nombre,
-        cliente.ciudad ?? "—",
+        cliente.ciudad ?? "Sin asignar",
         g.numeroGuia ?? "—",
         g.descripcion,
         g.estado,
@@ -411,7 +413,7 @@ export function AdminReportesPage() {
     exportToExcel(
       dataCliente.map((r) => ({
         Cliente: r.nombre,
-        "Ciudad / Sector": r.ciudad ?? "—",
+        "Ciudad / Sector": r.ciudad ?? "Sin asignar",
         Tipo:
           r.tipo === "PRINCIPAL"
             ? "Principal"
@@ -476,7 +478,7 @@ export function AdminReportesPage() {
               fields: [
                 {
                   label: "Ciudad / Sector",
-                  value: cliente.ciudad ?? "—",
+                  value: cliente.ciudad ?? "Sin asignar",
                 },
                 { label: "Recibido por", value: g.receptorNombre ?? "—" },
                 {
@@ -513,7 +515,7 @@ export function AdminReportesPage() {
         ],
         dataCliente.map((r) => [
           r.nombre,
-          r.ciudad ?? "—",
+          r.ciudad ?? "Sin asignar",
           r.tipo === "PRINCIPAL"
             ? "Principal"
             : `Secundario (${r.clientePrincipal?.nombre || "Sin asignar"})`,
@@ -559,6 +561,8 @@ export function AdminReportesPage() {
             "ID ruta": r.rutaId ?? "—",
             Fecha: r.fecha ?? "—",
             Cliente: g.cliente ?? "—",
+            // CORRECCIÓN F1: Ciudad del cliente en reporte de chofer
+            "Ciudad / Sector": g.ciudadCliente ?? "Sin asignar",
             "Nº Guía": g.numeroGuia ?? "—",
             Descripción: g.descripcion ?? "—",
             Estado: g.estado ?? "—",
@@ -663,6 +667,8 @@ export function AdminReportesPage() {
           "ID ruta",
           "Fecha de ruta",
           "Cliente de la guia",
+          // CORRECCIÓN F1: columna ciudad en exportación PDF del reporte de chofer
+          "Ciudad / Sector",
           "Numero de guia",
           "Descripcion",
           "Estado",
@@ -682,6 +688,8 @@ export function AdminReportesPage() {
           row["ID ruta"],
           row["Fecha"],
           row["Cliente"],
+          // CORRECCIÓN F1: incluir ciudad en exportación PDF del reporte de chofer
+          row["Ciudad / Sector"],
           row["Nº Guía"],
           row["Descripción"],
           row["Estado"],
@@ -717,9 +725,11 @@ export function AdminReportesPage() {
       "Nº Guía": g.numeroGuia ?? "—",
       Descripción: g.descripcion ?? "—",
       Estado: g.estado ?? "—",
-      Fecha: g.createdAt ? new Date(g.createdAt).toLocaleString("es-ES") : "—",
+      // CORRECCIÓN F1: La fecha de la fila es la fecha de la Ruta (criterio
+      // de negocio), no el createdAt de la guia. Consistente con el filtro backend.
+      Fecha: g.ruta?.fecha ?? "—",
       Cliente: g.cliente?.nombre ?? "—",
-      "Ciudad / Sector": g.cliente?.ciudad ?? "—",
+      "Ciudad / Sector": g.cliente?.ciudad ?? "Sin asignar",
       Chofer: g.ruta?.chofer?.nombre ?? "—",
       "Hoja de ruta": rutaHojaLabel(g.ruta ?? null),
       "Lugar origen": g.ruta?.lugarOrigen?.trim() || "—",
@@ -860,7 +870,7 @@ export function AdminReportesPage() {
         ? new Date(g.createdAt).toLocaleString("es-ES")
         : "—",
       Cliente: g.cliente?.nombre ?? "—",
-      "Ciudad / Sector": g.cliente?.ciudad ?? "—",
+      "Ciudad / Sector": g.cliente?.ciudad ?? "Sin asignar",
       Chofer: g.ruta?.chofer?.nombre ?? "—",
       "Hoja de ruta": rutaHojaLabel(g.ruta ?? null),
       "Lugar origen": g.ruta?.lugarOrigen?.trim() || "—",
@@ -1545,6 +1555,12 @@ export function AdminReportesPage() {
                                             <span className="text-primary">
                                               {trunc(g.numeroGuia)}
                                             </span>
+                                          </p>
+                                          <p className="text-xs text-slate-400 break-words overflow-hidden">
+                                            <span className="material-symbols-outlined text-[10px] align-middle mr-0.5">
+                                              location_on
+                                            </span>
+                                            {g.ciudadCliente ?? "Sin asignar"}
                                           </p>
                                           <p className="text-xs text-slate-500 break-words overflow-hidden">
                                             {trunc(g.descripcion)}
