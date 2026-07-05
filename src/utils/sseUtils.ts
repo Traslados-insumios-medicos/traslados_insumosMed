@@ -21,14 +21,6 @@ export interface SseProgressCallbacks {
   onError?: (message: string) => void;
 }
 
-/**
- * Inicia una escucha SSE genérica en /api/progress/stream para monitorear tareas largas.
- * Es completamente pura y desacoplada de tiendas globales o componentes UI específicos.
- *
- * @param jobId     UUID de la tarea a monitorear
- * @param callbacks Funciones de respuesta ante avance, finalización o error
- * @returns Función de cancelación para abortar el flujo y liberar recursos
- */
 export function listenSseProgress(
   jobId: string,
   callbacks: SseProgressCallbacks = {},
@@ -72,7 +64,6 @@ export function listenSseProgress(
                 callbacks.onProgress?.(event);
               }
             } catch {
-              // Ignorar tramas malformadas en el stream
             }
           }
         }

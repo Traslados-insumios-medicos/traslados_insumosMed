@@ -457,7 +457,7 @@ export function AdminReportesPage() {
     );
   };
   // Respaldo temporal jsPDF (no accesible desde UI)
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // @ts-expect-error - Legacy function kept for reference, not currently used
   const _handleExportClientePDFLegacy = async () => {
     showLoading("Iniciando exportación...", true);
     try {
@@ -594,7 +594,7 @@ export function AdminReportesPage() {
       buildFilterInfo(),
     );
   // Respaldo temporal jsPDF (no accesible desde UI)
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // @ts-expect-error - Legacy function kept for reference, not currently used
   const _handleExportChoferPDFLegacy = async () => {
     showLoading("Iniciando exportación...", true);
     try {
@@ -758,7 +758,7 @@ export function AdminReportesPage() {
     );
 
   // Respaldo temporal jsPDF (no accesible desde UI)
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // @ts-expect-error - Legacy function kept for reference, not currently used
   const _handleExportFechasPDFLegacy = async () => {
     showLoading("Iniciando exportación...", true);
     try {
@@ -905,7 +905,7 @@ export function AdminReportesPage() {
     );
 
   // Respaldo temporal jsPDF (no accesible desde UI)
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // @ts-expect-error - Legacy function kept for reference, not currently used
   const _handleExportGuiaPDFLegacy = async () => {
     showLoading("Iniciando exportación...", true);
     try {
@@ -1104,16 +1104,15 @@ export function AdminReportesPage() {
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
     } catch (err) {
-      addToast({
-        type: "error",
-        message: `Error al generar PDF: ${err instanceof Error ? err.message : "Error desconocido"}`,
-      });
+      addToast(
+        `Error al generar PDF: ${err instanceof Error ? err.message : "Error desconocido"}`,
+        "error",
+      );
     } finally {
       stopSse();
       hideLoading();
     }
   };
-
 
   return (
     <div className="space-y-6">
