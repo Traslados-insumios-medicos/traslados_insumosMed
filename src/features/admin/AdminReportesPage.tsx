@@ -14,6 +14,7 @@ import {
   parseMultiFieldSuffix,
 } from "../../utils/exportUtils";
 import { useImageDownload } from "../../hooks/useImageDownload";
+import { listenSseProgress } from "../../utils/sseUtils";
 
 type TabId = "cliente" | "fechas" | "chofer" | "guia";
 
@@ -455,7 +456,8 @@ export function AdminReportesPage() {
       ],
     );
   };
-  const handleExportClientePDF = async () => {
+  // Respaldo temporal jsPDF (no accesible desde UI)
+  const _handleExportClientePDFLegacy = async () => {
     showLoading("Iniciando exportación...", true);
     try {
       const totalGuias = dataCliente.reduce((acc, r) => acc + r.total, 0);
@@ -591,7 +593,8 @@ export function AdminReportesPage() {
       "Por Chofer",
       buildFilterInfo(),
     );
-  const handleExportChoferPDF = async () => {
+  // Respaldo temporal jsPDF (no accesible desde UI)
+  const _handleExportChoferPDFLegacy = async () => {
     showLoading("Iniciando exportación...", true);
     try {
       const rows = buildChoferRows();
@@ -755,7 +758,8 @@ export function AdminReportesPage() {
       buildFilterInfo(),
     );
 
-  const handleExportFechasPDF = async () => {
+  // Respaldo temporal jsPDF (no accesible desde UI)
+  const _handleExportFechasPDFLegacy = async () => {
     showLoading("Iniciando exportación...", true);
     try {
       const rows = buildFechasRows();
@@ -900,7 +904,8 @@ export function AdminReportesPage() {
       buildFilterInfo(),
     );
 
-  const handleExportGuiaPDF = async () => {
+  // Respaldo temporal jsPDF (no accesible desde UI)
+  const _handleExportGuiaPDFLegacy = async () => {
     showLoading("Iniciando exportación...", true);
     try {
       const rows = buildGuiaRows();
@@ -1009,6 +1014,105 @@ export function AdminReportesPage() {
       hideLoading();
     }
   };
+
+  // ─── Generación de PDF Oficial (Servidor Streaming) ───────────────────────────
+  // Reemplaza a la anterior exportación jsPDF en el navegador.
+  // Llama al endpoint del backend que genera el documento en streaming y reporta progreso SSE.
+  const handleExportPDF = async (targetTab: TabId) => {
+    const jobId = crypto.randomUUID();
+    showLoading("Iniciando generación de PDF...", true);
+
+    const titulos: Record<TabId, string> = {
+      cliente: "Reporte por Cliente",
+      chofer: "Reporte por Chofer",
+      fechas: "Reporte detallado por fechas",
+      guia: "Reporte por Guía",
+    };
+    const titulo = titulos[targetTab] || "Reporte General";
+
+    const stopSse = listenSseProgress(jobId, {
+      onProgress: (event) => {
+        useGlobalLoadingStore.getState().setProgress({
+          message: event.message || "Procesando en servidor...",
+          subMessage: event.subMessage || null,
+          percent: event.percent ?? null,
+          step: event.step || null,
+        });
+      },
+      onCompleted: (event) => {
+        useGlobalLoadingStore.getState().setProgress({
+          message: event.message || "¡Reporte generado con éxito!",
+          subMessage: "Descargando archivo en tu navegador...",
+          percent: 100,
+          step: "completed",
+        });
+      },
+      onError: (msg) => {
+        useGlobalLoadingStore.getState().setProgress({
+          message: "Error durante la generación en el servidor",
+          subMessage: msg,
+          step: "error",
+        });
+      },
+    });
+
+    try {
+      const params = new URLSearchParams();
+      params.set("jobId", jobId);
+      params.set("titulo", titulo);
+      if (fechaDesde) params.set("desde", fechaDesde);
+      if (fechaHasta) params.set("hasta", fechaHasta);
+
+      if (targetTab === "cliente") {
+        if (clienteId) params.set("clienteId", clienteId);
+        if (tipoCliente) params.set("tipo", tipoCliente);
+        if (choferId) params.set("choferId", choferId);
+        if (filtroCiudad.trim()) params.set("ciudad", filtroCiudad.trim());
+      } else if (targetTab === "chofer") {
+        if (choferId) params.set("choferId", choferId);
+      } else if (targetTab === "fechas") {
+        if (clienteId) params.set("clienteId", clienteId);
+        if (choferId) params.set("choferId", choferId);
+        if (filtroCiudad.trim()) params.set("ciudad", filtroCiudad.trim());
+        if (filtroGuia) params.set("filtroGuia", filtroGuia);
+      } else if (targetTab === "guia") {
+        if (clienteId) params.set("clienteId", clienteId);
+        if (choferId) params.set("choferId", choferId);
+        if (tipoCliente) params.set("tipo", tipoCliente);
+        if (filtroCiudad.trim()) params.set("ciudad", filtroCiudad.trim());
+        if (filtroGuia) params.set("filtroGuia", filtroGuia);
+      }
+
+      const token = localStorage.getItem("token");
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL}/reportes/pdf/general?${params.toString()}`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+
+      if (!res.ok) {
+        throw new Error(`Error del servidor: ${res.status} ${res.statusText}`);
+      }
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `reporte-${targetTab}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      addToast({
+        type: "error",
+        message: `Error al generar PDF: ${err instanceof Error ? err.message : "Error desconocido"}`,
+      });
+    } finally {
+      stopSse();
+      hideLoading();
+    }
+  };
+
 
   return (
     <div className="space-y-6">
@@ -1139,7 +1243,7 @@ export function AdminReportesPage() {
               </button>
               <button
                 type="button"
-                onClick={handleExportClientePDF}
+                onClick={() => handleExportPDF("cliente")}
                 className="flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100"
               >
                 <span className="material-symbols-outlined text-sm">
@@ -1163,7 +1267,7 @@ export function AdminReportesPage() {
               </button>
               <button
                 type="button"
-                onClick={handleExportChoferPDF}
+                onClick={() => handleExportPDF("chofer")}
                 className="flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100"
               >
                 <span className="material-symbols-outlined text-sm">
@@ -1187,7 +1291,7 @@ export function AdminReportesPage() {
               </button>
               <button
                 type="button"
-                onClick={handleExportFechasPDF}
+                onClick={() => handleExportPDF("fechas")}
                 className="flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100"
               >
                 <span className="material-symbols-outlined text-sm">
@@ -1211,7 +1315,7 @@ export function AdminReportesPage() {
               </button>
               <button
                 type="button"
-                onClick={handleExportGuiaPDF}
+                onClick={() => handleExportPDF("guia")}
                 className="flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-semibold text-rose-700 hover:bg-rose-100"
               >
                 <span className="material-symbols-outlined text-sm">
