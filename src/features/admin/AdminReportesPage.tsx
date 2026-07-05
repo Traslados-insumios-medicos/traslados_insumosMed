@@ -187,9 +187,8 @@ const buildStaticMapUrl = (
   direccion?: string | null,
 ) => {
   if (!MAPBOX_TOKEN) return "";
-  // OPT-3: 400x220 sin @2x — 75 % menos píxeles que 520x280@2x (~60 KB vs ~250 KB).
-  // El mapa se renderiza en la tarjeta a 80x44 mm en jsPDF, por lo que
-  // 400 px de ancho es más que suficiente para impresión en PDF A4.
+  // El mapa se renderiza en la tarjeta a 80x44 mm, por lo que
+  // 400 px de ancho es suficiente para impresión en PDF A4.
   if (lat !== null && lat !== undefined && lng !== null && lng !== undefined) {
     return `https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/pin-s+0f172a(${lng},${lat})/${lng},${lat},14/400x220?access_token=${MAPBOX_TOKEN}`;
   }
@@ -343,6 +342,7 @@ export function AdminReportesPage() {
     choferId,
     tipoCliente,
     filtroCiudad,
+    filtroGuia,
     addToast,
   ]);
 
@@ -457,6 +457,7 @@ export function AdminReportesPage() {
     );
   };
   // Respaldo temporal jsPDF (no accesible desde UI)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const _handleExportClientePDFLegacy = async () => {
     showLoading("Iniciando exportación...", true);
     try {
@@ -563,7 +564,6 @@ export function AdminReportesPage() {
             "ID ruta": r.rutaId ?? "—",
             Fecha: r.fecha ?? "—",
             Cliente: g.cliente ?? "—",
-            // CORRECCIÓN F1: Ciudad del cliente en reporte de chofer
             "Ciudad / Sector": g.ciudadCliente ?? "Sin asignar",
             "Nº Guía": g.numeroGuia ?? "—",
             Descripción: g.descripcion ?? "—",
@@ -594,6 +594,7 @@ export function AdminReportesPage() {
       buildFilterInfo(),
     );
   // Respaldo temporal jsPDF (no accesible desde UI)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const _handleExportChoferPDFLegacy = async () => {
     showLoading("Iniciando exportación...", true);
     try {
@@ -670,7 +671,6 @@ export function AdminReportesPage() {
           "ID ruta",
           "Fecha de ruta",
           "Cliente de la guia",
-          // CORRECCIÓN F1: columna ciudad en exportación PDF del reporte de chofer
           "Ciudad / Sector",
           "Numero de guia",
           "Descripcion",
@@ -691,7 +691,6 @@ export function AdminReportesPage() {
           row["ID ruta"],
           row["Fecha"],
           row["Cliente"],
-          // CORRECCIÓN F1: incluir ciudad en exportación PDF del reporte de chofer
           row["Ciudad / Sector"],
           row["Nº Guía"],
           row["Descripción"],
@@ -728,7 +727,7 @@ export function AdminReportesPage() {
       "Nº Guía": g.numeroGuia ?? "—",
       Descripción: g.descripcion ?? "—",
       Estado: g.estado ?? "—",
-      // CORRECCIÓN F1: La fecha de la fila es la fecha de la Ruta (criterio
+      // La fecha de la fila es la fecha de la Ruta (criterio
       // de negocio), no el createdAt de la guia. Consistente con el filtro backend.
       Fecha: g.ruta?.fecha ?? "—",
       Cliente: g.cliente?.nombre ?? "—",
@@ -759,6 +758,7 @@ export function AdminReportesPage() {
     );
 
   // Respaldo temporal jsPDF (no accesible desde UI)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const _handleExportFechasPDFLegacy = async () => {
     showLoading("Iniciando exportación...", true);
     try {
@@ -905,6 +905,7 @@ export function AdminReportesPage() {
     );
 
   // Respaldo temporal jsPDF (no accesible desde UI)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const _handleExportGuiaPDFLegacy = async () => {
     showLoading("Iniciando exportación...", true);
     try {
