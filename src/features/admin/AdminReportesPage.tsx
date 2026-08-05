@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../../services/api";
 import { useToastStore } from "../../store/toastStore";
 import { useGlobalLoadingStore } from "../../store/globalLoadingStore";
@@ -15,8 +15,9 @@ import {
 } from "../../utils/exportUtils";
 import { useImageDownload } from "../../hooks/useImageDownload";
 import { listenSseProgress } from "../../utils/sseUtils";
+import { ImagenesTab } from "./ImagenesTab";
 
-type TabId = "cliente" | "fechas" | "chofer" | "guia";
+type TabId = "cliente" | "fechas" | "chofer" | "guia" | "imagenes";
 
 interface ResumenCliente {
   clienteId: string;
@@ -154,6 +155,7 @@ const tabs: { id: TabId; label: string }[] = [
   { id: "fechas", label: "Por rango de fechas" },
   { id: "chofer", label: "Por chofer" },
   { id: "guia", label: "Por guía" },
+  { id: "imagenes", label: "Imágenes" },
 ];
 
 const LIMIT = 10;
@@ -230,6 +232,107 @@ export function AdminReportesPage() {
     null,
   );
 
+  // ─── Estado para la pestaña de Imágenes ────────────────────────────────────────────────
+  const [imagenesRutas, setImagenesRutas] = useState<import('./ImagenesTab').RouteWithImages[]>([]);
+  const [triggerFree, setTriggerFree] = useState(false);
+  const fotoIds = imagenesRutas.flatMap((r) => r.fotoIds);
+
+  const imagenesFilters = useMemo(
+    () => ({
+      desde: fechaDesde,
+      hasta: fechaHasta,
+      clienteId: clienteId,
+      choferId: choferId,
+      tipo: tipoCliente,
+      ciudad: filtroCiudad,
+      filtroGuia: filtroGuia,
+    }),
+    [fechaDesde, fechaHasta, clienteId, choferId, tipoCliente, filtroCiudad, filtroGuia],
+  );
+
+  const handleFreeTriggered = useCallback(() => setTriggerFree(false), []);
+
+  const handleExportImages = useCallback(
+    async () => {
+      if (fotoIds.length === 0) {
+        addToast("No hay imágenes para exportar con los filtros actuales", "info");
+        return;
+      }
+      const jobId = crypto.randomUUID();
+      showLoading("Iniciando exportación de imágenes...", true);
+
+      const stopSse = listenSseProgress(jobId, {
+        onProgress: (event) => {
+          useGlobalLoadingStore.getState().setProgress({
+            message: event.message || "Procesando en servidor...",
+            subMessage: event.subMessage || null,
+            percent: event.percent ?? null,
+            step: event.step || null,
+          });
+        },
+        onCompleted: (event) => {
+          useGlobalLoadingStore.getState().setProgress({
+            message: event.message || "¡Respaldo generado con éxito!",
+            subMessage: "Descargando archivo...",
+            percent: 100,
+            step: "completed",
+          });
+        },
+        onError: (msg) => {
+          useGlobalLoadingStore.getState().setProgress({
+            message: "Error durante la generación del respaldo",
+            subMessage: msg,
+            step: "error",
+          });
+        },
+      });
+
+      try {
+        const titulo = "Respaldo de Imágenes";
+        const token = localStorage.getItem("token");
+        const res = await fetch(
+          `${import.meta.env.VITE_API_URL}/reportes/pdf/export-images?jobId=${jobId}`,
+          {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ fotoIds, titulo }),
+          },
+        );
+        if (!res.ok) throw new Error(`Error del servidor: ${res.status}`);
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "respaldo-imagenes.pdf";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      } catch {
+        addToast("Error al exportar imágenes", "error");
+      } finally {
+        stopSse();
+        hideLoading();
+      }
+    },
+    [fotoIds, showLoading, hideLoading, addToast],
+  );
+
+  const handleExportAndFree = useCallback(
+    async () => {
+      if (fotoIds.length === 0) {
+        addToast("No hay imágenes para exportar con los filtros actuales", "info");
+        return;
+      }
+      await handleExportImages();
+      setTriggerFree(true);
+    },
+    [fotoIds, handleExportImages, addToast],
+  );
+
   // Paginación
   const [pageCliente, setPageCliente] = useState(1);
   const [pageFechas, setPageFechas] = useState(1);
@@ -266,11 +369,11 @@ export function AdminReportesPage() {
     api
       .get<{ data: ClienteOption[] }>(`/clientes?${params}`)
       .then((r) => setClientes(r.data.data))
-      .catch(() => {});
+      .catch(() => { });
     api
       .get<{ data: ChoferOption[] }>("/usuarios?rol=CHOFER&limit=100")
       .then((r) => setChoferes(r.data.data))
-      .catch(() => {});
+      .catch(() => { });
   }, [tipoCliente]);
 
   const fetchData = useCallback(async () => {
@@ -1028,6 +1131,7 @@ export function AdminReportesPage() {
       chofer: "Reporte por Chofer",
       fechas: "Reporte detallado por fechas",
       guia: "Reporte por Guía",
+      imagenes: "Reporte de Imágenes",
     };
     const titulo = titulos[targetTab] || "Reporte General";
 
@@ -1216,11 +1320,10 @@ export function AdminReportesPage() {
               key={t.id}
               type="button"
               onClick={() => setTab(t.id)}
-              className={`whitespace-nowrap border-b-2 px-4 py-3 text-sm font-medium transition-colors ${
-                tab === t.id
-                  ? "border-primary text-primary"
-                  : "border-transparent text-slate-500 hover:text-slate-700"
-              }`}
+              className={`whitespace-nowrap border-b-2 px-4 py-3 text-sm font-medium transition-colors ${tab === t.id
+                ? "border-primary text-primary"
+                : "border-transparent text-slate-500 hover:text-slate-700"
+                }`}
             >
               {t.label}
             </button>
@@ -1325,6 +1428,31 @@ export function AdminReportesPage() {
               </button>
             </>
           )}
+
+          {tab === "imagenes" && (
+            <>
+              <button
+                type="button"
+                onClick={handleExportImages}
+                className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+              >
+                <span className="material-symbols-outlined text-sm">
+                  picture_as_pdf
+                </span>
+                <span className="hidden sm:inline">Exportar imágenes</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleExportAndFree}
+                className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-100"
+              >
+                <span className="material-symbols-outlined text-sm">
+                  delete_sweep
+                </span>
+                <span className="hidden sm:inline">Exportar y liberar filtradas</span>
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -1335,6 +1463,17 @@ export function AdminReportesPage() {
           </div>
         ) : (
           <>
+            {tab === "imagenes" && (
+              <div className="p-4">
+                <ImagenesTab
+                  filters={imagenesFilters}
+                  onRutasLoaded={setImagenesRutas}
+                  triggerFree={triggerFree}
+                  onFreeTriggered={handleFreeTriggered}
+                />
+              </div>
+            )}
+
             {tab === "cliente" && (
               <div>
                 <div className="overflow-x-auto">
@@ -1370,18 +1509,16 @@ export function AdminReportesPage() {
                             <td className="px-4 py-3.5">
                               <div className="flex items-center gap-2.5">
                                 <div
-                                  className={`flex size-8 shrink-0 items-center justify-center rounded-lg ${
-                                    r.tipo === "PRINCIPAL"
-                                      ? "bg-primary/10"
-                                      : "bg-slate-100"
-                                  }`}
+                                  className={`flex size-8 shrink-0 items-center justify-center rounded-lg ${r.tipo === "PRINCIPAL"
+                                    ? "bg-primary/10"
+                                    : "bg-slate-100"
+                                    }`}
                                 >
                                   <span
-                                    className={`material-symbols-outlined text-[16px] ${
-                                      r.tipo === "PRINCIPAL"
-                                        ? "text-primary"
-                                        : "text-slate-400"
-                                    }`}
+                                    className={`material-symbols-outlined text-[16px] ${r.tipo === "PRINCIPAL"
+                                      ? "text-primary"
+                                      : "text-slate-400"
+                                      }`}
                                   >
                                     {r.tipo === "PRINCIPAL"
                                       ? "corporate_fare"
@@ -1519,13 +1656,12 @@ export function AdminReportesPage() {
                           </td>
                           <td className="px-4 py-3">
                             <span
-                              className={`rounded-full px-2 py-0.5 text-xs whitespace-nowrap ${
-                                g.estado === "ENTREGADO"
-                                  ? "bg-emerald-100 text-emerald-700"
-                                  : g.estado === "INCIDENCIA"
-                                    ? "bg-amber-100 text-amber-700"
-                                    : "bg-slate-100 text-slate-600"
-                              }`}
+                              className={`rounded-full px-2 py-0.5 text-xs whitespace-nowrap ${g.estado === "ENTREGADO"
+                                ? "bg-emerald-100 text-emerald-700"
+                                : g.estado === "INCIDENCIA"
+                                  ? "bg-amber-100 text-amber-700"
+                                  : "bg-slate-100 text-slate-600"
+                                }`}
                             >
                               {g.estado}
                             </span>
@@ -1671,13 +1807,12 @@ export function AdminReportesPage() {
                                           </p>
                                         </div>
                                         <span
-                                          className={`whitespace-nowrap flex-shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${
-                                            g.estado === "ENTREGADO"
-                                              ? "bg-emerald-100 text-emerald-700"
-                                              : g.estado === "INCIDENCIA"
-                                                ? "bg-amber-100 text-amber-700"
-                                                : "bg-slate-100 text-slate-600"
-                                          }`}
+                                          className={`whitespace-nowrap flex-shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${g.estado === "ENTREGADO"
+                                            ? "bg-emerald-100 text-emerald-700"
+                                            : g.estado === "INCIDENCIA"
+                                              ? "bg-amber-100 text-amber-700"
+                                              : "bg-slate-100 text-slate-600"
+                                            }`}
                                         >
                                           {g.estado}
                                         </span>
@@ -1685,36 +1820,36 @@ export function AdminReportesPage() {
                                       {(g.receptorNombre ||
                                         g.horaLlegada ||
                                         g.temperatura) && (
-                                        <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500">
-                                          {g.receptorNombre && (
-                                            <span className="break-words overflow-hidden">
-                                              Receptor:{" "}
-                                              {parseMultiField(
-                                                g.receptorNombre,
-                                              )}
-                                            </span>
-                                          )}
-                                          {g.horaLlegada && (
-                                            <span className="whitespace-nowrap">
-                                              Llegada: {g.horaLlegada}
-                                            </span>
-                                          )}
-                                          {g.horaSalida && (
-                                            <span className="whitespace-nowrap">
-                                              Salida: {g.horaSalida}
-                                            </span>
-                                          )}
-                                          {g.temperatura && (
-                                            <span className="whitespace-nowrap">
-                                              Temperatura:{" "}
-                                              {parseMultiFieldSuffix(
-                                                g.temperatura,
-                                                "°C",
-                                              )}
-                                            </span>
-                                          )}
-                                        </div>
-                                      )}
+                                          <div className="mt-2 flex flex-wrap gap-3 text-xs text-slate-500">
+                                            {g.receptorNombre && (
+                                              <span className="break-words overflow-hidden">
+                                                Receptor:{" "}
+                                                {parseMultiField(
+                                                  g.receptorNombre,
+                                                )}
+                                              </span>
+                                            )}
+                                            {g.horaLlegada && (
+                                              <span className="whitespace-nowrap">
+                                                Llegada: {g.horaLlegada}
+                                              </span>
+                                            )}
+                                            {g.horaSalida && (
+                                              <span className="whitespace-nowrap">
+                                                Salida: {g.horaSalida}
+                                              </span>
+                                            )}
+                                            {g.temperatura && (
+                                              <span className="whitespace-nowrap">
+                                                Temperatura:{" "}
+                                                {parseMultiFieldSuffix(
+                                                  g.temperatura,
+                                                  "°C",
+                                                )}
+                                              </span>
+                                            )}
+                                          </div>
+                                        )}
                                       {g.observaciones && (
                                         <div className="mt-1.5 text-xs text-slate-500 break-words overflow-hidden">
                                           Observaciones:{" "}
@@ -1897,13 +2032,12 @@ export function AdminReportesPage() {
                             </td>
                             <td className="px-4 py-3.5">
                               <span
-                                className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
-                                  g.estado === "ENTREGADO"
-                                    ? "bg-emerald-100 text-emerald-700"
-                                    : g.estado === "INCIDENCIA"
-                                      ? "bg-amber-100 text-amber-700"
-                                      : "bg-slate-100 text-slate-600"
-                                }`}
+                                className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${g.estado === "ENTREGADO"
+                                  ? "bg-emerald-100 text-emerald-700"
+                                  : g.estado === "INCIDENCIA"
+                                    ? "bg-amber-100 text-amber-700"
+                                    : "bg-slate-100 text-slate-600"
+                                  }`}
                               >
                                 {g.estado}
                               </span>
