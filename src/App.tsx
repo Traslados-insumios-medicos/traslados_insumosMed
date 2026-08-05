@@ -9,7 +9,7 @@ function App() {
 
   useEffect(() => {
     restoreSession()
-  }, [])
+  }, [restoreSession])
 
   return <RouterProvider router={router} />
 }

@@ -37,5 +37,5 @@ export function useGsapOutletTransition(
     return () => {
       mm.revert()
     }
-  }, [routeKey])
+  }, [routeKey, containerRef]);
 }

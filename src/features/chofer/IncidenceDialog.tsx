@@ -26,8 +26,10 @@ interface IncidenceDialogProps {
 }
 
 export function IncidenceDialog({ guiaId, numeroGuia, onClose }: IncidenceDialogProps) {
+  const REQUIRED_MESSAGE = 'Este campo es obligatorio'
   const [tipo, setTipo] = useState<TipoNovedad>('CLIENTE_AUSENTE')
   const [descripcion, setDescripcion] = useState('')
+  const [descripcionError, setDescripcionError] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const addToast = useToastStore((s) => s.addToast)
 
@@ -35,7 +37,10 @@ export function IncidenceDialog({ guiaId, numeroGuia, onClose }: IncidenceDialog
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (isOtra && !descripcion.trim()) return
+    if (isOtra && !descripcion.trim()) {
+      setDescripcionError(REQUIRED_MESSAGE)
+      return
+    }
     setSubmitting(true)
     try {
       await api.post('/novedades', {
@@ -72,11 +77,14 @@ export function IncidenceDialog({ guiaId, numeroGuia, onClose }: IncidenceDialog
         transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] as const }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-slate-200 p-4">
-          <h3 id="incidence-dialog-title" className="text-lg font-bold text-slate-900">
-            Registrar incidencia — {numeroGuia}
-          </h3>
-          <button type="button" onClick={onClose} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100" aria-label="Cerrar">
+        <div className="flex items-start justify-between border-b border-slate-200 p-4">
+          <div className="min-w-0">
+            <h3 id="incidence-dialog-title" className="text-lg font-bold text-slate-900">
+              Registrar incidencia
+            </h3>
+            <p className="break-all text-xs text-slate-500 mt-0.5">{numeroGuia}</p>
+          </div>
+          <button type="button" onClick={onClose} className="ml-3 shrink-0 rounded-lg p-2 text-slate-500 hover:bg-slate-100" aria-label="Cerrar">
             <span className="material-symbols-outlined">close</span>
           </button>
         </div>
@@ -91,9 +99,16 @@ export function IncidenceDialog({ guiaId, numeroGuia, onClose }: IncidenceDialog
           {isOtra && (
             <div>
               <label className="mb-2 block text-sm font-medium text-slate-700">Descripción (obligatoria)</label>
-              <textarea value={descripcion} onChange={(e) => setDescripcion(e.target.value)} rows={3} required
-                className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900"
+              <textarea value={descripcion} onChange={(e) => {
+                const value = e.target.value
+                setDescripcion(value)
+                if (value.trim()) setDescripcionError('')
+              }} onBlur={() => setDescripcionError(descripcion.trim() ? '' : REQUIRED_MESSAGE)} rows={3} required
+                className={`w-full rounded-lg border bg-slate-50 px-3 py-2 text-sm text-slate-900 ${
+                  descripcionError ? 'border-red-400' : 'border-slate-200'
+                }`}
                 placeholder="Describe la incidencia..." />
+              {descripcionError && <p className="mt-1 text-xs text-red-500">{descripcionError}</p>}
             </div>
           )}
           <div className="flex justify-end gap-2 pt-2">

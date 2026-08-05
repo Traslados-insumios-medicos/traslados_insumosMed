@@ -1,13 +1,16 @@
 import axios from 'axios'
+import { getSharedSocketId } from '../shared/socket'
 
 export const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL ?? 'http://localhost:3000/api',
 })
 
-// Adjunta el JWT en cada request
+// Adjunta el JWT y socketId en cada request
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('token')
   if (token) config.headers.Authorization = `Bearer ${token}`
+  const socketId = getSharedSocketId()
+  if (socketId) config.headers['x-socket-id'] = socketId
   return config
 })
 
@@ -16,8 +19,19 @@ api.interceptors.response.use(
   (res) => res,
   (error) => {
     const isLoginEndpoint = error.config?.url?.includes('/auth/login')
+    const isAuthMeEndpoint = error.config?.url?.includes('/auth/me')
     const hadToken = !!localStorage.getItem('token')
-    if (error.response?.status === 401 && !isLoginEndpoint && hadToken) {
+    const backendMessage = String(error?.response?.data?.message ?? '')
+    const isInactive = backendMessage.toLowerCase().includes('inactivo')
+    const status = error.response?.status
+    
+    // No redirigir en /auth/me — restoreSession lo maneja por su cuenta
+    if (status === 401 && !isLoginEndpoint && !isAuthMeEndpoint && hadToken) {
+      localStorage.clear()
+      window.location.href = '/login'
+    }
+    if (status === 403 && hadToken && isInactive) {
+      sessionStorage.setItem('inactive_access_notice', backendMessage || 'Su acceso está inactivo. Contacte al administrador de la empresa.')
       localStorage.clear()
       window.location.href = '/login'
     }

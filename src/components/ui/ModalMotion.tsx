@@ -1,5 +1,6 @@
 import { AnimatePresence, motion, type HTMLMotionProps } from 'framer-motion'
 import type { ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 
 const ease = [0.16, 1, 0.3, 1] as const
 
@@ -18,12 +19,12 @@ export function ModalMotion({
   children,
   panelProps,
 }: ModalMotionProps) {
-  return (
+  return createPortal(
     <AnimatePresence>
       {show && (
         <motion.div
           key="modal-backdrop"
-          className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${backdropClassName}`}
+          className={`fixed inset-0 z-[9999] flex items-center justify-center p-4 ${backdropClassName}`}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -42,6 +43,7 @@ export function ModalMotion({
           </motion.div>
         </motion.div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   )
 }

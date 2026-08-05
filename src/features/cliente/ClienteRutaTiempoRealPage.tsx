@@ -1,111 +1,311 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { api } from '../../services/api'
-import { RouteMap } from '../../components/map/RouteMap'
-import type { Stop } from '../../types/models'
-import { useSimulatedRoute } from '../../utils/mapSimulation'
-import { useToastStore } from '../../store/toastStore'
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { io } from "socket.io-client";
+import { SeguimientoChoferStepper } from "../../components/cliente/SeguimientoChoferStepper";
+import { api } from "../../services/api";
+import { RouteMap } from "../../components/map/RouteMap";
+import type { Stop } from "../../types/models";
+import { useToastStore } from "../../store/toastStore";
 
 interface GuiaLista {
-  id: string
-  numeroGuia: string
-  estado: string
-  clienteId: string
-  rutaId: string
-  stopId: string
-  ruta: { id: string; estado: string }
+  id: string;
+  numeroGuia: string | null;
+  estado: string;
+  clienteId: string;
+  rutaId: string;
+  stopId: string;
+  ruta: {
+    id: string;
+    estado: string;
+    hojaRuta?: string | null;
+    chofer?: { nombre: string } | null;
+  };
 }
 
 interface MisEnviosPayload {
-  data: GuiaLista[]
+  data: GuiaLista[];
 }
-
 interface GuiaMini {
-  id: string
-  estado: string
+  id: string;
+  estado: string;
 }
 
 interface StopApi {
-  id: string
-  orden: number
-  direccion: string
-  lat: number
-  lng: number
-  clienteId: string
-  guias: GuiaMini[]
+  id: string;
+  orden: number;
+  direccion: string;
+  lat: number;
+  lng: number;
+  clienteId: string;
+  guias: GuiaMini[];
 }
 
 interface RutaApi {
-  id: string
-  estado: string
-  choferId: string
-  chofer: { id: string; nombre: string }
-  stops: StopApi[]
+  id: string;
+  estado: string;
+  seguimientoChofer?: string;
+  hojaRuta?: string | null;
+  choferId: string;
+  chofer: { id: string; nombre: string };
+  stops: StopApi[];
 }
 
 export function ClienteRutaTiempoRealPage() {
-  const addToast = useToastStore((s) => s.addToast)
-  const [candidates, setCandidates] = useState<GuiaLista[]>([])
-  const [ruta, setRuta] = useState<RutaApi | null>(null)
-  const [loadingList, setLoadingList] = useState(true)
-  const [loadingRuta, setLoadingRuta] = useState(false)
-  const [rutaError, setRutaError] = useState(false)
+  const addToast = useToastStore((s) => s.addToast);
+  const [candidates, setCandidates] = useState<GuiaLista[]>([]);
+  const [ruta, setRuta] = useState<RutaApi | null>(null);
+  const [loadingList, setLoadingList] = useState(true);
+  const [loadingRuta, setLoadingRuta] = useState(false);
+  const [rutaError, setRutaError] = useState(false);
+  const [seguimientoActualizadoAt, setSeguimientoActualizadoAt] = useState<
+    string | null
+  >(null);
+  const [choferPosicion, setChoferPosicion] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
+  const [choferGpsAt, setChoferGpsAt] = useState<string | null>(null);
+  const [etaReal, setEtaReal] = useState<number | null>(null);
+  const [selectedGuiaId, setSelectedGuiaId] = useState<string | null>(null);
+  const [showSelection, setShowSelection] = useState(true); // Nueva: mostrar pantalla de selección
 
-  const fetchActivos = useCallback(async () => {
-    setLoadingList(true)
-    try {
-      const res = await api.get<MisEnviosPayload>('/guias/mis-envios?vista=activos&limit=50&page=1')
-      setCandidates(res.data.data)
-    } catch {
-      addToast('No se pudieron cargar envíos activos', 'error')
-      setCandidates([])
-    } finally {
-      setLoadingList(false)
-    }
-  }, [addToast])
+  const fetchActivos = useCallback(
+    async (silent = false) => {
+      if (!silent) setLoadingList(true);
+      try {
+        const res = await api.get<MisEnviosPayload>(
+          "/guias/mis-envios?vista=activos&limit=50&page=1",
+        );
+        setCandidates(res.data.data);
+      } catch {
+        if (!silent) addToast("No se pudieron cargar envíos activos", "error");
+      } finally {
+        if (!silent) setLoadingList(false);
+      }
+    },
+    [addToast],
+  );
 
   useEffect(() => {
-    fetchActivos()
-  }, [fetchActivos])
+    fetchActivos();
+  }, [fetchActivos]);
+
+  // Refresh silencioso cada 30s — sin spinner, sin parpadeo
+  useEffect(() => {
+    const interval = setInterval(() => {
+      void fetchActivos(true);
+    }, 30_000);
+    return () => clearInterval(interval);
+  }, [fetchActivos]);
+
+  // Auto-seleccionar cuando hay exactamente 1 envío activo
+  const autoSelectedRef = useRef(false);
+  useEffect(() => {
+    if (candidates.length === 1 && !selectedGuiaId && !autoSelectedRef.current) {
+      autoSelectedRef.current = true;
+      setSelectedGuiaId(candidates[0].id);
+      setShowSelection(false);
+    }
+  }, [candidates, selectedGuiaId]);
 
   const guiaActiva = useMemo(() => {
-    const enCurso = candidates.find(
-      (g) =>
-        (g.estado === 'PENDIENTE' || g.estado === 'INCIDENCIA') && g.ruta?.estado === 'EN_CURSO',
-    )
-    if (enCurso) return enCurso
-    return candidates.find((g) => g.estado === 'PENDIENTE' || g.estado === 'INCIDENCIA')
-  }, [candidates])
+    // Si hay una guía seleccionada manualmente, usarla
+    if (selectedGuiaId) {
+      const selected = candidates.find((g) => g.id === selectedGuiaId);
+      if (selected) return selected;
+    }
+
+    // Si solo hay una, seleccionarla automáticamente
+    if (candidates.length === 1) {
+      return candidates[0];
+    }
+
+    // Si no hay selección y hay múltiples, no seleccionar ninguna (mostrar pantalla de selección)
+    return null;
+  }, [candidates, selectedGuiaId]);
+
+  // Función para seleccionar una guía y mostrar el rastreo
+  const handleSelectGuia = (guiaId: string) => {
+    setSelectedGuiaId(guiaId);
+    setShowSelection(false);
+  };
+
+  // Función para volver a la pantalla de selección
+  const handleBackToSelection = () => {
+    setShowSelection(true);
+    setSelectedGuiaId(null);
+    setRuta(null);
+    setChoferPosicion(null);
+  };
 
   useEffect(() => {
     if (!guiaActiva?.rutaId) {
-      setRuta(null)
-      setRutaError(false)
-      return
+      setRuta(null);
+      setRutaError(false);
+      setChoferPosicion(null);
+      setChoferGpsAt(null);
+      return;
     }
-    let cancel = false
-    ;(async () => {
-      setLoadingRuta(true)
-      setRutaError(false)
+    let cancel = false;
+    (async () => {
+      setLoadingRuta(true);
+      setRutaError(false);
       try {
-        const res = await api.get<RutaApi>(`/rutas/${guiaActiva.rutaId}`)
-        if (!cancel) setRuta(res.data)
+        const res = await api.get<RutaApi>(`/rutas/${guiaActiva.rutaId}`);
+        if (!cancel) {
+          setRuta(res.data);
+          setSeguimientoActualizadoAt(new Date().toISOString());
+        }
       } catch {
         if (!cancel) {
-          setRuta(null)
-          setRutaError(true)
-          addToast('No se pudo cargar la ruta', 'error')
+          setRuta(null);
+          setRutaError(true);
+          addToast("No se pudo cargar la ruta", "error");
         }
       } finally {
-        if (!cancel) setLoadingRuta(false)
+        if (!cancel) setLoadingRuta(false);
       }
-    })()
+    })();
     return () => {
-      cancel = true
+      cancel = true;
+    };
+  }, [guiaActiva?.rutaId, addToast]);
+
+  useEffect(() => {
+    const rutaId = ruta?.id;
+    if (!rutaId || !guiaActiva) {
+      return;
     }
-  }, [guiaActiva?.rutaId, addToast])
+    const token = localStorage.getItem("token");
+    if (!token) {
+      return;
+    }
+
+
+    const socket = io(import.meta.env.VITE_WS_URL ?? "http://localhost:3000", {
+      auth: { token },
+      transports: ["websocket"],
+    });
+
+    socket.on("connect", () => {
+      socket.emit("join:ruta", rutaId);
+    });
+
+    socket.on("connect_error", () => {
+      // Error de conexión socket
+    });
+
+    socket.on(
+      "seguimiento_ruta",
+      (p: { rutaId: string; seguimientoChofer: string }) => {
+        if (p.rutaId !== rutaId) return;
+        setRuta((prev) =>
+          prev ? { ...prev, seguimientoChofer: p.seguimientoChofer } : prev,
+        );
+        setSeguimientoActualizadoAt(new Date().toISOString());
+      },
+    );
+
+    socket.on(
+      "posicion_chofer",
+      (p: { lat: number; lng: number; timestamp?: number }) => {
+        setChoferPosicion({ lat: p.lat, lng: p.lng });
+        setChoferGpsAt(
+          p.timestamp
+            ? new Date(p.timestamp).toISOString()
+            : new Date().toISOString(),
+        );
+      },
+    );
+
+    // Escuchar cuando hay incidencia - recargar datos y redirigir
+    socket.on(
+      "guia:incidencia",
+      async (p: { guiaId: string; numeroGuia: string; rutaId: string }) => {
+
+        // Si es la guía del cliente, mostrar mensaje y redirigir
+        if (p.guiaId === guiaActiva.id) {
+          addToast(
+            "Se ha reportado una incidencia en tu envío. Nos pondremos en contacto contigo.",
+            "error",
+          );
+
+          // Desconectar socket antes de redirigir
+          socket.disconnect();
+
+          // Redirigir después de un momento
+          setTimeout(() => {
+            window.location.href = "/cliente/envios";
+          }, 2500);
+        } else {
+          // Si no es la guía del cliente, solo recargar la ruta
+          try {
+            const res = await api.get<RutaApi>(`/rutas/${rutaId}`);
+            setRuta(res.data);
+          } catch {
+            // Error al recargar ruta
+          }
+        }
+      },
+    );
+
+    // Escuchar cuando la guía se entrega - recargar datos y redirigir si ya no hay activos
+    socket.on(
+      "guia:entregada",
+      async (p: { guiaId: string; numeroGuia: string; rutaId: string }) => {
+
+        // Si es la guía del cliente, recargar y redirigir
+        if (p.guiaId === guiaActiva.id) {
+          addToast("¡Tu envío ha sido entregado exitosamente!", "success");
+
+          // Desconectar socket antes de redirigir
+          socket.disconnect();
+
+          // Redirigir después de un momento
+          setTimeout(() => {
+            window.location.href = "/cliente/envios";
+          }, 2500);
+        } else {
+          // Si no es la guía del cliente, solo recargar la ruta
+          try {
+            const res = await api.get<RutaApi>(`/rutas/${rutaId}`);
+            setRuta(res.data);
+          } catch (error) {
+            console.error("Error al recargar ruta:", error);
+          }
+        }
+      },
+    );
+
+    // Escuchar cuando la ruta se completa
+    socket.on(
+      "ruta:completada",
+      async (p: { rutaId: string; estado: string }) => {
+        if (p.rutaId === rutaId) {
+          // Recargar la lista de candidatos para actualizar el estado
+          await fetchActivos(true);
+
+          addToast(
+            "La ruta ha sido completada. Gracias por usar nuestro servicio.",
+            "success",
+          );
+
+          // Desconectar socket antes de redirigir para evitar errores
+          socket.disconnect();
+
+          setTimeout(() => {
+            window.location.href = "/cliente/envios";
+          }, 2500);
+        }
+      },
+    );
+
+    return () => {
+      socket.disconnect();
+    };
+  }, [ruta?.id, guiaActiva?.id, guiaActiva, addToast, fetchActivos]);
 
   const stopsRuta: Stop[] = useMemo(() => {
-    if (!ruta?.stops?.length) return []
+    if (!ruta?.stops?.length) return [];
     return [...ruta.stops]
       .sort((a, b) => a.orden - b.orden)
       .map((s) => ({
@@ -116,50 +316,223 @@ export function ClienteRutaTiempoRealPage() {
         lng: s.lng,
         clienteId: s.clienteId,
         guiaIds: s.guias.map((g) => g.id),
-      }))
-  }, [ruta])
+        tieneIncidencia: s.guias.some((g) => g.estado === "INCIDENCIA"),
+      }));
+  }, [ruta]);
 
-  const todasLasGuias = useMemo(() => ruta?.stops.flatMap((s) => s.guias) ?? [], [ruta])
+  const todasLasGuias = useMemo(
+    () => ruta?.stops.flatMap((s) => s.guias) ?? [],
+    [ruta],
+  );
 
   const stopCliente = useMemo(
     () => stopsRuta.find((s) => s.id === guiaActiva?.stopId),
     [stopsRuta, guiaActiva?.stopId],
-  )
+  );
 
-  const coordinates = useMemo(() => stopsRuta.map((s) => ({ lat: s.lat, lng: s.lng })), [stopsRuta])
-  const { currentPosition } = useSimulatedRoute({ coordinates, intervalMs: 4000 })
+  // ETA real via Mapbox Directions cuando hay GPS del chofer
+  useEffect(() => {
+    if (!choferPosicion || !stopCliente) {
+      setEtaReal(null);
+      return;
+    }
+    const token = import.meta.env.VITE_MAPBOX_TOKEN;
+    if (!token) return;
+    let cancelled = false;
+    const { lat: oLat, lng: oLng } = choferPosicion;
+    const { lat: dLat, lng: dLng } = stopCliente;
+    fetch(
+      `https://api.mapbox.com/directions/v5/mapbox/driving/${oLng},${oLat};${dLng},${dLat}?access_token=${token}&overview=false`,
+    )
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        const duration = data.routes?.[0]?.duration as number | undefined;
+        if (duration != null) setEtaReal(Math.ceil(duration / 60));
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [choferPosicion, stopCliente]);
 
-  const paradasAnteriores = stopCliente
-    ? stopsRuta.filter((s) => s.orden < stopCliente.orden).length
-    : 0
-  const etaMinutos = 10 + paradasAnteriores * 12
+  const currentPosition = choferPosicion;
 
-  const chofer = ruta?.chofer
+  // Calcula distancia haversine en km entre dos puntos
+  const haversineKm = (
+    lat1: number,
+    lng1: number,
+    lat2: number,
+    lng2: number,
+  ) => {
+    const R = 6371;
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLng = ((lng2 - lng1) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLng / 2) ** 2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  };
+
+  // Fallback: suma distancia desde posición actual (o primera parada pendiente) hasta la parada del cliente
+  const etaFallback = useMemo(() => {
+    if (!stopCliente || !stopsRuta.length) return null;
+    const stopsHastaCliente = stopsRuta.filter(
+      (s) => s.orden <= stopCliente.orden,
+    );
+    if (stopsHastaCliente.length < 2) {
+      if (choferPosicion) return null; // hay GPS, esperar ETA real
+      return null; // sin datos suficientes
+    }
+    // Suma distancias entre paradas pendientes (solo si no hay GPS del chofer)
+    if (choferPosicion) return null; // hay GPS, esperar ETA real
+    let totalKm = 0;
+    for (let i = 0; i < stopsHastaCliente.length - 1; i++) {
+      const a = stopsHastaCliente[i];
+      const b = stopsHastaCliente[i + 1];
+      totalKm += haversineKm(a.lat, a.lng, b.lat, b.lng);
+    }
+    const paradasIntermedias = stopsHastaCliente.length - 1;
+    return Math.max(1, Math.ceil((totalKm / 30) * 60) + paradasIntermedias * 3);
+  }, [stopCliente, stopsRuta, choferPosicion]);
+
+  const etaMinutos = etaReal ?? etaFallback;
+  const etaEsReal = etaReal != null;
+  const chofer = ruta?.chofer;
 
   if (loadingList) {
     return (
       <div className="flex items-center justify-center py-24">
-        <span className="material-symbols-outlined animate-spin text-3xl text-primary">progress_activity</span>
+        <span className="material-symbols-outlined animate-spin text-3xl text-primary">
+          progress_activity
+        </span>
       </div>
-    )
+    );
   }
+
+  // Pantalla de selección de envíos (cuando hay múltiples)
+  if (showSelection && candidates.length > 1) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900">
+            Ruta en tiempo real
+          </h1>
+          <p className="text-sm text-slate-500">
+            Selecciona el envío que deseas rastrear
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {candidates.map((guia) => (
+            <button
+              key={guia.id}
+              onClick={() => handleSelectGuia(guia.id)}
+              className="flex flex-col rounded-xl border border-slate-200 bg-white p-5 text-left shadow-sm transition-all hover:border-primary hover:shadow-lg"
+            >
+              <div className="mb-3 flex items-start justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                    Guía de envío
+                  </p>
+                  <h3 className="mt-1 break-all text-lg font-bold text-slate-900">
+                    {guia.numeroGuia ?? "Sin guía"}
+                  </h3>
+                  {guia.ruta?.hojaRuta && (
+                    <p className="mt-0.5 text-xs font-semibold text-primary">
+                      {guia.ruta.hojaRuta}
+                    </p>
+                  )}
+                  {guia.ruta?.chofer?.nombre && (
+                    <p className="mt-1 flex items-center gap-1 text-xs text-slate-500">
+                      <span className="material-symbols-outlined text-[13px]">
+                        person
+                      </span>
+                      {guia.ruta.chofer.nombre}
+                    </p>
+                  )}
+                </div>
+                <span
+                  className={`rounded-full px-2.5 py-1 text-xs font-bold ${
+                    guia.ruta?.estado === "EN_CURSO"
+                      ? "bg-blue-100 text-blue-700"
+                      : "bg-amber-100 text-amber-700"
+                  }`}
+                >
+                  {guia.ruta?.estado === "EN_CURSO"
+                    ? "🚚 En camino"
+                    : "📦 Pendiente"}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2 text-sm text-slate-600">
+                <span className="material-symbols-outlined text-base">
+                  location_on
+                </span>
+                <span className="line-clamp-2">
+                  Rastreo en tiempo real disponible
+                </span>
+              </div>
+
+              <div className="mt-4 flex items-center justify-end gap-2 text-sm font-semibold text-primary">
+                Ver rastreo
+                <span className="material-symbols-outlined text-base">
+                  arrow_forward
+                </span>
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+
 
   return (
     <div className="space-y-6">
+      {/* Botón para volver si hay múltiples envíos */}
+      {candidates.length > 1 && (
+        <button
+          onClick={handleBackToSelection}
+          className="flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-primary"
+        >
+          <span className="material-symbols-outlined text-base">
+            arrow_back
+          </span>
+          Volver a selección de envíos
+        </button>
+      )}
+
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">Ruta en tiempo real</h1>
-        <p className="text-sm text-slate-500">Seguimiento de tu envío (posición simulada hasta conexión en vivo)</p>
+        <div className="flex items-center gap-3">
+          <h1 className="text-2xl font-bold text-slate-900">
+            Ruta en tiempo real
+          </h1>
+          {ruta?.hojaRuta && (
+            <span className="rounded-full bg-primary/10 px-3 py-0.5 text-sm font-semibold text-primary">
+              {ruta.hojaRuta}
+            </span>
+          )}
+        </div>
+        <p className="text-sm text-slate-500">
+          Seguimiento de tu envío (posición simulada hasta conexión en vivo)
+        </p>
       </div>
 
       {!guiaActiva || !ruta || loadingRuta ? (
         <div className="rounded-xl border border-slate-200 bg-white p-8 text-center">
-          <span className="material-symbols-outlined text-4xl text-slate-300">map</span>
+          <span className="material-symbols-outlined text-4xl text-slate-300">
+            map
+          </span>
           <p className="mt-2 text-sm text-slate-500">
             {guiaActiva && loadingRuta
-              ? 'Cargando mapa de la ruta…'
+              ? "Cargando mapa de la ruta…"
               : guiaActiva && rutaError
-                ? 'No se pudo cargar el detalle de la ruta. Intente de nuevo más tarde.'
-                : 'No hay envíos activos en este momento.'}
+                ? "No se pudo cargar el detalle de la ruta. Intente de nuevo más tarde."
+                : "No hay envíos activos en este momento."}
           </p>
         </div>
       ) : (
@@ -168,56 +541,99 @@ export function ClienteRutaTiempoRealPage() {
             <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
               <div className="flex items-center gap-2">
                 <span className="size-2 animate-pulse rounded-full bg-emerald-500" />
-                <span className="text-sm font-semibold text-slate-700">Vista ruta</span>
+                <span className="text-sm font-semibold text-slate-700">
+                  Vista ruta
+                </span>
               </div>
-              <span className="text-xs text-slate-400">Actualización posición demo · 4s</span>
+              <span className="text-xs text-slate-400">
+                {choferGpsAt
+                  ? `GPS chofer · ${new Date(choferGpsAt).toLocaleTimeString("es-ES")}`
+                  : "GPS del chofer pendiente"}
+              </span>
             </div>
             <div className="h-72 sm:h-96 lg:h-[460px]">
               <RouteMap
                 stops={stopsRuta}
                 currentPosition={currentPosition}
                 highlightedStopId={guiaActiva.stopId}
+                trazarRutaDesdeMiPosicion={!!currentPosition}
               />
             </div>
             <p className="border-t border-slate-100 bg-slate-50 px-3 py-2 text-[10px] text-slate-400">
-              Mapbox · Posición del vehículo simulada en la ruta (WebSocket pendiente)
+              {currentPosition
+                ? "Mapbox · Ubicación GPS del chofer en tiempo real."
+                : "Mapbox · El carrito aparecerá cuando el chofer active su GPS."}
             </p>
           </div>
 
           <div className="flex flex-col gap-4">
+            <SeguimientoChoferStepper
+              rutaEstado={ruta.estado}
+              seguimiento={ruta.seguimientoChofer ?? "NINGUNO"}
+              guiaEstado={guiaActiva.estado}
+            />
+            <p className="text-right text-[11px] text-slate-400">
+              Última actualización:{" "}
+              {seguimientoActualizadoAt
+                ? new Date(seguimientoActualizadoAt).toLocaleString("es-ES")
+                : "—"}
+            </p>
+
             <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wider text-primary">ETA estimado</p>
-              <p className="mt-1 text-3xl font-black text-slate-900">~{etaMinutos} min</p>
-              <p className="mt-0.5 text-xs text-slate-500">
-                {paradasAnteriores > 0
-                  ? `${paradasAnteriores} parada${paradasAnteriores > 1 ? 's' : ''} antes de la tuya`
-                  : 'Tu parada es la próxima'}
+              <p className="text-xs font-semibold uppercase tracking-wider text-primary">
+                {etaEsReal ? "ETA en tiempo real" : "ETA estimado"}
               </p>
+              {etaMinutos != null ? (
+                <>
+                  <p className="mt-1 text-3xl font-black text-slate-900">
+                    {etaEsReal ? "" : "~"}
+                    {etaMinutos} min
+                  </p>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    {etaEsReal
+                      ? "Calculado desde la posición actual del chofer"
+                      : stopCliente &&
+                          stopsRuta.filter((s) => s.orden < stopCliente.orden)
+                            .length > 0
+                        ? `${stopsRuta.filter((s) => s.orden < stopCliente.orden).length} parada${stopsRuta.filter((s) => s.orden < stopCliente.orden).length > 1 ? "s" : ""} antes de la tuya`
+                        : "Tu parada es la próxima"}
+                  </p>
+                </>
+              ) : (
+                <div className="mt-2 flex items-center gap-2">
+                  <span className="material-symbols-outlined animate-spin text-base text-primary">
+                    progress_activity
+                  </span>
+                  <p className="text-sm text-slate-500">
+                    Calculando tiempo de llegada…
+                  </p>
+                </div>
+              )}
             </div>
 
             <div className="rounded-xl border border-slate-200 bg-white p-4">
-              <p className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-400">Tu envío</p>
+              <p className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-400">
+                Tu envío
+              </p>
               <div className="space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-slate-500">Guía</span>
-                  <span className="font-semibold text-primary">{guiaActiva.numeroGuia}</span>
+                <div className="flex items-start justify-between gap-3 text-sm">
+                  <span className="shrink-0 text-slate-500">Guía</span>
+                  <span className="min-w-0 break-all text-right font-semibold text-primary">
+                    {guiaActiva.numeroGuia}
+                  </span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-slate-500">Estado</span>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
-                      guiaActiva.estado === 'INCIDENCIA'
-                        ? 'bg-rose-100 text-rose-700'
-                        : 'bg-blue-100 text-blue-700'
-                    }`}
-                  >
-                    {guiaActiva.estado === 'INCIDENCIA' ? 'Incidencia' : 'En tránsito'}
+                  <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700">
+                    {ruta.estado === "EN_CURSO" ? "En camino" : "Pendiente"}
                   </span>
                 </div>
                 {stopCliente && (
                   <div className="flex justify-between gap-4 text-sm">
                     <span className="shrink-0 text-slate-500">Destino</span>
-                    <span className="text-right text-xs text-slate-700">{stopCliente.direccion}</span>
+                    <span className="text-right text-xs text-slate-700">
+                      {stopCliente.direccion}
+                    </span>
                   </div>
                 )}
               </div>
@@ -225,15 +641,20 @@ export function ClienteRutaTiempoRealPage() {
 
             {chofer && (
               <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <p className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-400">Chofer asignado</p>
+                <p className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-400">
+                  Chofer asignado
+                </p>
                 <div className="flex items-center gap-3">
                   <div className="flex size-10 items-center justify-center rounded-full bg-primary/10 text-primary">
                     <span className="material-symbols-outlined">person</span>
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-slate-900">{chofer.nombre}</p>
+                    <p className="text-sm font-semibold text-slate-900">
+                      {chofer.nombre}
+                    </p>
                     <p className="text-xs text-slate-500">
-                      Ruta #{ruta.id.slice(-6)} · {stopsRuta.length} paradas
+                      RUTA #{ruta.id.slice(-6).toUpperCase()} •{" "}
+                      {stopsRuta.length} paradas
                     </p>
                   </div>
                 </div>
@@ -241,34 +662,39 @@ export function ClienteRutaTiempoRealPage() {
             )}
 
             <div className="rounded-xl border border-slate-200 bg-white p-4">
-              <p className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-400">Paradas de la ruta</p>
+              <p className="mb-3 text-xs font-bold uppercase tracking-wider text-slate-400">
+                Paradas de la ruta
+              </p>
               <ul className="space-y-2">
                 {stopsRuta.map((s) => {
-                  const esMia = s.id === guiaActiva.stopId
-                  const guiasStop = todasLasGuias.filter((g) => s.guiaIds.includes(g.id))
-                  const entregada = guiasStop.every((g) => g.estado === 'ENTREGADO' || g.estado === 'INCIDENCIA')
+                  const esMia = s.id === guiaActiva.stopId;
+                  const guiasStop = todasLasGuias.filter((g) =>
+                    s.guiaIds.includes(g.id),
+                  );
+                  const entregada = guiasStop.every(
+                    (g) =>
+                      g.estado === "ENTREGADO" || g.estado === "INCIDENCIA",
+                  );
                   return (
                     <li
                       key={s.id}
-                      className={`flex items-start gap-2 rounded-lg p-2 text-xs ${esMia ? 'bg-primary/10 font-semibold text-primary' : ''}`}
+                      className={`flex items-start gap-2 rounded-lg p-2 text-xs ${esMia ? "bg-primary/10 font-semibold text-primary" : ""}`}
                     >
                       <span
-                        className={`mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full text-[9px] font-bold ${
-                          entregada
-                            ? 'bg-emerald-500 text-white'
-                            : esMia
-                              ? 'bg-primary text-white'
-                              : 'bg-slate-200 text-slate-600'
-                        }`}
+                        className={`mt-0.5 flex size-4 shrink-0 items-center justify-center rounded-full text-[9px] font-bold ${entregada ? "bg-emerald-500 text-white" : esMia ? "bg-primary text-white" : "bg-slate-200 text-slate-600"}`}
                       >
                         {s.orden}
                       </span>
-                      <span className={`line-clamp-2 ${esMia ? 'text-primary' : 'text-slate-600'}`}>
+                      <span
+                        className={`line-clamp-2 ${esMia ? "text-primary" : "text-slate-600"}`}
+                      >
                         {s.direccion}
-                        {esMia && <span className="ml-1 text-[10px]">(tu parada)</span>}
+                        {esMia && (
+                          <span className="ml-1 text-[10px]">(tu parada)</span>
+                        )}
                       </span>
                     </li>
-                  )
+                  );
                 })}
               </ul>
             </div>
@@ -276,5 +702,5 @@ export function ClienteRutaTiempoRealPage() {
         </div>
       )}
     </div>
-  )
+  );
 }

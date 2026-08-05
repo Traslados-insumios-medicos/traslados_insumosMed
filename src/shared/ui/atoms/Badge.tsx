@@ -1,4 +1,4 @@
 /**
  * ATOM — Badge
  */
-export { Badge, EstadoGuiaBadge, EstadoRutaBadge } from '../../../components/ui/Badge'
+export { EstadoGuiaBadge, EstadoRutaBadge } from '../../../components/ui/Badge'

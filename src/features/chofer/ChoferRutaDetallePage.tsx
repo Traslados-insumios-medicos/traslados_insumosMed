@@ -1,171 +1,990 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AnimatePresence } from 'framer-motion'
-import { Link, useParams } from 'react-router-dom'
-import { api } from '../../services/api'
-import { useAuthStore } from '../../store/authStore'
-import { useToastStore } from '../../store/toastStore'
-import { RouteMap } from '../../components/map/RouteMap'
-import { PhotoUploader } from './PhotoUploader'
-import { IncidenceDialog } from './IncidenceDialog'
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence } from "framer-motion";
+import { io } from "socket.io-client";
+import { Link, useParams } from "react-router-dom";
+import { api } from "../../services/api";
+import { useAuthStore } from "../../store/authStore";
+import { useToastStore } from "../../store/toastStore";
+import { useGlobalLoadingStore } from "../../store/globalLoadingStore";
+import { RouteMap } from "../../components/map/RouteMap";
+import { PhotoUploader } from "./PhotoUploader";
+import { SeguimientoChoferStepper } from "../../components/cliente/SeguimientoChoferStepper";
+import { ModalMotion } from "../../components/ui/ModalMotion";
+import { SystemStatusBar } from "../../shared/ui/molecules/SystemStatusBar";
 interface GuiaApi {
-  id: string; numeroGuia: string; descripcion: string; estado: string
-  receptorNombre?: string | null; horaLlegada?: string | null
-  horaSalida?: string | null; temperatura?: string | null; observaciones?: string | null
-  stopId: string
+  id: string;
+  numeroGuia: string | null;
+  descripcion: string;
+  estado: string;
+  receptorNombre?: string | null;
+  horaLlegada?: string | null;
+  horaSalida?: string | null;
+  temperatura?: string | null;
+  observaciones?: string | null;
+  stopId: string;
+  updatedAt?: string;
+  fotos?: FotoApi[];
 }
+
+type TipoNovedad =
+  | "CLIENTE_AUSENTE"
+  | "MERCADERIA_DANADA"
+  | "DIRECCION_INCORRECTA"
+  | "OTRO";
+
+interface GuiaDetalleForm {
+  receptorNombre: string;
+  temperatura: string;
+  horaLlegada: string;
+  horaSalida: string;
+  observaciones: string;
+  tipoIncidencia: TipoNovedad;
+}
+
+type GuiaDetalleErrorFields = Pick<
+  GuiaDetalleForm,
+  "receptorNombre" | "temperatura" | "horaLlegada" | "horaSalida"
+>;
 
 interface StopApi {
-  id: string; orden: number; direccion: string; lat: number; lng: number
-  notas?: string | null; cliente: { id: string; nombre: string }
-  guias: GuiaApi[]
+  id: string;
+  orden: number;
+  direccion: string;
+  lat: number;
+  lng: number;
+  notas?: string | null;
+  cliente: { id: string; nombre: string };
+  guias: GuiaApi[];
 }
 
-interface FotoApi { id: string; urlPreview: string; createdAt: string; tipo: string }
+interface FotoApi {
+  id: string;
+  urlPreview: string;
+  createdAt: string;
+  tipo: string;
+}
 
 interface RutaApi {
-  id: string; fecha: string; estado: string
-  chofer: { id: string; nombre: string }
-  stops: StopApi[]; guias: GuiaApi[]; fotos: FotoApi[]
+  id: string;
+  fecha: string;
+  estado: string;
+  createdAt: string;
+  nombre?: string | null;
+  hojaRuta?: string | null;
+  seguimientoChofer?: string;
+  chofer: { id: string; nombre: string };
+  stops: StopApi[];
+  guias: GuiaApi[];
+  fotos: FotoApi[];
+}
+
+function guiaTieneDetallePersistido(g: GuiaApi) {
+  // Para incidencias: verificar que tenga tipo de incidencia en receptorNombre
+  const esIncidencia = g.estado === "INCIDENCIA";
+
+  const tieneFotos = !!(g.fotos && g.fotos.length > 0);
+  const tieneTemperatura = !!g.temperatura?.trim();
+  const tieneHoraLlegada = !!g.horaLlegada?.trim();
+  const tieneHoraSalida = !!g.horaSalida?.trim();
+
+  if (esIncidencia) {
+    // Para incidencias: debe tener temperatura, horas y al menos 1 foto
+    return (
+      tieneFotos && tieneTemperatura && tieneHoraLlegada && tieneHoraSalida
+    );
+  }
+
+  // Para entregas normales: debe tener receptor, temperatura, horas y al menos 1 foto
+  const tieneReceptor = !!g.receptorNombre?.trim();
+  return (
+    tieneReceptor &&
+    tieneFotos &&
+    tieneTemperatura &&
+    tieneHoraLlegada &&
+    tieneHoraSalida
+  );
 }
 
 export function ChoferRutaDetallePage() {
-  const { id } = useParams<{ id: string }>()
-  const { currentUser } = useAuthStore()
-  const addToast = useToastStore((s) => s.addToast)
+  const REQUIRED_MESSAGE = "Este campo es obligatorio";
 
-  const [ruta, setRuta] = useState<RutaApi | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [selectedStopId, setSelectedStopId] = useState<string | null>(null)
-  const [fitBoundsTrigger, setFitBoundsTrigger] = useState(0)
-  const [incidenceGuia, setIncidenceGuia] = useState<{ id: string; numeroGuia: string } | null>(null)
+  const TIPOS_INCIDENCIA: { value: TipoNovedad; label: string }[] = [
+    { value: "CLIENTE_AUSENTE", label: "Cliente no estuvo / ausente" },
+    { value: "MERCADERIA_DANADA", label: "Mercadería dañada" },
+    { value: "DIRECCION_INCORRECTA", label: "Dirección incorrecta" },
+    { value: "OTRO", label: "Otra" },
+  ];
+
+  const { id } = useParams<{ id: string }>();
+  const { currentUser } = useAuthStore();
+  const addToast = useToastStore((s) => s.addToast);
+
+  const [ruta, setRuta] = useState<RutaApi | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [selectedStopId, setSelectedStopId] = useState<string | null>(null);
+  const [fitBoundsTrigger, setFitBoundsTrigger] = useState(0);
+  const [ubicacionActiva, setUbicacionActiva] = useState(false);
+  // true mientras watchPosition ya fue solicitado pero aún no entregó la primera coordenada real
+  const [buscandoGPS, setBuscandoGPS] = useState(false);
+  const [miUbicacion, setMiUbicacion] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
+  const geoWatchRef = useRef<number | null>(null);
+  const miUbicacionRef = useRef<{ lat: number; lng: number } | null>(null);
+  const [detalleFormPorGuia, setDetalleFormPorGuia] = useState<
+    Record<string, GuiaDetalleForm>
+  >({});
+  const [erroresDetallePorGuia, setErroresDetallePorGuia] = useState<
+    Record<string, Partial<GuiaDetalleErrorFields>>
+  >({});
+  const [guardandoGuiaId, setGuardandoGuiaId] = useState<string | null>(null);
+  const [guiaIdsDetalleGuardado, setGuiaIdsDetalleGuardado] = useState<
+    Set<string>
+  >(() => new Set());
+  const [guiaIdsEnEdicion, setGuiaIdsEnEdicion] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [fotosBorradorPorGuia, setFotosBorradorPorGuia] = useState<
+    Record<string, File[]>
+  >({});
+  // Lista de temperaturas por guía (se serializa como "18|4|22" en el campo temperatura)
+  const [temperaturasListPorGuia, setTemperaturasListPorGuia] = useState<
+    Record<string, string[]>
+  >({});
+  // Lista de receptores por guía (se serializa como "Juan|María" en el campo receptorNombre)
+  const [receptoresListPorGuia, setReceptoresListPorGuia] = useState<
+    Record<string, string[]>
+  >({});
+  const rutaIdParaDetalleRef = useRef<string | null>(null);
+  const [ultimaActualizacionSeguimiento, setUltimaActualizacionSeguimiento] =
+    useState<string | null>(null);
+  const [showUbicacionErrorModal, setShowUbicacionErrorModal] = useState(false);
+  const ubicacionErrorShownRef = useRef(false);
+  const [procesandoFotos, setProcesandoFotos] = useState(false);
+
+  // Action locks against double submit
+  const guardandoGuiaRef = useRef<Record<string, boolean>>({});
+  const [iniciandoRuta, setIniciandoRuta] = useState(false);
+  const seguimientoRutaRef = useRef(false);
+  const finalizandoRutaRef = useRef(false);
+  const autoActivacionGPSRef = useRef(false);
+
+  const [socketStatus, setSocketStatus] = useState<'connected' | 'reconnecting' | 'disconnected'>('disconnected');
+  const [lastSync, setLastSync] = useState<number | null>(null);
 
   const fetchRuta = useCallback(async () => {
-    if (!id) return
+    if (!id) return;
     try {
-      const res = await api.get<RutaApi>(`/rutas/${id}`)
-      setRuta(res.data)
+      const res = await api.get<RutaApi>(`/rutas/${id}`);
+      setRuta(res.data);
     } catch {
-      addToast('Error al cargar la ruta', 'error')
+      addToast("Error al cargar la ruta", "error");
     } finally {
-      setLoading(false)
+      setLoading(false);
+      setProcesandoFotos(false); // Terminar procesamiento después de recargar
     }
-  }, [id, addToast])
+  }, [id, addToast]);
 
-  useEffect(() => { fetchRuta() }, [fetchRuta])
+  const handleFotosStart = useCallback(() => {
+    setProcesandoFotos(true);
+  }, []);
+
+  const handleFotosEnd = useCallback(() => {
+    // fetchRuta ya maneja setProcesandoFotos(false)
+  }, []);
+
+  useEffect(() => {
+    fetchRuta();
+  }, [fetchRuta]);
 
   const stopsRuta = useMemo(
-    () => ruta ? [...ruta.stops].sort((a, b) => a.orden - b.orden) : [],
+    () => (ruta ? [...ruta.stops].sort((a, b) => a.orden - b.orden) : []),
     [ruta],
-  )
+  );
 
   // Map StopApi to the Stop shape that RouteMap expects
-  const stopsParaMapa = useMemo(() => stopsRuta.map((s) => ({
-    id: s.id, orden: s.orden, direccion: s.direccion,
-    lat: s.lat, lng: s.lng, notas: s.notas ?? undefined,
-    clienteId: s.cliente.id,
-    guiaIds: s.guias.map((g) => g.id),
-  })), [stopsRuta])
+  const stopsParaMapa = useMemo(
+    () =>
+      stopsRuta.map((s) => {
+        const completada =
+          s.guias.length > 0 &&
+          s.guias.every(
+            (g) => g.estado === "ENTREGADO" || g.estado === "INCIDENCIA",
+          );
+        return {
+          id: s.id,
+          orden: s.orden,
+          direccion: s.direccion,
+          lat: s.lat,
+          lng: s.lng,
+          notas: s.notas ?? undefined,
+          clienteId: s.cliente.id,
+          guiaIds: s.guias.map((g) => g.id),
+          completada,
+        };
+      }),
+    [stopsRuta],
+  );
+
+  const rutaDetalleSyncKey = useMemo(
+    () =>
+      ruta
+        ? ruta.guias.map((g) => `${g.id}:${g.updatedAt ?? ""}`).join("|")
+        : "",
+    [ruta],
+  );
+
+  useEffect(() => {
+    if (!ruta) return;
+    setDetalleFormPorGuia((prev) => {
+      const next = { ...prev };
+      ruta.guias.forEach((g) => {
+        const estaEnEdicion = guiaIdsEnEdicion.has(g.id);
+        const yaExiste = !!prev[g.id];
+
+        if (!yaExiste || (guiaTieneDetallePersistido(g) && !estaEnEdicion)) {
+          next[g.id] = {
+            receptorNombre: g.receptorNombre ?? "",
+            temperatura: g.temperatura ?? "",
+            horaLlegada: g.horaLlegada ?? "",
+            horaSalida: g.horaSalida ?? "",
+            observaciones: g.observaciones ?? "",
+            tipoIncidencia: "CLIENTE_AUSENTE",
+          };
+        }
+      });
+      return next;
+    });
+    // Sincronizar lista de temperaturas desde el campo serializado
+    setTemperaturasListPorGuia((prev) => {
+      const next = { ...prev };
+      ruta.guias.forEach((g) => {
+        const estaEnEdicion = guiaIdsEnEdicion.has(g.id);
+        const yaExiste = !!prev[g.id];
+        if (!yaExiste || (guiaTieneDetallePersistido(g) && !estaEnEdicion)) {
+          const raw = g.temperatura ?? "";
+          next[g.id] = raw ? raw.split("|").map((t) => t.trim()) : [""];
+        }
+      });
+      return next;
+    });
+    // Sincronizar lista de receptores desde el campo serializado
+    setReceptoresListPorGuia((prev) => {
+      const next = { ...prev };
+      ruta.guias.forEach((g) => {
+        const estaEnEdicion = guiaIdsEnEdicion.has(g.id);
+        const yaExiste = !!prev[g.id];
+        if (!yaExiste || (guiaTieneDetallePersistido(g) && !estaEnEdicion)) {
+          const raw = g.receptorNombre ?? "";
+          next[g.id] = raw ? raw.split("|").map((r) => r.trim()) : [""];
+        }
+      });
+      return next;
+    });
+  }, [rutaDetalleSyncKey, ruta, guiaIdsEnEdicion]);
+
+  useEffect(() => {
+    if (!ruta) return;
+    const mergePersistidos = (base: Set<string>) => {
+      const next = new Set(base);
+      ruta.guias.forEach((g) => {
+        if (guiaTieneDetallePersistido(g)) next.add(g.id);
+      });
+      return next;
+    };
+    if (rutaIdParaDetalleRef.current !== ruta.id) {
+      rutaIdParaDetalleRef.current = ruta.id;
+      setGuiaIdsDetalleGuardado(mergePersistidos(new Set()));
+    } else {
+      setGuiaIdsDetalleGuardado((prev) => mergePersistidos(prev));
+    }
+  }, [ruta, rutaDetalleSyncKey]);
+
+  useEffect(() => {
+    miUbicacionRef.current = miUbicacion;
+  }, [miUbicacion]);
+
+  const detenerUbicacion = useCallback(() => {
+    if (geoWatchRef.current != null) {
+      navigator.geolocation.clearWatch(geoWatchRef.current);
+      geoWatchRef.current = null;
+    }
+    setUbicacionActiva(false);
+    setBuscandoGPS(false);
+    setMiUbicacion(null);
+    miUbicacionRef.current = null;
+    autoActivacionGPSRef.current = false;
+  }, []);
+
+  // P2: Un único watchPosition en lugar de getCurrentPosition + watchPosition anidados.
+  // buscandoGPS = true  → hardware escuchando, sin coordenadas reales aún.
+  // ubicacionActiva = true → primera coordenada real recibida, tracking activo.
+  const activarUbicacion = useCallback(() => {
+    if (!navigator.geolocation) {
+      if (!ubicacionErrorShownRef.current) {
+        ubicacionErrorShownRef.current = true;
+        setShowUbicacionErrorModal(true);
+      }
+      return;
+    }
+
+    // Limpiar watch anterior si existe
+    if (geoWatchRef.current != null) {
+      navigator.geolocation.clearWatch(geoWatchRef.current);
+      geoWatchRef.current = null;
+    }
+
+    // Indicar que la búsqueda ya comenzó (UI puede mostrar "Buscando señal...")
+    setBuscandoGPS(true);
+    setUbicacionActiva(false);
+
+    geoWatchRef.current = navigator.geolocation.watchPosition(
+      (pos) => {
+        const nuevaUbicacion = {
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+        };
+        setMiUbicacion(nuevaUbicacion);
+        miUbicacionRef.current = nuevaUbicacion;
+
+        // Primera posición real recibida: marcar GPS como activo
+        setUbicacionActiva((prev) => {
+          if (!prev) {
+            // Solo mostrar toast la primera vez que se activa
+            addToast("Ubicación GPS activada correctamente", "success");
+          }
+          return true;
+        });
+        setBuscandoGPS(false);
+      },
+      (error) => {
+        console.error("❌ Error de geolocalización:", error);
+
+        if (error.code === error.PERMISSION_DENIED) {
+          // Permiso denegado: detener todo y mostrar modal
+          detenerUbicacion();
+          if (!ubicacionErrorShownRef.current) {
+            ubicacionErrorShownRef.current = true;
+            setShowUbicacionErrorModal(true);
+          }
+          addToast("Permisos de ubicación denegados", "error");
+        } else if (error.code === error.POSITION_UNAVAILABLE) {
+          // GPS no disponible: dejar buscandoGPS activo, watchPosition reintentará
+          addToast(
+            "Ubicación no disponible. Verificá que el GPS esté activado.",
+            "error",
+          );
+        } else if (error.code === error.TIMEOUT) {
+          // Timeout: watchPosition reintentará automáticamente
+          addToast("Tiempo de espera agotado al obtener ubicación", "error");
+        }
+      },
+      {
+        enableHighAccuracy: true,
+        maximumAge: 5000,
+        timeout: 15000,
+      },
+    );
+  }, [addToast, detenerUbicacion]);
+
+  useEffect(
+    () => () => {
+      if (geoWatchRef.current != null)
+        navigator.geolocation.clearWatch(geoWatchRef.current);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    setUbicacionActiva(false);
+    setBuscandoGPS(false);
+    setMiUbicacion(null);
+    miUbicacionRef.current = null;
+    autoActivacionGPSRef.current = false;
+    if (geoWatchRef.current != null) {
+      navigator.geolocation.clearWatch(geoWatchRef.current);
+      geoWatchRef.current = null;
+    }
+  }, [id]);
+
+  // P3: Auto-reconexión GPS cuando la ruta ya está EN_CURSO al cargar/recargar la página.
+  // Garantiza que el tracking no se pierda tras un F5 o reapertura de la app.
+  useEffect(() => {
+    if (
+      ruta?.estado === "EN_CURSO" &&
+      !ubicacionActiva &&
+      !buscandoGPS &&
+      !autoActivacionGPSRef.current
+    ) {
+      autoActivacionGPSRef.current = true;
+      activarUbicacion();
+    }
+  }, [ruta?.estado, ubicacionActiva, buscandoGPS, activarUbicacion]);
+
+  // Socket unificado: gestiona eventos de ruta y emisión de posición GPS
+  // con una sola conexión WebSocket en lugar de dos instancias independientes.
+  useEffect(() => {
+    if (!id) return;
+    const token = localStorage.getItem("token");
+    if (!token) return;
+
+    const socket = io(import.meta.env.VITE_WS_URL ?? "http://localhost:3000", {
+      auth: { token },
+      transports: ["websocket"],
+      reconnection: true,
+    });
+
+    socket.on("connect", () => {
+      setSocketStatus('connected');
+      socket.emit("join:ruta", id);
+    });
+    socket.on("disconnect", () => setSocketStatus('disconnected'));
+    socket.on("reconnect_attempt", () => setSocketStatus('reconnecting'));
+    socket.on("reconnect", () => setSocketStatus('connected'));
+    socket.on("connect_error", () => setSocketStatus('disconnected'));
+
+    socket.on("guia:incidencia", () => { void fetchRuta(); });
+    socket.on("guia:entregada", () => { void fetchRuta(); });
+
+    socket.on(
+      "seguimiento_ruta",
+      (p: { rutaId: string; seguimientoChofer: string }) => {
+        if (p.rutaId === id) {
+          setRuta((prev) =>
+            prev ? { ...prev, seguimientoChofer: p.seguimientoChofer } : prev,
+          );
+          setUltimaActualizacionSeguimiento(new Date().toISOString());
+        }
+      },
+    );
+
+    socket.on("ruta:completada", (p: { rutaId: string }) => {
+      if (p.rutaId === id) { void fetchRuta(); }
+    });
+
+    let interval: ReturnType<typeof window.setInterval> | null = null;
+
+    const iniciarEmision = () => {
+      if (interval != null) return;
+      const enviar = () => {
+        const p = miUbicacionRef.current;
+        if (p && socket.connected) {
+          socket.emit("posicion_chofer", {
+            rutaId: id,
+            choferId: currentUser?.id ?? "",
+            choferNombre: currentUser?.nombre ?? "",
+            lat: p.lat,
+            lng: p.lng,
+          });
+          setLastSync(Date.now());
+        }
+      };
+      enviar();
+      interval = window.setInterval(enviar, 4000);
+    };
+
+    const detenerEmision = () => {
+      if (interval != null) {
+        window.clearInterval(interval);
+        interval = null;
+      }
+    };
+
+    if (ubicacionActiva && ruta?.estado === "EN_CURSO") {
+      iniciarEmision();
+    }
+
+    return () => {
+      detenerEmision();
+      socket.disconnect();
+    };
+  }, [id, ubicacionActiva, ruta?.estado, fetchRuta]);
 
   // All guias flat from stops
-  const guiasPorRuta = useMemo(() => ruta?.guias ?? [], [ruta])
+  const guiasPorRuta = useMemo(() => ruta?.guias ?? [], [ruta]);
 
-  const entregadas = guiasPorRuta.filter((g) => g.estado === 'ENTREGADO').length
-  const conIncidencia = guiasPorRuta.filter((g) => g.estado === 'INCIDENCIA').length
-  const total = guiasPorRuta.length
-  const progreso = total ? Math.round(((entregadas + conIncidencia) / total) * 100) : 0
+  const entregadas = guiasPorRuta.filter(
+    (g) => g.estado === "ENTREGADO",
+  ).length;
+  const conIncidencia = guiasPorRuta.filter(
+    (g) => g.estado === "INCIDENCIA",
+  ).length;
+  const total = guiasPorRuta.length;
+  const progreso = total
+    ? Math.round(((entregadas + conIncidencia) / total) * 100)
+    : 0;
 
-  const fotosHojaRuta = useMemo(() => ruta?.fotos.filter((f) => f.tipo === 'HOJA_RUTA') ?? [], [ruta])
+  const totalFotos = ruta?.fotos?.length ?? 0;
 
+  // Verificar que todas las guías tengan datos guardados (lo que implica que tienen fotos)
+  const todasLasGuiasTienenDatosGuardados = guiasPorRuta.every((g) =>
+    guiaTieneDetallePersistido(g),
+  );
+
+  // La hoja de ruta es OBLIGATORIA para finalizar
   const puedeFinalizar =
     total > 0 &&
-    guiasPorRuta.every((g) => g.estado === 'ENTREGADO' || g.estado === 'INCIDENCIA') &&
-    fotosHojaRuta.length >= 1
+    guiasPorRuta.every(
+      (g) => g.estado === "ENTREGADO" || g.estado === "INCIDENCIA",
+    ) &&
+    todasLasGuiasTienenDatosGuardados &&
+    totalFotos > 0 && // Debe tener al menos 1 foto de hoja de ruta
+    guiaIdsEnEdicion.size === 0 && // No debe haber guías en modo edición
+    !procesandoFotos; // No debe estar procesando fotos
 
-  const handleMarkEntregado = async (guiaId: string) => {
-    try {
-      await api.patch(`/guias/${guiaId}/estado`, { estado: 'ENTREGADO' })
-      setRuta((prev) => prev ? {
+  const handleMarkIncidencia = (guiaId: string) => {
+    // Solo cambiar el estado localmente, no llamar al API
+    setRuta((prev) =>
+      prev
+        ? {
+          ...prev,
+          guias: prev.guias.map((g) =>
+            g.id === guiaId ? { ...g, estado: "INCIDENCIA" } : g,
+          ),
+          stops: prev.stops.map((s) => ({
+            ...s,
+            guias: s.guias.map((g) =>
+              g.id === guiaId ? { ...g, estado: "INCIDENCIA" } : g,
+            ),
+          })),
+        }
+        : prev,
+    );
+
+    // Limpiar errores del campo receptorNombre cuando cambias a incidencia
+    setErroresDetallePorGuia((prev) => {
+      const next = { ...prev };
+      if (next[guiaId]) {
+        next[guiaId] = { ...next[guiaId], receptorNombre: "" };
+      }
+      return next;
+    });
+  };
+
+  const handleMarkEntregado = (guiaId: string) => {
+    // Solo cambiar el estado localmente, no llamar al API
+    setRuta((prev) =>
+      prev
+        ? {
+          ...prev,
+          guias: prev.guias.map((g) =>
+            g.id === guiaId ? { ...g, estado: "ENTREGADO" } : g,
+          ),
+          stops: prev.stops.map((s) => ({
+            ...s,
+            guias: s.guias.map((g) =>
+              g.id === guiaId ? { ...g, estado: "ENTREGADO" } : g,
+            ),
+          })),
+        }
+        : prev,
+    );
+  };
+
+  const patchDetalleGuiaEnEstado = (
+    guiaId: string,
+    patch: Partial<GuiaApi>,
+  ) => {
+    setRuta((prev) =>
+      prev
+        ? {
+          ...prev,
+          guias: prev.guias.map((g) =>
+            g.id === guiaId ? { ...g, ...patch } : g,
+          ),
+          stops: prev.stops.map((s) => ({
+            ...s,
+            guias: s.guias.map((g) =>
+              g.id === guiaId ? { ...g, ...patch } : g,
+            ),
+          })),
+        }
+        : prev,
+    );
+  };
+
+  const setCampoDetalle = (
+    guiaId: string,
+    campo: keyof GuiaDetalleForm,
+    valor: string,
+  ) => {
+    setDetalleFormPorGuia((prev) => ({
+      ...prev,
+      [guiaId]: {
+        ...(prev[guiaId] ?? {
+          receptorNombre: "",
+          temperatura: "",
+          horaLlegada: "",
+          horaSalida: "",
+          observaciones: "",
+        }),
+        [campo]: valor,
+      },
+    }));
+  };
+
+  // Helpers para lista de temperaturas
+  const getTemperaturasList = (guiaId: string): string[] => {
+    if (temperaturasListPorGuia[guiaId]) return temperaturasListPorGuia[guiaId];
+    const raw = detalleFormPorGuia[guiaId]?.temperatura ?? "";
+    return raw ? raw.split("|").map((t) => t.trim()) : [""];
+  };
+
+  const setTemperaturaItem = (guiaId: string, index: number, valor: string) => {
+    const list = [...getTemperaturasList(guiaId)];
+    list[index] = valor;
+    setTemperaturasListPorGuia((prev) => ({ ...prev, [guiaId]: list }));
+    const serialized = list.filter((t) => t.trim()).join("|");
+    setCampoDetalle(guiaId, "temperatura", serialized || list.join("|"));
+    if (serialized.trim()) limpiarErrorCampoDetalle(guiaId, "temperatura");
+  };
+
+  const addTemperaturaItem = (guiaId: string) => {
+    const list = [...getTemperaturasList(guiaId), ""];
+    setTemperaturasListPorGuia((prev) => ({ ...prev, [guiaId]: list }));
+  };
+
+  const removeTemperaturaItem = (guiaId: string, index: number) => {
+    const list = getTemperaturasList(guiaId).filter((_, i) => i !== index);
+    const safeList = list.length === 0 ? [""] : list;
+    setTemperaturasListPorGuia((prev) => ({ ...prev, [guiaId]: safeList }));
+    const serialized = safeList.filter((t) => t.trim()).join("|");
+    setCampoDetalle(guiaId, "temperatura", serialized);
+  };
+
+  // Helpers para lista de receptores (mismo concepto que temperatura)
+  const getReceptoresList = (guiaId: string): string[] => {
+    if (receptoresListPorGuia[guiaId]) return receptoresListPorGuia[guiaId];
+    const raw = detalleFormPorGuia[guiaId]?.receptorNombre ?? "";
+    return raw ? raw.split("|").map((r) => r.trim()) : [""];
+  };
+
+  const setReceptorItem = (guiaId: string, index: number, valor: string) => {
+    const list = [...getReceptoresList(guiaId)];
+    list[index] = valor;
+    setReceptoresListPorGuia((prev) => ({ ...prev, [guiaId]: list }));
+    const serialized = list.filter((r) => r.trim()).join("|");
+    setCampoDetalle(guiaId, "receptorNombre", serialized || list.join("|"));
+    if (serialized.trim()) limpiarErrorCampoDetalle(guiaId, "receptorNombre");
+  };
+
+  const addReceptorItem = (guiaId: string) => {
+    const list = [...getReceptoresList(guiaId), ""];
+    setReceptoresListPorGuia((prev) => ({ ...prev, [guiaId]: list }));
+  };
+
+  const removeReceptorItem = (guiaId: string, index: number) => {
+    const list = getReceptoresList(guiaId).filter((_, i) => i !== index);
+    const safeList = list.length === 0 ? [""] : list;
+    setReceptoresListPorGuia((prev) => ({ ...prev, [guiaId]: safeList }));
+    const serialized = safeList.filter((r) => r.trim()).join("|");
+    setCampoDetalle(guiaId, "receptorNombre", serialized);
+  };
+
+  const setErrorCampoDetalle = (
+    guiaId: string,
+    campo: keyof GuiaDetalleErrorFields,
+    mensaje: string,
+  ) => {
+    setErroresDetallePorGuia((prev) => ({
+      ...prev,
+      [guiaId]: { ...(prev[guiaId] ?? {}), [campo]: mensaje },
+    }));
+  };
+
+  const limpiarErrorCampoDetalle = (
+    guiaId: string,
+    campo: keyof GuiaDetalleErrorFields,
+  ) => {
+    setErrorCampoDetalle(guiaId, campo, "");
+  };
+
+  const marcarErroresObligatoriosDetalle = (
+    guiaId: string,
+    form: GuiaDetalleForm,
+    esIncidencia: boolean,
+  ) => {
+    if (esIncidencia) {
+      // Para incidencias, validar tipo de incidencia en lugar de receptor
+      const nuevosErrores: Partial<GuiaDetalleErrorFields> = {
+        receptorNombre: "", // No se valida para incidencias
+        temperatura: form.temperatura.trim() ? "" : REQUIRED_MESSAGE,
+        horaLlegada: form.horaLlegada ? "" : REQUIRED_MESSAGE,
+        horaSalida: form.horaSalida ? "" : REQUIRED_MESSAGE,
+      };
+      setErroresDetallePorGuia((prev) => ({
         ...prev,
-        guias: prev.guias.map((g) => g.id === guiaId ? { ...g, estado: 'ENTREGADO' } : g),
-        stops: prev.stops.map((s) => ({
-          ...s,
-          guias: s.guias.map((g) => g.id === guiaId ? { ...g, estado: 'ENTREGADO' } : g),
-        })),
-      } : prev)
-      addToast('Entrega confirmada', 'success')
-    } catch {
-      addToast('Error al actualizar estado', 'error')
+        [guiaId]: { ...(prev[guiaId] ?? {}), ...nuevosErrores },
+      }));
+      return Boolean(
+        nuevosErrores.temperatura ||
+        nuevosErrores.horaLlegada ||
+        nuevosErrores.horaSalida,
+      );
     }
-  }
 
-  const handleDetalleBlur = async (guiaId: string, field: string, value: string) => {
-    try {
-      await api.patch(`/guias/${guiaId}/detalle`, { [field]: value || undefined })
-    } catch {
-      addToast('Error al guardar campo', 'error')
+    // Para entregas normales, validar todos los campos
+    const nuevosErrores: Partial<GuiaDetalleErrorFields> = {
+      receptorNombre: form.receptorNombre.trim() ? "" : REQUIRED_MESSAGE,
+      temperatura: form.temperatura.trim() ? "" : REQUIRED_MESSAGE,
+      horaLlegada: form.horaLlegada ? "" : REQUIRED_MESSAGE,
+      horaSalida: form.horaSalida ? "" : REQUIRED_MESSAGE,
+    };
+    setErroresDetallePorGuia((prev) => ({
+      ...prev,
+      [guiaId]: { ...(prev[guiaId] ?? {}), ...nuevosErrores },
+    }));
+    return Boolean(
+      nuevosErrores.receptorNombre ||
+      nuevosErrores.temperatura ||
+      nuevosErrores.horaLlegada ||
+      nuevosErrores.horaSalida,
+    );
+  };
+
+  const handleHabilitarEdicion = (guiaId: string) => {
+    setGuiaIdsEnEdicion((prev) => new Set(prev).add(guiaId));
+  };
+
+  const handleGuardarDetalleGuia = async (guiaId: string) => {
+    if (guardandoGuiaRef.current[guiaId]) return;
+    guardandoGuiaRef.current[guiaId] = true;
+
+    const f = detalleFormPorGuia[guiaId];
+    if (!f) {
+      guardandoGuiaRef.current[guiaId] = false;
+      return;
     }
-  }
+
+    const guia = guiasPorRuta.find((g) => g.id === guiaId);
+    const esIncidencia = guia?.estado === "INCIDENCIA";
+
+    if (marcarErroresObligatoriosDetalle(guiaId, f, esIncidencia)) {
+      guardandoGuiaRef.current[guiaId] = false;
+      return;
+    }
+
+    const showLoading = useGlobalLoadingStore.getState().show;
+    const hideLoading = useGlobalLoadingStore.getState().hide;
+    showLoading();
+    setGuardandoGuiaId(guiaId);
+    try {
+      // 1. Guardar estado de la guía (ENTREGADO o INCIDENCIA)
+      await api.patch(`/guias/${guiaId}/estado`, {
+        estado: guia?.estado ?? "ENTREGADO",
+      });
+
+      // 2. Guardar datos del formulario
+      const res = await api.patch<{
+        id: string;
+        receptorNombre: string | null;
+        horaLlegada: string | null;
+        horaSalida: string | null;
+        temperatura: string | null;
+        observaciones: string | null;
+        updatedAt: string;
+      }>(`/guias/${guiaId}/detalle`, {
+        receptorNombre: f.receptorNombre.trim() || undefined,
+        temperatura: f.temperatura.trim() || undefined,
+        horaLlegada: f.horaLlegada.trim() || undefined,
+        horaSalida: f.horaSalida.trim() || undefined,
+        observaciones: f.observaciones.trim() || undefined,
+        ...(esIncidencia && { tipoIncidencia: f.tipoIncidencia }),
+      });
+
+      // 3. Subir fotos en borrador
+      const fotosBorrador = fotosBorradorPorGuia[guiaId] || [];
+      let fotosSubidas = 0;
+      let fotosFallidas = 0;
+      const archivosExitosos: File[] = [];
+
+      if (fotosBorrador.length > 0) {
+        console.log(`[DEBUG] Iniciando subida de ${fotosBorrador.length} fotos para guía ${guiaId}`);
+        const startTimeTotal = performance.now();
+        let fotoIndex = 1;
+        for (const file of fotosBorrador) {
+          addToast(`Subiendo foto ${fotoIndex} de ${fotosBorrador.length}...`, "info");
+          const startTimeFoto = performance.now();
+          const formData = new FormData();
+          formData.append("foto", file);
+          try {
+            await api.post(`/fotos/guia/${guiaId}`, formData, {
+              headers: { "Content-Type": "multipart/form-data" },
+            });
+            console.log(`[DEBUG] Foto ${fotoIndex} subida en ${((performance.now() - startTimeFoto) / 1000).toFixed(2)}s`);
+            fotosSubidas++;
+            archivosExitosos.push(file);
+          } catch (fotoErr: any) {
+            console.error(`[DEBUG] Error subiendo foto ${fotoIndex} (Tamaño: ${(file.size / 1024 / 1024).toFixed(2)} MB):`, fotoErr);
+            fotosFallidas++;
+          }
+          fotoIndex++;
+        }
+        console.log(`[DEBUG] Total tiempo subida fotos: ${((performance.now() - startTimeTotal) / 1000).toFixed(2)}s`);
+
+        // Limpiar fotos en borrador (mantener las que fallaron para que el usuario pueda reintentar)
+        setFotosBorradorPorGuia((prev) => {
+          const next = { ...prev };
+          const remaining = fotosBorrador.filter(f => !archivosExitosos.includes(f));
+          if (remaining.length === 0) {
+            delete next[guiaId];
+          } else {
+            next[guiaId] = remaining;
+          }
+          return next;
+        });
+      }
+
+      const row = res.data;
+      patchDetalleGuiaEnEstado(guiaId, {
+        receptorNombre: row.receptorNombre,
+        horaLlegada: row.horaLlegada,
+        horaSalida: row.horaSalida,
+        temperatura: row.temperatura,
+        observaciones: row.observaciones,
+        updatedAt: row.updatedAt,
+      });
+
+      // NO actualizar el formulario aquí, dejar que el efecto lo haga después de recargar
+      setGuiaIdsEnEdicion((prev) => {
+        const next = new Set(prev);
+        next.delete(guiaId);
+        return next;
+      });
+
+      if (fotosBorrador.length > 0) {
+        if (fotosFallidas === 0) {
+          addToast(`Datos guardados. ${fotosSubidas} fotos subidas correctamente.`, "success");
+        } else if (fotosSubidas > 0) {
+          addToast(`Datos guardados. ${fotosSubidas} subidas, ${fotosFallidas} fallidas.`, "info");
+        } else {
+          addToast(`Datos guardados, pero fallaron las ${fotosFallidas} fotos.`, "error");
+        }
+      } else {
+        addToast("Datos guardados. El administrador los ve en Rutas • expandir ruta.", "success");
+      }
+
+      // Recargar para mostrar las fotos subidas y actualizar validaciones
+      await fetchRuta();
+    } catch (error: any) {
+      console.error("[DEBUG] Error capturado en handleGuardarDetalleGuia:", error);
+      console.error("[DEBUG] Response Backend:", error.response?.data);
+      console.error("[DEBUG] Status HTTP:", error.response?.status);
+      addToast(
+        error.response?.data?.message || "No se pudieron guardar los datos de entrega",
+        "error"
+      );
+    } finally {
+      setGuardandoGuiaId(null);
+      hideLoading();
+      guardandoGuiaRef.current[guiaId] = false;
+    }
+  };
 
   const handleIniciarRuta = async () => {
-    if (!id) return
+    if (!id || iniciandoRuta) return;
+    // P1: useState provoca re-render inmediato → el botón cambia de aspecto en <16ms
+    setIniciandoRuta(true);
+
+    // Activar ubicación inmediatamente (llamada síncrona antes del primer await para
+    // que el navegador móvil no bloquee el diálogo de permisos de geolocalización)
+    activarUbicacion();
+
     try {
-      const res = await api.patch<RutaApi>(`/rutas/${id}/estado`, { estado: 'EN_CURSO' })
-      setRuta(res.data)
-      addToast('Ruta iniciada', 'success')
+      const res = await api.patch<RutaApi>(`/rutas/${id}/estado`, {
+        estado: "EN_CURSO",
+      });
+      setRuta(res.data);
+      addToast("Ruta iniciada", "success");
     } catch {
-      addToast('Error al iniciar ruta', 'error')
+      addToast("Error al iniciar ruta", "error");
+    } finally {
+      setIniciandoRuta(false);
     }
-  }
+  };
+
+  const handleSeguimientoCliente = async (
+    seguimientoChofer: "EN_CAMINO" | "CERCA_DESTINO",
+  ) => {
+    if (!id || seguimientoRutaRef.current) return;
+    seguimientoRutaRef.current = true;
+    try {
+      const res = await api.patch<RutaApi>(`/rutas/${id}/seguimiento`, {
+        seguimientoChofer,
+      });
+      setRuta(res.data);
+      setUltimaActualizacionSeguimiento(new Date().toISOString());
+      addToast("Estado enviado al cliente", "success");
+    } catch {
+      addToast("No se pudo actualizar el seguimiento", "error");
+    } finally {
+      seguimientoRutaRef.current = false;
+    }
+  };
 
   const handleFinalizarRuta = async () => {
-    if (!id || !puedeFinalizar) return
-    try {
-      const res = await api.patch<RutaApi>(`/rutas/${id}/estado`, { estado: 'COMPLETADA' })
-      setRuta(res.data)
-      addToast('Ruta finalizada', 'success')
-    } catch {
-      addToast('Error al finalizar ruta', 'error')
-    }
-  }
+    if (!id || !puedeFinalizar || finalizandoRutaRef.current) return;
+    finalizandoRutaRef.current = true;
+    const showLoading = useGlobalLoadingStore.getState().show;
+    const hideLoading = useGlobalLoadingStore.getState().hide;
 
-  const handleIncidenciaCreada = () => {
-    setIncidenceGuia(null)
-    fetchRuta() // recargar para reflejar el nuevo estado INCIDENCIA
-  }
+    showLoading();
+    try {
+      const res = await api.patch<RutaApi>(`/rutas/${id}/estado`, {
+        estado: "COMPLETADA",
+      });
+      setRuta(res.data);
+      addToast("Ruta finalizada", "success");
+    } catch {
+      addToast("Error al finalizar ruta", "error");
+    } finally {
+      hideLoading();
+      finalizandoRutaRef.current = false;
+    }
+  };
 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
-        <span className="material-symbols-outlined animate-spin text-3xl text-primary">progress_activity</span>
+        <span className="material-symbols-outlined animate-spin text-3xl text-primary">
+          progress_activity
+        </span>
       </div>
-    )
+    );
   }
 
   if (!ruta) {
     return (
       <div className="rounded-xl border border-slate-200 bg-white p-8">
         <p className="text-sm text-slate-500">Ruta no encontrada.</p>
-        <Link to="/chofer/rutas" className="mt-2 inline-block text-sm font-medium text-primary hover:underline">
+        <Link
+          to="/chofer/rutas"
+          className="mt-2 inline-block text-sm font-medium text-primary hover:underline"
+        >
           Volver a Mis rutas
         </Link>
       </div>
-    )
+    );
   }
 
-  const hoy = new Date()
-  const mes = hoy.toLocaleString('es-ES', { month: 'short' }).toUpperCase()
-  const dia = hoy.getDate()
-  const effectiveSelectedStopId = selectedStopId ?? stopsRuta[0]?.id ?? null
+  const hoy = new Date();
+  const mes = hoy.toLocaleString("es-ES", { month: "short" }).toUpperCase();
+  const dia = hoy.getDate();
+  const effectiveSelectedStopId = selectedStopId ?? stopsRuta[0]?.id ?? null;
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-4 pb-24 md:pb-6">
+    <div className="mx-auto w-full max-w-7xl space-y-4 pb-16 md:pb-6">
       {/* Header */}
       <div className="flex flex-shrink-0 items-center justify-between border-b border-slate-200 bg-white p-4 md:border-0 md:bg-transparent md:p-0">
         <div className="flex items-center gap-3">
-          <div className="size-10 shrink-0 rounded-full border-2 border-primary/20 bg-slate-200" />
           <div>
-            <p className="text-xs font-medium uppercase tracking-wider text-slate-500">Chofer Logística</p>
-            <h2 className="text-lg font-bold leading-tight text-slate-900">Hola, {currentUser?.nombre}</h2>
+            <p className="text-xs font-medium uppercase tracking-wider text-slate-500">
+              Chofer Logística
+            </p>
+            <h2 className="text-lg font-bold leading-tight text-slate-900">
+              Hola, {currentUser?.nombre}
+            </h2>
           </div>
         </div>
         <div className="flex flex-col items-center rounded-lg bg-primary/10 p-2 text-primary">
@@ -174,148 +993,1327 @@ export function ChoferRutaDetallePage() {
         </div>
       </div>
 
+      {ruta.estado === "EN_CURSO" && (
+        <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+          <SystemStatusBar
+            internet={navigator.onLine ? 'online' : 'offline'}
+            gps={
+              ubicacionActiva
+                ? 'active'
+                : buscandoGPS
+                  ? 'searching'
+                  : 'idle'
+            }
+            socket={socketStatus}
+            lastSync={lastSync}
+          />
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_380px] lg:gap-6">
         {/* Columna izquierda */}
         <div className="flex min-h-0 flex-col gap-4 lg:flex-1">
           {/* Resumen */}
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="mb-4 flex items-start justify-between">
+          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+            <div className="mb-3 flex items-start justify-between">
               <div>
-                <h3 className="text-base font-bold text-slate-900">Ruta #{ruta.id.slice(-6)}</h3>
-                <p className="text-sm text-slate-500">Distribución de Insumos Médicos</p>
+                <h3 className="text-sm font-bold text-slate-900">
+                  {ruta.hojaRuta ??
+                    ruta.nombre ??
+                    `RUTA #${ruta.id.slice(-6).toUpperCase()}`}
+                </h3>
+                {ruta.hojaRuta && ruta.nombre && (
+                  <p className="text-xs text-slate-500">{ruta.nombre}</p>
+                )}
+                <p className="text-xs text-slate-500">
+                  Distribución de Insumos Médicos
+                </p>
+                <p className="text-[10px] text-slate-400 mt-0.5">
+                  Creada:{" "}
+                  {new Date(ruta.createdAt).toLocaleDateString("es-ES", {
+                    day: "2-digit",
+                    month: "short",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </p>
               </div>
-              <span className={`rounded-full px-2.5 py-1 text-xs font-bold uppercase ${
-                ruta.estado === 'EN_CURSO' ? 'bg-emerald-100 text-emerald-700' :
-                ruta.estado === 'COMPLETADA' ? 'bg-slate-100 text-slate-600' : 'bg-amber-100 text-amber-700'
-              }`}>
-                {ruta.estado === 'PENDIENTE' ? 'Planificada' : ruta.estado === 'EN_CURSO' ? 'En Curso' : ruta.estado}
+              <span
+                className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${ruta.estado === "EN_CURSO"
+                  ? "bg-emerald-100 text-emerald-700"
+                  : ruta.estado === "COMPLETADA"
+                    ? "bg-slate-100 text-slate-600"
+                    : "bg-amber-100 text-amber-700"
+                  }`}
+              >
+                {ruta.estado === "PENDIENTE"
+                  ? "Planificada"
+                  : ruta.estado === "EN_CURSO"
+                    ? "En Curso"
+                    : ruta.estado}
               </span>
             </div>
-            <div className="space-y-3">
-              <div className="flex justify-between text-sm">
+            <div className="space-y-2">
+              <div className="flex justify-between text-xs">
                 <span className="text-slate-600">Progreso: {progreso}%</span>
-                <span className="font-bold text-primary">{entregadas + conIncidencia} / {total} guías</span>
+                <span className="font-bold text-primary">
+                  {entregadas + conIncidencia} / {total} guías
+                </span>
               </div>
-              <div className="h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
-                <div className="h-2.5 rounded-full bg-primary" style={{ width: `${progreso}%` }} />
+              <div className="h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                <div
+                  className="h-2 rounded-full bg-primary"
+                  style={{ width: `${progreso}%` }}
+                />
               </div>
             </div>
           </div>
 
+          {/* Estados visibles para el cliente */}
+          {ruta.estado === "EN_CURSO" && (
+            <div className="rounded-xl border border-primary/20 bg-primary/5 p-3">
+              <h4 className="mb-1 flex items-center gap-1.5 text-xs font-bold text-slate-900">
+                <span className="material-symbols-outlined text-primary text-base">
+                  share_location
+                </span>
+                Avance para el cliente
+              </h4>
+              <p className="mb-2 text-[10px] text-slate-600">
+                Toca el estado que coincida con tu situación; el cliente lo verá
+                en los pasos del envío.
+              </p>
+              <p className="mb-2 text-[10px] font-medium text-slate-500">
+                Actual:{" "}
+                <span className="text-primary">
+                  {ruta.seguimientoChofer === "EN_CAMINO"
+                    ? "En camino"
+                    : ruta.seguimientoChofer === "CERCA_DESTINO"
+                      ? "Cerca del destino"
+                      : "Sin reportar aún"}
+                </span>
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => handleSeguimientoCliente("EN_CAMINO")}
+                  className={`rounded-lg px-2.5 py-1.5 text-[10px] font-bold transition-colors ${ruta.seguimientoChofer === "EN_CAMINO"
+                    ? "bg-primary text-white"
+                    : "bg-white text-slate-800 ring-1 ring-slate-200 hover:bg-slate-50"
+                    }`}
+                >
+                  En camino
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSeguimientoCliente("CERCA_DESTINO")}
+                  className={`rounded-lg px-2.5 py-1.5 text-[10px] font-bold transition-colors ${ruta.seguimientoChofer === "CERCA_DESTINO"
+                    ? "bg-emerald-600 text-white"
+                    : "bg-white text-slate-800 ring-1 ring-slate-200 hover:bg-emerald-50"
+                    }`}
+                >
+                  Cerca del destino
+                </button>
+              </div>
+              <p className="mt-2 text-[9px] text-slate-500">
+                Última actualización:{" "}
+                {ultimaActualizacionSeguimiento
+                  ? new Date(ultimaActualizacionSeguimiento).toLocaleString(
+                    "es-ES",
+                  )
+                  : "•"}
+              </p>
+            </div>
+          )}
+
+          {ruta.estado === "EN_CURSO" && (
+            <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+              <h4 className="mb-2 flex items-center gap-1.5 text-xs font-bold text-slate-900">
+                <span className="material-symbols-outlined text-primary text-base">
+                  visibility
+                </span>
+                Vista cliente (preview)
+              </h4>
+              <p className="mb-2 text-[10px] text-slate-500">
+                Así se está mostrando tu avance en el panel del cliente.
+              </p>
+              <SeguimientoChoferStepper
+                rutaEstado={ruta.estado}
+                seguimiento={ruta.seguimientoChofer ?? "NINGUNO"}
+                title="Toca un paso para actualizar tu estado"
+                onStepClick={(v) => {
+                  if (v !== "NINGUNO") void handleSeguimientoCliente(v);
+                }}
+              />
+            </div>
+          )}
+
           {/* Mapa */}
           <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-            <div className="flex items-center justify-between border-b border-slate-200 px-3 py-2">
-              <span className="text-sm font-semibold text-slate-700">Recorrido</span>
-              <button type="button" onClick={() => setFitBoundsTrigger((t) => t + 1)}
-                className="rounded-lg bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/20">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 px-3 py-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm font-semibold text-slate-700">
+                  Recorrido
+                </span>
+                {ruta.estado === "EN_CURSO" && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      ubicacionActiva || buscandoGPS
+                        ? detenerUbicacion()
+                        : activarUbicacion()
+                    }
+                    disabled={buscandoGPS}
+                    className={`rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
+                      ubicacionActiva
+                        ? "bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200"
+                        : buscandoGPS
+                          ? "bg-amber-50 text-amber-700 ring-1 ring-amber-200 cursor-wait"
+                          : "bg-slate-100 text-slate-700 ring-1 ring-slate-200 hover:bg-slate-200"
+                    }`}
+                  >
+                    <span
+                      className={`material-symbols-outlined align-middle text-sm ${
+                        buscandoGPS ? "animate-pulse" : ""
+                      }`}
+                    >
+                      {ubicacionActiva
+                        ? "my_location"
+                        : buscandoGPS
+                          ? "gps_not_fixed"
+                          : "my_location"}
+                    </span>{" "}
+                    {ubicacionActiva
+                      ? "Ubicación activa"
+                      : buscandoGPS
+                        ? "Buscando señal..."
+                        : "Activar mi ubicación"}
+                  </button>
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => setFitBoundsTrigger((t) => t + 1)}
+                className="rounded-lg bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary hover:bg-primary/20"
+              >
                 Ver ruta completa
               </button>
             </div>
+            {ubicacionActiva && ruta.estado === "EN_CURSO" && (
+              <p className="border-b border-slate-100 bg-slate-50 px-3 py-2 text-[11px] text-slate-600">
+                La línea azul sigue calles desde tu posición hacia las paradas
+                pendientes. Las completadas se muestran en verde ( •) y ya no
+                forman parte del trazado activo.
+              </p>
+            )}
             <div className="h-64 sm:h-72 lg:h-[360px]">
               <RouteMap
                 stops={stopsParaMapa}
+                currentPosition={ubicacionActiva ? miUbicacion : null}
                 highlightedStopId={selectedStopId}
                 fitBoundsTrigger={fitBoundsTrigger}
+                trazarRutaDesdeMiPosicion={
+                  ubicacionActiva && miUbicacion != null
+                }
               />
             </div>
           </div>
 
-          {/* Paradas */}
-          <div className="flex flex-col overflow-hidden rounded-xl border border-slate-200 bg-white lg:min-h-0 lg:flex-1">
-            <h4 className="flex flex-shrink-0 items-center gap-2 border-b border-slate-200 px-4 py-3 font-bold text-slate-900">
-              <span className="material-symbols-outlined text-primary">format_list_bulleted</span>
+          {/* Paradas: una card por parada */}
+          <div className="flex min-h-0 flex-1 flex-col gap-3 lg:overflow-hidden">
+            <h4 className="flex flex-shrink-0 items-center gap-2 px-0.5 font-bold text-slate-900">
+              <span className="material-symbols-outlined text-primary">
+                format_list_bulleted
+              </span>
               Paradas y guías
             </h4>
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex flex-1 flex-col gap-3 overflow-y-auto pb-1 pr-0.5">
               {stopsRuta.map((stop) => {
-                const guiasStop = stop.guias
-                const isSelected = effectiveSelectedStopId === stop.id
+                const guiasStop = stop.guias;
+                const paradaDetalleCompleto =
+                  guiasStop.length > 0 &&
+                  guiasStop.every((g) => guiaIdsDetalleGuardado.has(g.id));
+                const isSelected = effectiveSelectedStopId === stop.id;
                 return (
-                  <div key={stop.id} className={`border-b border-slate-100 last:border-b-0 ${isSelected ? 'border-l-4 border-l-primary bg-primary/5' : ''}`}>
-                    <button type="button" onClick={() => setSelectedStopId(effectiveSelectedStopId === stop.id ? null : stop.id)}
-                      className="flex w-full items-start justify-between p-4 text-left">
-                      <div>
-                        <p className="text-xs font-bold uppercase text-primary">Parada #{stop.orden}</p>
-                        <h5 className="font-bold text-slate-900">{stop.direccion}</h5>
-                        <p className="text-xs text-slate-500">{stop.cliente.nombre}</p>
-                        {stop.notas && <p className="text-xs text-slate-400">{stop.notas}</p>}
+                  <div
+                    key={stop.id}
+                    className={`overflow-hidden rounded-xl border bg-white shadow-sm ring-1 transition-colors ${paradaDetalleCompleto
+                      ? "border-emerald-300 bg-emerald-50/50 ring-emerald-200/70"
+                      : isSelected
+                        ? "border-primary/40 ring-primary/15"
+                        : "border-slate-200 ring-slate-900/5"
+                      } ${isSelected && !paradaDetalleCompleto ? "ring-primary/25" : ""}`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSelectedStopId(
+                          effectiveSelectedStopId === stop.id ? null : stop.id,
+                        )
+                      }
+                      className="flex w-full items-start justify-between gap-3 p-4 text-left hover:bg-slate-50/80"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold uppercase text-primary">
+                          Parada #{stop.orden}
+                        </p>
+                        <h5 className="text-base font-bold text-slate-900">
+                          {stop.cliente.nombre}
+                        </h5>
+                        <p className="text-xs text-slate-500">
+                          {stop.direccion}
+                        </p>
+                        {stop.notas && (
+                          <p className="text-xs text-slate-400">{stop.notas}</p>
+                        )}
                       </div>
-                      <span className="rounded border border-slate-200 bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
-                        {guiasStop.length} guía(s)
-                      </span>
+                      <div className="flex shrink-0 flex-col items-end gap-1">
+                        <span className="rounded border border-slate-200 bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">
+                          {guiasStop.length} guía(s)
+                        </span>
+                      </div>
                     </button>
 
                     {isSelected && (
-                      <div className="space-y-3 px-4 pb-4">
+                      <div className="space-y-3 border-t border-slate-100 bg-slate-50/30 px-4 py-4">
                         {guiasStop.map((g) => (
-                          <div key={g.id} className={`rounded-lg border p-3 ${
-                            g.estado === 'INCIDENCIA' ? 'border-amber-200 bg-amber-50' :
-                            'border-slate-100 bg-slate-50'
-                          }`}>
-                            <div className="mb-2 flex items-center justify-between gap-2">
-                              <span className="text-sm font-bold text-slate-700">Guía: #{g.numeroGuia}</span>
+                          <div
+                            key={g.id}
+                            className={`rounded-lg border p-3 ${g.estado === "INCIDENCIA"
+                              ? "border-amber-200 bg-amber-50"
+                              : "border-slate-100 bg-slate-50"
+                              }`}
+                          >
+                            <div className="mb-2 flex items-start justify-between gap-2">
+                              <span className="min-w-0 break-all text-sm font-bold text-slate-700">
+                                Guía: #{g.numeroGuia ?? "Sin guía"}
+                              </span>
                               <div className="flex flex-wrap gap-1">
-                                <button type="button" onClick={() => handleMarkEntregado(g.id)} disabled={g.estado === 'ENTREGADO'}
-                                  className={`rounded px-2 py-1 text-[10px] font-medium ${
-                                    g.estado === 'ENTREGADO' ? 'bg-emerald-600 text-white' :
-                                    'border border-slate-200 bg-white hover:bg-slate-50'
-                                  }`}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleMarkEntregado(g.id)}
+                                  disabled={
+                                    ruta.estado === "PENDIENTE" ||
+                                    ruta.estado === "COMPLETADA" ||
+                                    (guiaIdsDetalleGuardado.has(g.id) &&
+                                      !guiaIdsEnEdicion.has(g.id))
+                                  }
+                                  className={`rounded px-2 py-1 text-[10px] font-medium ${g.estado === "ENTREGADO"
+                                    ? "bg-emerald-600 text-white"
+                                    : ruta.estado === "PENDIENTE" ||
+                                      ruta.estado === "COMPLETADA" ||
+                                      (guiaIdsDetalleGuardado.has(g.id) &&
+                                        !guiaIdsEnEdicion.has(g.id))
+                                      ? "border border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed"
+                                      : "border border-slate-200 bg-white hover:bg-slate-50"
+                                    }`}
+                                >
                                   Entregado
                                 </button>
-                                <button type="button" onClick={() => setIncidenceGuia({ id: g.id, numeroGuia: g.numeroGuia })}
-                                  className={`rounded px-2 py-1 text-[10px] font-medium ${
-                                    g.estado === 'INCIDENCIA' ? 'bg-amber-600 text-white' :
-                                    'border border-slate-200 bg-white hover:bg-amber-50'
-                                  }`}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleMarkIncidencia(g.id)}
+                                  disabled={
+                                    ruta.estado === "PENDIENTE" ||
+                                    ruta.estado === "COMPLETADA" ||
+                                    (guiaIdsDetalleGuardado.has(g.id) &&
+                                      !guiaIdsEnEdicion.has(g.id))
+                                  }
+                                  className={`rounded px-2 py-1 text-[10px] font-medium ${g.estado === "INCIDENCIA"
+                                    ? "bg-amber-600 text-white"
+                                    : ruta.estado === "PENDIENTE" ||
+                                      ruta.estado === "COMPLETADA" ||
+                                      (guiaIdsDetalleGuardado.has(g.id) &&
+                                        !guiaIdsEnEdicion.has(g.id))
+                                      ? "border border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed"
+                                      : "border border-slate-200 bg-white hover:bg-amber-50"
+                                    }`}
+                                >
                                   Incidencia
                                 </button>
                               </div>
                             </div>
-                            <p className="text-xs text-slate-600">{g.descripcion}</p>
+                            <p className="text-xs text-slate-600">
+                              {g.descripcion}
+                            </p>
 
-                            {/* Campos de entrega — onBlur llama PATCH /api/guias/:id/detalle */}
-                            <div className="mt-3 grid grid-cols-2 gap-2">
-                              <div>
-                                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Recibido por</label>
-                                <input type="text" placeholder="Nombre de quien recibe" defaultValue={g.receptorNombre ?? ''}
-                                  onBlur={(e) => handleDetalleBlur(g.id, 'receptorNombre', e.target.value)}
-                                  className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs" />
+                            {/* Entrega: formulario • fotos • guardar (todo el bloque de esta guía) */}
+                            {ruta.estado === "PENDIENTE" ||
+                              ruta.estado === "COMPLETADA" ? (
+                              <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                                <p className="flex items-center gap-2 text-xs font-medium text-amber-800">
+                                  <span className="material-symbols-outlined text-base">
+                                    lock
+                                  </span>
+                                  {ruta.estado === "PENDIENTE"
+                                    ? "Debes iniciar la ruta para ingresar datos y subir fotos"
+                                    : "La ruta está finalizada y no se puede editar"}
+                                </p>
                               </div>
-                              <div>
-                                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Temperatura (°C)</label>
-                                <input type="text" placeholder="Ej: 18°C" defaultValue={g.temperatura ?? ''}
-                                  onBlur={(e) => handleDetalleBlur(g.id, 'temperatura', e.target.value)}
-                                  className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs" />
-                              </div>
-                              <div>
-                                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Hora llegada</label>
-                                <input type="time" defaultValue={g.horaLlegada ?? ''}
-                                  onBlur={(e) => handleDetalleBlur(g.id, 'horaLlegada', e.target.value)}
-                                  className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs" />
-                              </div>
-                              <div>
-                                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Hora salida</label>
-                                <input type="time" defaultValue={g.horaSalida ?? ''}
-                                  onBlur={(e) => handleDetalleBlur(g.id, 'horaSalida', e.target.value)}
-                                  className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs" />
-                              </div>
-                              <div className="col-span-2">
-                                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">Observaciones</label>
-                                <textarea rows={2} placeholder="Novedades o comentarios (opcional)" defaultValue={g.observaciones ?? ''}
-                                  onBlur={(e) => handleDetalleBlur(g.id, 'observaciones', e.target.value)}
-                                  className="w-full rounded border border-slate-200 bg-white px-2 py-1.5 text-xs" />
-                              </div>
-                            </div>
+                            ) : (
+                              <div className="mt-3 space-y-4">
+                                {g.estado === "INCIDENCIA" ? (
+                                  /* Formulario para INCIDENCIAS */
+                                  <>
+                                    <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 mb-3">
+                                      <p className="flex items-center gap-2 text-xs font-medium text-amber-800">
+                                        <span className="material-symbols-outlined text-base">
+                                          warning
+                                        </span>
+                                        Esta guía tiene una incidencia
+                                        registrada
+                                      </p>
+                                    </div>
 
-                            <div className="mt-3">
-                              <PhotoUploader scope="guia" guiaId={g.id} label="Fotos de entrega" max={8} />
-                            </div>
+                                    <div className="space-y-3">
+                                      {/* Fila 1: Tipo de incidencia — ancho completo */}
+                                      <div>
+                                        <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                                          Tipo de incidencia *
+                                        </label>
+                                        <select
+                                          value={
+                                            detalleFormPorGuia[g.id]
+                                              ?.tipoIncidencia ??
+                                            "CLIENTE_AUSENTE"
+                                          }
+                                          onChange={(e) =>
+                                            setCampoDetalle(
+                                              g.id,
+                                              "tipoIncidencia",
+                                              e.target.value as TipoNovedad,
+                                            )
+                                          }
+                                          disabled={
+                                            guiaIdsDetalleGuardado.has(g.id) &&
+                                            !guiaIdsEnEdicion.has(g.id)
+                                          }
+                                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500"
+                                        >
+                                          {TIPOS_INCIDENCIA.map((t) => (
+                                            <option
+                                              key={t.value}
+                                              value={t.value}
+                                            >
+                                              {t.label}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </div>
+
+                                      {/* Fila 2: Recibido por (izq) | Temperatura (der) */}
+                                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                        <div>
+                                          <div className="mb-1.5 flex items-center justify-between">
+                                            <label className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                                              Recibido por (opcional)
+                                            </label>
+                                            {(!guiaIdsDetalleGuardado.has(
+                                              g.id,
+                                            ) ||
+                                              guiaIdsEnEdicion.has(g.id)) && (
+                                                <button
+                                                  type="button"
+                                                  onClick={() =>
+                                                    addReceptorItem(g.id)
+                                                  }
+                                                  className="flex items-center gap-0.5 rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary hover:bg-primary/20"
+                                                >
+                                                  <span className="material-symbols-outlined text-[12px]">
+                                                    add
+                                                  </span>
+                                                  Agregar
+                                                </button>
+                                              )}
+                                          </div>
+                                          <div className="space-y-1.5">
+                                            {getReceptoresList(g.id).map(
+                                              (receptor, idx) => {
+                                                const canEdit =
+                                                  !guiaIdsDetalleGuardado.has(
+                                                    g.id,
+                                                  ) ||
+                                                  guiaIdsEnEdicion.has(g.id);
+                                                return (
+                                                  <div
+                                                    key={idx}
+                                                    className="relative"
+                                                  >
+                                                    <input
+                                                      type="text"
+                                                      placeholder="Nombre de quien recibe"
+                                                      value={receptor}
+                                                      onChange={(e) => {
+                                                        const value =
+                                                          e.target.value;
+                                                        if (
+                                                          value === "" ||
+                                                          /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'-]+$/.test(
+                                                            value,
+                                                          )
+                                                        ) {
+                                                          setReceptorItem(
+                                                            g.id,
+                                                            idx,
+                                                            value,
+                                                          );
+                                                        }
+                                                      }}
+                                                      maxLength={50}
+                                                      disabled={!canEdit}
+                                                      className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 ${getReceptoresList(g.id).length > 1 && canEdit ? "pr-8" : ""} border-slate-200 focus:border-primary focus:ring-primary/15`}
+                                                    />
+                                                    {getReceptoresList(g.id)
+                                                      .length > 1 &&
+                                                      canEdit && (
+                                                        <button
+                                                          type="button"
+                                                          onClick={() =>
+                                                            removeReceptorItem(
+                                                              g.id,
+                                                              idx,
+                                                            )
+                                                          }
+                                                          className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-300 hover:text-red-400"
+                                                        >
+                                                          <span className="material-symbols-outlined text-[16px]">
+                                                            close
+                                                          </span>
+                                                        </button>
+                                                      )}
+                                                  </div>
+                                                );
+                                              },
+                                            )}
+                                          </div>
+                                        </div>
+                                        <div>
+                                          <div className="mb-1.5 flex items-center justify-between">
+                                            <label className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                                              Temperatura (•C)
+                                            </label>
+                                            {(!guiaIdsDetalleGuardado.has(
+                                              g.id,
+                                            ) ||
+                                              guiaIdsEnEdicion.has(g.id)) && (
+                                                <button
+                                                  type="button"
+                                                  onClick={() =>
+                                                    addTemperaturaItem(g.id)
+                                                  }
+                                                  className="flex items-center gap-0.5 rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary hover:bg-primary/20"
+                                                >
+                                                  <span className="material-symbols-outlined text-[12px]">
+                                                    add
+                                                  </span>
+                                                  Agregar
+                                                </button>
+                                              )}
+                                          </div>
+                                          <div className="space-y-1.5">
+                                            {getTemperaturasList(g.id).map(
+                                              (temp, idx) => {
+                                                const canEdit =
+                                                  !guiaIdsDetalleGuardado.has(
+                                                    g.id,
+                                                  ) ||
+                                                  guiaIdsEnEdicion.has(g.id);
+                                                const showRemove =
+                                                  getTemperaturasList(g.id)
+                                                    .length > 1 && canEdit;
+                                                return (
+                                                  <div
+                                                    key={idx}
+                                                    className="relative"
+                                                  >
+                                                    <input
+                                                      type="text"
+                                                      inputMode="text"
+                                                      placeholder="Ej: -18"
+                                                      value={temp}
+                                                      onChange={(e) =>
+                                                        setTemperaturaItem(
+                                                          g.id,
+                                                          idx,
+                                                          e.target.value,
+                                                        )
+                                                      }
+                                                      onBlur={() => {
+                                                        const hasValue =
+                                                          getTemperaturasList(
+                                                            g.id,
+                                                          ).some((t) =>
+                                                            t.trim(),
+                                                          );
+                                                        setErrorCampoDetalle(
+                                                          g.id,
+                                                          "temperatura",
+                                                          hasValue
+                                                            ? ""
+                                                            : REQUIRED_MESSAGE,
+                                                        );
+                                                      }}
+                                                      maxLength={10}
+                                                      disabled={!canEdit}
+                                                      className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 ${showRemove ? "pr-16" : "pr-10"} ${erroresDetallePorGuia[g.id]?.temperatura ? "border-red-400 focus:border-red-400 focus:ring-red-100" : "border-slate-200 focus:border-primary focus:ring-primary/15"}`}
+                                                    />
+                                                    {showRemove && (
+                                                      <button
+                                                        type="button"
+                                                        onClick={() =>
+                                                          removeTemperaturaItem(
+                                                            g.id,
+                                                            idx,
+                                                          )
+                                                        }
+                                                        className="absolute right-8 top-1/2 -translate-y-1/2 text-slate-300 hover:text-red-400"
+                                                      >
+                                                        <span className="material-symbols-outlined text-[15px]">
+                                                          close
+                                                        </span>
+                                                      </button>
+                                                    )}
+                                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-400 pointer-events-none">
+                                                      •C
+                                                    </span>
+                                                  </div>
+                                                );
+                                              },
+                                            )}
+                                          </div>
+                                          {erroresDetallePorGuia[g.id]
+                                            ?.temperatura && (
+                                              <p className="mt-1 text-xs text-red-500">
+                                                {
+                                                  erroresDetallePorGuia[g.id]
+                                                    ?.temperatura
+                                                }
+                                              </p>
+                                            )}
+                                        </div>
+                                      </div>
+                                      {/* cierra grid receptor+temperatura */}
+                                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                        <div>
+                                          <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                                            Hora llegada
+                                          </label>
+                                          <input
+                                            type="time"
+                                            value={
+                                              detalleFormPorGuia[g.id]
+                                                ?.horaLlegada ?? ""
+                                            }
+                                            onChange={(e) => {
+                                              const value = e.target.value;
+                                              setCampoDetalle(
+                                                g.id,
+                                                "horaLlegada",
+                                                value,
+                                              );
+                                              if (value)
+                                                limpiarErrorCampoDetalle(
+                                                  g.id,
+                                                  "horaLlegada",
+                                                );
+                                            }}
+                                            onBlur={() => {
+                                              const value =
+                                                detalleFormPorGuia[g.id]
+                                                  ?.horaLlegada ?? "";
+                                              setErrorCampoDetalle(
+                                                g.id,
+                                                "horaLlegada",
+                                                value ? "" : REQUIRED_MESSAGE,
+                                              );
+                                            }}
+                                            disabled={
+                                              guiaIdsDetalleGuardado.has(
+                                                g.id,
+                                              ) && !guiaIdsEnEdicion.has(g.id)
+                                            }
+                                            className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 ${erroresDetallePorGuia[g.id]
+                                              ?.horaLlegada
+                                              ? "border-red-400 focus:border-red-400 focus:ring-red-100"
+                                              : "border-slate-200 focus:border-primary focus:ring-primary/15"
+                                              }`}
+                                          />
+                                          {erroresDetallePorGuia[g.id]
+                                            ?.horaLlegada && (
+                                              <p className="mt-1 text-xs text-red-500">
+                                                {
+                                                  erroresDetallePorGuia[g.id]
+                                                    ?.horaLlegada
+                                                }
+                                              </p>
+                                            )}
+                                        </div>
+                                        <div>
+                                          <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                                            Hora salida
+                                          </label>
+                                          <input
+                                            type="time"
+                                            value={
+                                              detalleFormPorGuia[g.id]
+                                                ?.horaSalida ?? ""
+                                            }
+                                            onChange={(e) => {
+                                              const value = e.target.value;
+                                              setCampoDetalle(
+                                                g.id,
+                                                "horaSalida",
+                                                value,
+                                              );
+                                              if (value)
+                                                limpiarErrorCampoDetalle(
+                                                  g.id,
+                                                  "horaSalida",
+                                                );
+                                            }}
+                                            onBlur={() => {
+                                              const value =
+                                                detalleFormPorGuia[g.id]
+                                                  ?.horaSalida ?? "";
+                                              setErrorCampoDetalle(
+                                                g.id,
+                                                "horaSalida",
+                                                value ? "" : REQUIRED_MESSAGE,
+                                              );
+                                            }}
+                                            disabled={
+                                              guiaIdsDetalleGuardado.has(
+                                                g.id,
+                                              ) && !guiaIdsEnEdicion.has(g.id)
+                                            }
+                                            className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 ${erroresDetallePorGuia[g.id]
+                                              ?.horaSalida
+                                              ? "border-red-400 focus:border-red-400 focus:ring-red-100"
+                                              : "border-slate-200 focus:border-primary focus:ring-primary/15"
+                                              }`}
+                                          />
+                                          {erroresDetallePorGuia[g.id]
+                                            ?.horaSalida && (
+                                              <p className="mt-1 text-xs text-red-500">
+                                                {
+                                                  erroresDetallePorGuia[g.id]
+                                                    ?.horaSalida
+                                                }
+                                              </p>
+                                            )}
+                                        </div>
+                                      </div>
+                                      <div>
+                                        <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                                          Observaciones (máx. 255 caracteres)
+                                        </label>
+                                        <div className="relative">
+                                          <textarea
+                                            rows={3}
+                                            placeholder="Detalles adicionales sobre la incidencia (opcional)"
+                                            value={
+                                              detalleFormPorGuia[g.id]
+                                                ?.observaciones ?? ""
+                                            }
+                                            onChange={(e) =>
+                                              setCampoDetalle(
+                                                g.id,
+                                                "observaciones",
+                                                e.target.value,
+                                              )
+                                            }
+                                            maxLength={255}
+                                            disabled={
+                                              guiaIdsDetalleGuardado.has(
+                                                g.id,
+                                              ) && !guiaIdsEnEdicion.has(g.id)
+                                            }
+                                            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15 disabled:bg-slate-50 disabled:text-slate-500 disabled:cursor-not-allowed"
+                                          />
+                                          <span
+                                            className={`absolute -bottom-4 right-0 text-[10px] ${(detalleFormPorGuia[g.id]?.observaciones?.length || 0) > 240 ? "text-amber-600" : "text-slate-400"}`}
+                                          >
+                                            {detalleFormPorGuia[g.id]
+                                              ?.observaciones?.length || 0}
+                                            /255
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    <PhotoUploader
+                                      key={`photo-uploader-${g.id}-${(fotosBorradorPorGuia[g.id] || []).length}`}
+                                      scope="guia"
+                                      guiaId={g.id}
+                                      label="Fotos de la incidencia"
+                                      draftMode={
+                                        !guiaIdsDetalleGuardado.has(g.id) ||
+                                        guiaIdsEnEdicion.has(g.id)
+                                      }
+                                      onDraftChange={(files) => {
+                                        setFotosBorradorPorGuia((prev) => ({
+                                          ...prev,
+                                          [g.id]: files,
+                                        }));
+                                      }}
+                                      initialDraftFiles={
+                                        fotosBorradorPorGuia[g.id]
+                                      }
+                                      onUploaded={fetchRuta}
+                                      readOnly={
+                                        guiaIdsDetalleGuardado.has(g.id) &&
+                                        !guiaIdsEnEdicion.has(g.id)
+                                      }
+                                      onProcessingStart={handleFotosStart}
+                                      onProcessingEnd={handleFotosEnd}
+                                    />
+
+                                    <div className="border-t border-slate-200 pt-4">
+                                      <div className="w-full sm:flex sm:justify-end sm:gap-2">
+                                        {guiaIdsDetalleGuardado.has(g.id) &&
+                                          !guiaIdsEnEdicion.has(g.id) ? (
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              handleHabilitarEdicion(g.id)
+                                            }
+                                            className="w-full rounded-lg border border-primary bg-white px-4 py-2.5 text-xs font-bold text-primary shadow-sm hover:bg-primary/5 sm:w-auto"
+                                          >
+                                            Editar datos
+                                          </button>
+                                        ) : (
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              handleGuardarDetalleGuia(g.id)
+                                            }
+                                            disabled={
+                                              guardandoGuiaId === g.id ||
+                                              !detalleFormPorGuia[
+                                                g.id
+                                              ]?.temperatura?.trim() ||
+                                              !detalleFormPorGuia[g.id]
+                                                ?.horaLlegada ||
+                                              !detalleFormPorGuia[g.id]
+                                                ?.horaSalida ||
+                                              (fotosBorradorPorGuia[g.id]
+                                                ?.length ?? 0) +
+                                              (g.fotos?.length ?? 0) ===
+                                              0
+                                            }
+                                            className="w-full rounded-lg bg-primary px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-primary/90 disabled:opacity-60 sm:w-auto"
+                                          >
+                                            {guardandoGuiaId === g.id
+                                              ? "Guardando…"
+                                              : "Guardar datos de incidencia"}
+                                          </button>
+                                        )}
+                                      </div>
+                                      {(!detalleFormPorGuia[
+                                        g.id
+                                      ]?.temperatura?.trim() ||
+                                        !detalleFormPorGuia[g.id]
+                                          ?.horaLlegada ||
+                                        !detalleFormPorGuia[g.id]?.horaSalida ||
+                                        (fotosBorradorPorGuia[g.id]?.length ??
+                                          0) +
+                                        (g.fotos?.length ?? 0) ===
+                                        0) && (
+                                          <p className="mt-2 text-xs text-amber-600 text-center sm:text-right">
+                                            {(fotosBorradorPorGuia[g.id]
+                                              ?.length ?? 0) +
+                                              (g.fotos?.length ?? 0) ===
+                                              0
+                                              ? "Debes subir al menos 1 foto para guardar"
+                                              : "Completa todos los campos obligatorios para guardar"}
+                                          </p>
+                                        )}
+                                    </div>
+                                  </>
+                                ) : (
+                                  /* Formulario para ENTREGAS NORMALES */
+                                  <>
+                                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                                      <div>
+                                        <div className="mb-1.5 flex items-center justify-between">
+                                          <label className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                                            Recibido por
+                                          </label>
+                                          {!(
+                                            guiaIdsDetalleGuardado.has(g.id) &&
+                                            !guiaIdsEnEdicion.has(g.id)
+                                          ) &&
+                                            ruta.estado !== "COMPLETADA" && (
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  addReceptorItem(g.id)
+                                                }
+                                                className="flex items-center gap-0.5 rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary hover:bg-primary/20"
+                                              >
+                                                <span className="material-symbols-outlined text-[12px]">
+                                                  add
+                                                </span>
+                                                Agregar
+                                              </button>
+                                            )}
+                                        </div>
+                                        <div className="space-y-1.5">
+                                          {getReceptoresList(g.id).map(
+                                            (receptor, idx) => (
+                                              <div
+                                                key={idx}
+                                                className="relative"
+                                              >
+                                                <input
+                                                  type="text"
+                                                  placeholder="Nombre de quien recibe"
+                                                  value={receptor}
+                                                  onChange={(e) => {
+                                                    const value =
+                                                      e.target.value;
+                                                    if (
+                                                      value === "" ||
+                                                      /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s'-]+$/.test(
+                                                        value,
+                                                      )
+                                                    ) {
+                                                      setReceptorItem(
+                                                        g.id,
+                                                        idx,
+                                                        value,
+                                                      );
+                                                    }
+                                                  }}
+                                                  onBlur={() => {
+                                                    const hasValue =
+                                                      getReceptoresList(
+                                                        g.id,
+                                                      ).some((r) => r.trim());
+                                                    setErrorCampoDetalle(
+                                                      g.id,
+                                                      "receptorNombre",
+                                                      hasValue
+                                                        ? ""
+                                                        : REQUIRED_MESSAGE,
+                                                    );
+                                                  }}
+                                                  maxLength={50}
+                                                  disabled={
+                                                    ruta.estado ===
+                                                    "COMPLETADA" ||
+                                                    (guiaIdsDetalleGuardado.has(
+                                                      g.id,
+                                                    ) &&
+                                                      !guiaIdsEnEdicion.has(
+                                                        g.id,
+                                                      ))
+                                                  }
+                                                  className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 ${getReceptoresList(g.id)
+                                                    .length > 1 &&
+                                                    !(
+                                                      guiaIdsDetalleGuardado.has(
+                                                        g.id,
+                                                      ) &&
+                                                      !guiaIdsEnEdicion.has(
+                                                        g.id,
+                                                      )
+                                                    ) &&
+                                                    ruta.estado !== "COMPLETADA"
+                                                    ? "pr-8"
+                                                    : ""
+                                                    } ${erroresDetallePorGuia[g.id]?.receptorNombre ? "border-red-400 focus:border-red-400 focus:ring-red-100" : "border-slate-200 focus:border-primary focus:ring-primary/15"}`}
+                                                />
+                                                {getReceptoresList(g.id)
+                                                  .length > 1 &&
+                                                  !(
+                                                    guiaIdsDetalleGuardado.has(
+                                                      g.id,
+                                                    ) &&
+                                                    !guiaIdsEnEdicion.has(g.id)
+                                                  ) &&
+                                                  ruta.estado !==
+                                                  "COMPLETADA" && (
+                                                    <button
+                                                      type="button"
+                                                      onClick={() =>
+                                                        removeReceptorItem(
+                                                          g.id,
+                                                          idx,
+                                                        )
+                                                      }
+                                                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-300 hover:text-red-400"
+                                                    >
+                                                      <span className="material-symbols-outlined text-[16px]">
+                                                        close
+                                                      </span>
+                                                    </button>
+                                                  )}
+                                              </div>
+                                            ),
+                                          )}
+                                        </div>
+                                        {erroresDetallePorGuia[g.id]
+                                          ?.receptorNombre && (
+                                            <p className="mt-1 text-xs text-red-500">
+                                              {
+                                                erroresDetallePorGuia[g.id]
+                                                  ?.receptorNombre
+                                              }
+                                            </p>
+                                          )}
+                                      </div>
+                                      <div>
+                                        <div className="mb-1.5 flex items-center justify-between">
+                                          <label className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                                            Temperatura (•C)
+                                          </label>
+                                          {(!guiaIdsDetalleGuardado.has(g.id) ||
+                                            guiaIdsEnEdicion.has(g.id)) && (
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  addTemperaturaItem(g.id)
+                                                }
+                                                className="flex items-center gap-0.5 rounded-md bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary hover:bg-primary/20"
+                                              >
+                                                <span className="material-symbols-outlined text-[12px]">
+                                                  add
+                                                </span>
+                                                Agregar
+                                              </button>
+                                            )}
+                                        </div>
+                                        <div className="space-y-1.5">
+                                          {getTemperaturasList(g.id).map(
+                                            (temp, idx) => {
+                                              const canEdit =
+                                                !guiaIdsDetalleGuardado.has(
+                                                  g.id,
+                                                ) || guiaIdsEnEdicion.has(g.id);
+                                              const showRemove =
+                                                getTemperaturasList(g.id)
+                                                  .length > 1 && canEdit;
+                                              return (
+                                                <div
+                                                  key={idx}
+                                                  className="relative"
+                                                >
+                                                  <input
+                                                    type="text"
+                                                    inputMode="text"
+                                                    placeholder="Ej: -18"
+                                                    value={temp}
+                                                    onChange={(e) =>
+                                                      setTemperaturaItem(
+                                                        g.id,
+                                                        idx,
+                                                        e.target.value,
+                                                      )
+                                                    }
+                                                    onBlur={() => {
+                                                      const hasValue =
+                                                        getTemperaturasList(
+                                                          g.id,
+                                                        ).some((t) => t.trim());
+                                                      setErrorCampoDetalle(
+                                                        g.id,
+                                                        "temperatura",
+                                                        hasValue
+                                                          ? ""
+                                                          : REQUIRED_MESSAGE,
+                                                      );
+                                                    }}
+                                                    maxLength={10}
+                                                    disabled={!canEdit}
+                                                    className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 ${showRemove ? "pr-16" : "pr-10"} ${erroresDetallePorGuia[g.id]?.temperatura ? "border-red-400 focus:border-red-400 focus:ring-red-100" : "border-slate-200 focus:border-primary focus:ring-primary/15"}`}
+                                                  />
+                                                  {showRemove && (
+                                                    <button
+                                                      type="button"
+                                                      onClick={() =>
+                                                        removeTemperaturaItem(
+                                                          g.id,
+                                                          idx,
+                                                        )
+                                                      }
+                                                      className="absolute right-8 top-1/2 -translate-y-1/2 text-slate-300 hover:text-red-400"
+                                                    >
+                                                      <span className="material-symbols-outlined text-[15px]">
+                                                        close
+                                                      </span>
+                                                    </button>
+                                                  )}
+                                                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-400 pointer-events-none">
+                                                    •C
+                                                  </span>
+                                                </div>
+                                              );
+                                            },
+                                          )}
+                                        </div>
+                                        {erroresDetallePorGuia[g.id]
+                                          ?.temperatura && (
+                                            <p className="mt-1 text-xs text-red-500">
+                                              {
+                                                erroresDetallePorGuia[g.id]
+                                                  ?.temperatura
+                                              }
+                                            </p>
+                                          )}
+                                      </div>
+                                      <div>
+                                        <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                                          Hora llegada
+                                        </label>
+                                        <input
+                                          type="time"
+                                          value={
+                                            detalleFormPorGuia[g.id]
+                                              ?.horaLlegada ?? ""
+                                          }
+                                          onChange={(e) => {
+                                            const value = e.target.value;
+                                            setCampoDetalle(
+                                              g.id,
+                                              "horaLlegada",
+                                              value,
+                                            );
+                                            if (value)
+                                              limpiarErrorCampoDetalle(
+                                                g.id,
+                                                "horaLlegada",
+                                              );
+                                          }}
+                                          onBlur={() => {
+                                            const value =
+                                              detalleFormPorGuia[g.id]
+                                                ?.horaLlegada ?? "";
+                                            setErrorCampoDetalle(
+                                              g.id,
+                                              "horaLlegada",
+                                              value ? "" : REQUIRED_MESSAGE,
+                                            );
+                                          }}
+                                          disabled={
+                                            guiaIdsDetalleGuardado.has(g.id) &&
+                                            !guiaIdsEnEdicion.has(g.id)
+                                          }
+                                          className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 ${erroresDetallePorGuia[g.id]
+                                            ?.horaLlegada
+                                            ? "border-red-400 focus:border-red-400 focus:ring-red-100"
+                                            : "border-slate-200 focus:border-primary focus:ring-primary/15"
+                                            }`}
+                                        />
+                                        {erroresDetallePorGuia[g.id]
+                                          ?.horaLlegada && (
+                                            <p className="mt-1 text-xs text-red-500">
+                                              {
+                                                erroresDetallePorGuia[g.id]
+                                                  ?.horaLlegada
+                                              }
+                                            </p>
+                                          )}
+                                      </div>
+                                      <div>
+                                        <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                                          Hora salida
+                                        </label>
+                                        <input
+                                          type="time"
+                                          value={
+                                            detalleFormPorGuia[g.id]
+                                              ?.horaSalida ?? ""
+                                          }
+                                          onChange={(e) => {
+                                            const value = e.target.value;
+                                            setCampoDetalle(
+                                              g.id,
+                                              "horaSalida",
+                                              value,
+                                            );
+                                            if (value)
+                                              limpiarErrorCampoDetalle(
+                                                g.id,
+                                                "horaSalida",
+                                              );
+                                          }}
+                                          onBlur={() => {
+                                            const value =
+                                              detalleFormPorGuia[g.id]
+                                                ?.horaSalida ?? "";
+                                            setErrorCampoDetalle(
+                                              g.id,
+                                              "horaSalida",
+                                              value ? "" : REQUIRED_MESSAGE,
+                                            );
+                                          }}
+                                          disabled={
+                                            guiaIdsDetalleGuardado.has(g.id) &&
+                                            !guiaIdsEnEdicion.has(g.id)
+                                          }
+                                          className={`w-full rounded-lg border bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 ${erroresDetallePorGuia[g.id]
+                                            ?.horaSalida
+                                            ? "border-red-400 focus:border-red-400 focus:ring-red-100"
+                                            : "border-slate-200 focus:border-primary focus:ring-primary/15"
+                                            }`}
+                                        />
+                                        {erroresDetallePorGuia[g.id]
+                                          ?.horaSalida && (
+                                            <p className="mt-1 text-xs text-red-500">
+                                              {
+                                                erroresDetallePorGuia[g.id]
+                                                  ?.horaSalida
+                                              }
+                                            </p>
+                                          )}
+                                      </div>
+                                      <div className="sm:col-span-2">
+                                        <label className="mb-1.5 block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                                          Observaciones (máx. 255 caracteres)
+                                        </label>
+                                        <div className="relative">
+                                          <textarea
+                                            rows={2}
+                                            placeholder="Novedades o comentarios (opcional)"
+                                            value={
+                                              detalleFormPorGuia[g.id]
+                                                ?.observaciones ?? ""
+                                            }
+                                            onChange={(e) =>
+                                              setCampoDetalle(
+                                                g.id,
+                                                "observaciones",
+                                                e.target.value,
+                                              )
+                                            }
+                                            maxLength={255}
+                                            disabled={
+                                              guiaIdsDetalleGuardado.has(
+                                                g.id,
+                                              ) && !guiaIdsEnEdicion.has(g.id)
+                                            }
+                                            className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/15 disabled:bg-slate-50 disabled:text-slate-500 disabled:cursor-not-allowed"
+                                          />
+                                          <span
+                                            className={`absolute -bottom-4 right-0 text-[10px] ${(detalleFormPorGuia[g.id]?.observaciones?.length || 0) > 240 ? "text-amber-600" : "text-slate-400"}`}
+                                          >
+                                            {detalleFormPorGuia[g.id]
+                                              ?.observaciones?.length || 0}
+                                            /255
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    <PhotoUploader
+                                      key={`photo-uploader-${g.id}-${(fotosBorradorPorGuia[g.id] || []).length}`}
+                                      scope="guia"
+                                      guiaId={g.id}
+                                      label="Fotos de entrega"
+                                      draftMode={
+                                        !guiaIdsDetalleGuardado.has(g.id) ||
+                                        guiaIdsEnEdicion.has(g.id)
+                                      }
+                                      onDraftChange={(files) => {
+                                        setFotosBorradorPorGuia((prev) => ({
+                                          ...prev,
+                                          [g.id]: files,
+                                        }));
+                                      }}
+                                      initialDraftFiles={
+                                        fotosBorradorPorGuia[g.id]
+                                      }
+                                      onUploaded={fetchRuta}
+                                      readOnly={
+                                        guiaIdsDetalleGuardado.has(g.id) &&
+                                        !guiaIdsEnEdicion.has(g.id)
+                                      }
+                                      onProcessingStart={handleFotosStart}
+                                      onProcessingEnd={handleFotosEnd}
+                                    />
+
+                                    <div className="border-t border-slate-200 pt-4">
+                                      <div className="w-full sm:flex sm:justify-end sm:gap-2">
+                                        {guiaIdsDetalleGuardado.has(g.id) &&
+                                          !guiaIdsEnEdicion.has(g.id) ? (
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              handleHabilitarEdicion(g.id)
+                                            }
+                                            className="w-full rounded-lg border border-primary bg-white px-4 py-2.5 text-xs font-bold text-primary shadow-sm hover:bg-primary/5 sm:w-auto"
+                                          >
+                                            Editar datos
+                                          </button>
+                                        ) : (
+                                          <button
+                                            type="button"
+                                            onClick={() =>
+                                              handleGuardarDetalleGuia(g.id)
+                                            }
+                                            disabled={
+                                              guardandoGuiaId === g.id ||
+                                              !detalleFormPorGuia[
+                                                g.id
+                                              ]?.receptorNombre?.trim() ||
+                                              !detalleFormPorGuia[
+                                                g.id
+                                              ]?.temperatura?.trim() ||
+                                              !detalleFormPorGuia[g.id]
+                                                ?.horaLlegada ||
+                                              !detalleFormPorGuia[g.id]
+                                                ?.horaSalida ||
+                                              g.estado === "PENDIENTE" ||
+                                              (fotosBorradorPorGuia[g.id]
+                                                ?.length ?? 0) +
+                                              (g.fotos?.length ?? 0) ===
+                                              0
+                                            }
+                                            className="w-full rounded-lg bg-primary px-4 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-primary/90 disabled:opacity-60 sm:w-auto"
+                                          >
+                                            {guardandoGuiaId === g.id
+                                              ? "Guardando…"
+                                              : "Guardar datos de entrega"}
+                                          </button>
+                                        )}
+                                      </div>
+                                      {(!detalleFormPorGuia[
+                                        g.id
+                                      ]?.receptorNombre?.trim() ||
+                                        !detalleFormPorGuia[
+                                          g.id
+                                        ]?.temperatura?.trim() ||
+                                        !detalleFormPorGuia[g.id]
+                                          ?.horaLlegada ||
+                                        !detalleFormPorGuia[g.id]?.horaSalida ||
+                                        g.estado === "PENDIENTE" ||
+                                        (fotosBorradorPorGuia[g.id]?.length ??
+                                          0) +
+                                        (g.fotos?.length ?? 0) ===
+                                        0) && (
+                                          <p className="mt-2 text-xs text-amber-600 text-center sm:text-right">
+                                            {(fotosBorradorPorGuia[g.id]
+                                              ?.length ?? 0) +
+                                              (g.fotos?.length ?? 0) ===
+                                              0
+                                              ? "Debes subir al menos 1 foto para guardar"
+                                              : g.estado === "PENDIENTE"
+                                                ? 'Marca la guía como "Entregado" para guardar'
+                                                : "Completa todos los campos obligatorios para guardar"}
+                                          </p>
+                                        )}
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            )}
                           </div>
                         ))}
                       </div>
                     )}
                   </div>
-                )
+                );
               })}
             </div>
           </div>
@@ -324,77 +2322,282 @@ export function ChoferRutaDetallePage() {
         {/* Columna derecha */}
         <div className="flex flex-col gap-4 lg:w-[380px] lg:flex-shrink-0">
           {/* Incidencias */}
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <h4 className="mb-3 flex items-center gap-2 font-bold text-slate-900">
-              <span className="material-symbols-outlined text-amber-600">warning</span>
+          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+            <h4 className="mb-2 flex items-center gap-1.5 text-xs font-bold text-slate-900">
+              <span className="material-symbols-outlined text-amber-600 text-base">
+                warning
+              </span>
               Incidencias de esta ruta
             </h4>
-            {(ruta.stops.flatMap((s) => s.guias).filter((g) => g.estado === 'INCIDENCIA')).length === 0 ? (
-              <p className="text-sm text-slate-500">Ninguna incidencia registrada.</p>
+            {ruta.stops
+              .flatMap((s) => s.guias)
+              .filter((g) => g.estado === "INCIDENCIA").length === 0 ? (
+              <p className="text-xs text-slate-500">
+                Ninguna incidencia registrada.
+              </p>
             ) : (
-              <p className="text-sm text-amber-600">{ruta.stops.flatMap((s) => s.guias).filter((g) => g.estado === 'INCIDENCIA').length} guía(s) con incidencia</p>
+              <p className="text-xs text-amber-600">
+                {
+                  ruta.stops
+                    .flatMap((s) => s.guias)
+                    .filter((g) => g.estado === "INCIDENCIA").length
+                }{" "}
+                guía(s) con incidencia
+              </p>
             )}
           </div>
 
           {/* Hoja de ruta */}
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-            <label className="mb-3 block text-sm font-bold text-slate-700">Hoja de ruta finalizada</label>
-            <PhotoUploader scope="hoja_ruta" rutaId={id} label="Fotos del documento" max={5} onUploaded={fetchRuta} />
-            <p className="mt-2 text-[10px] text-slate-500 dark:text-slate-400">Sube la foto del documento firmado (opcional).</p>
+          <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+            <label className="mb-2 block text-xs font-bold text-slate-700">
+              Hoja de ruta finalizada
+            </label>
+            {ruta.estado === "PENDIENTE" ? (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-2.5">
+                <p className="flex items-center gap-1.5 text-[10px] font-medium text-amber-800">
+                  <span className="material-symbols-outlined text-sm">
+                    lock
+                  </span>
+                  Debes iniciar la ruta para subir fotos
+                </p>
+              </div>
+            ) : ruta.estado === "COMPLETADA" ? (
+              <>
+                <PhotoUploader
+                  scope="hoja_ruta"
+                  rutaId={id}
+                  label="Fotos del documento"
+                  onUploaded={fetchRuta}
+                  readOnly={true}
+                />
+                <p className="mt-1.5 text-[9px] text-slate-500 dark:text-slate-400">
+                  La ruta está finalizada. No se pueden agregar o eliminar
+                  fotos.
+                </p>
+              </>
+            ) : !todasLasGuiasTienenDatosGuardados ? (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-2.5">
+                <p className="flex items-center gap-1.5 text-[10px] font-medium text-amber-800">
+                  <span className="material-symbols-outlined text-sm">
+                    lock
+                  </span>
+                  Todas las guías deben tener datos y fotos guardados para subir
+                  la hoja de ruta
+                </p>
+              </div>
+            ) : (
+              <>
+                <PhotoUploader
+                  scope="hoja_ruta"
+                  rutaId={id}
+                  label="Fotos del documento"
+                  onUploaded={fetchRuta}
+                  onProcessingStart={handleFotosStart}
+                  onProcessingEnd={handleFotosEnd}
+                />
+                <p className="mt-1.5 text-[9px] text-slate-500 dark:text-slate-400">
+                  Sube la foto del documento firmado (obligatorio para finalizar
+                  la jornada).
+                </p>
+              </>
+            )}
           </div>
 
           {/* Acciones */}
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-            {ruta.estado === 'PENDIENTE' && (
-              <button type="button" onClick={handleIniciarRuta}
-                className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-4 font-bold text-white shadow-lg hover:bg-primary/90 active:scale-[0.98]">
-                <span className="material-symbols-outlined">play_arrow</span>
-                Iniciar ruta
+            {ruta.estado === "PENDIENTE" && (
+              <button
+                type="button"
+                onClick={handleIniciarRuta}
+                disabled={iniciandoRuta}
+                className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-4 font-bold text-white shadow-lg transition-all hover:bg-primary/90 active:scale-[0.98] disabled:opacity-75 disabled:cursor-wait"
+              >
+                {iniciandoRuta ? (
+                  <>
+                    <span className="material-symbols-outlined animate-spin text-xl">
+                      progress_activity
+                    </span>
+                    Iniciando ruta...
+                  </>
+                ) : (
+                  <>
+                    <span className="material-symbols-outlined">play_arrow</span>
+                    Iniciar ruta
+                  </>
+                )}
               </button>
             )}
-            {ruta.estado === 'EN_CURSO' && (
+            {ruta.estado === "EN_CURSO" && (
               <>
-                <button type="button" onClick={handleFinalizarRuta} disabled={!puedeFinalizar}
-                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-4 font-bold text-white shadow-lg hover:bg-primary/90 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed">
-                  <span className="material-symbols-outlined">check_circle</span>
+                <button
+                  type="button"
+                  onClick={handleFinalizarRuta}
+                  disabled={!puedeFinalizar}
+                  className="flex w-full items-center justify-center gap-2 rounded-xl bg-primary py-4 font-bold text-white shadow-lg hover:bg-primary/90 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span className="material-symbols-outlined">
+                    check_circle
+                  </span>
                   Finalizar jornada
                 </button>
                 {!puedeFinalizar && (
-                  <p className="mt-2 text-center text-xs text-slate-500 dark:text-slate-400">
-                    Completa todas las guías para finalizar.
-                  </p>
+                  <div className="mt-2 space-y-1">
+                    <p className="text-center text-xs font-semibold text-slate-700">
+                      Requisitos para finalizar:
+                    </p>
+                    <ul className="space-y-0.5 text-[10px] text-slate-600">
+                      <li
+                        className={`flex items-center gap-1 ${guiasPorRuta.every((g) => g.estado === "ENTREGADO" || g.estado === "INCIDENCIA") ? "text-emerald-600" : "text-amber-600"}`}
+                      >
+                        <span className="material-symbols-outlined text-xs">
+                          {guiasPorRuta.every(
+                            (g) =>
+                              g.estado === "ENTREGADO" ||
+                              g.estado === "INCIDENCIA",
+                          )
+                            ? "check_circle"
+                            : "radio_button_unchecked"}
+                        </span>
+                        Todas las guías marcadas como Entregado o Incidencia
+                      </li>
+                      <li
+                        className={`flex items-center gap-1 ${todasLasGuiasTienenDatosGuardados ? "text-emerald-600" : "text-amber-600"}`}
+                      >
+                        <span className="material-symbols-outlined text-xs">
+                          {todasLasGuiasTienenDatosGuardados
+                            ? "check_circle"
+                            : "radio_button_unchecked"}
+                        </span>
+                        Todas las guías con datos y fotos guardados
+                      </li>
+                      <li
+                        className={`flex items-center gap-1 ${totalFotos > 0 ? "text-emerald-600" : "text-amber-600"}`}
+                      >
+                        <span className="material-symbols-outlined text-xs">
+                          {totalFotos > 0
+                            ? "check_circle"
+                            : "radio_button_unchecked"}
+                        </span>
+                        Al menos 1 foto de hoja de ruta subida ({totalFotos}{" "}
+                        foto{totalFotos !== 1 ? "s" : ""})
+                      </li>
+                      <li
+                        className={`flex items-center gap-1 ${guiaIdsEnEdicion.size === 0 ? "text-emerald-600" : "text-amber-600"}`}
+                      >
+                        <span className="material-symbols-outlined text-xs">
+                          {guiaIdsEnEdicion.size === 0
+                            ? "check_circle"
+                            : "radio_button_unchecked"}
+                        </span>
+                        Ninguna guía en modo edición ({guiaIdsEnEdicion.size} en
+                        edición)
+                      </li>
+                    </ul>
+                  </div>
                 )}
               </>
             )}
-            {ruta.estado === 'COMPLETADA' && (
-              <p className="text-center text-sm font-medium text-slate-600">Ruta completada.</p>
+            {ruta.estado === "COMPLETADA" && (
+              <p className="text-center text-sm font-medium text-slate-600">
+                Ruta completada.
+              </p>
             )}
           </div>
         </div>
       </div>
 
       {/* Nav móvil */}
-      <nav className="fixed bottom-0 left-0 right-0 flex gap-2 border-t border-slate-200 bg-white px-4 pb-6 pt-2 md:hidden">
-        <Link to={`/chofer/rutas/${id}`} className="flex flex-1 flex-col items-center justify-center gap-1 text-primary">
-          <span className="material-symbols-outlined">route</span>
-          <p className="text-[10px] font-bold uppercase tracking-tight">Mi Ruta</p>
+      <nav className="fixed bottom-0 left-0 right-0 flex border-t border-slate-200 bg-white pb-safe md:hidden">
+        <Link
+          to={`/chofer/rutas/${id}`}
+          className="flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-primary"
+        >
+          <span className="material-symbols-outlined text-xl">route</span>
+          <p className="text-[9px] font-bold uppercase tracking-tight">
+            Mi Ruta
+          </p>
         </Link>
-        <Link to="/chofer/rutas" className="flex flex-1 flex-col items-center justify-center gap-1 text-slate-400">
-          <span className="material-symbols-outlined">history</span>
-          <p className="text-[10px] font-bold uppercase tracking-tight">Historial</p>
+        <Link
+          to="/chofer/rutas"
+          className="flex flex-1 flex-col items-center justify-center gap-0.5 py-2 text-slate-400"
+        >
+          <span className="material-symbols-outlined text-xl">history</span>
+          <p className="text-[9px] font-bold uppercase tracking-tight">
+            Historial
+          </p>
         </Link>
       </nav>
 
       <AnimatePresence>
-        {incidenceGuia && (
-          <IncidenceDialog
-            key={incidenceGuia.id}
-            guiaId={incidenceGuia.id}
-            numeroGuia={incidenceGuia.numeroGuia}
-            onClose={handleIncidenciaCreada}
-          />
+        {showUbicacionErrorModal && (
+          <ModalMotion
+            show={showUbicacionErrorModal}
+            backdropClassName="bg-black/45"
+            panelClassName="w-full max-w-md rounded-2xl bg-white shadow-2xl"
+          >
+            <div className="border-b border-slate-100 px-6 py-4">
+              <h3 className="flex items-center gap-2 text-base font-bold text-slate-900">
+                <span className="material-symbols-outlined text-amber-600">
+                  location_off
+                </span>
+                Ubicación no disponible
+              </h3>
+            </div>
+            <div className="space-y-4 px-6 py-5">
+              <p className="text-sm text-slate-700">
+                No se pudo acceder a tu ubicación. Para usar el seguimiento GPS,
+                debes activar los permisos de ubicación.
+              </p>
+
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <p className="mb-2 text-xs font-bold text-slate-900">
+                  Cómo activar la ubicación:
+                </p>
+                <ol className="space-y-2 text-xs text-slate-600">
+                  <li className="flex gap-2">
+                    <span className="font-bold text-primary">1.</span>
+                    <span>
+                      Busca el ícono de candado o información en la barra de
+                      direcciones del navegador
+                    </span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="font-bold text-primary">2.</span>
+                    <span>
+                      Haz clic y busca la opción "Permisos" o "Configuración del
+                      sitio"
+                    </span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="font-bold text-primary">3.</span>
+                    <span>Cambia "Ubicación" de "Bloqueado" a "Permitir"</span>
+                  </li>
+                  <li className="flex gap-2">
+                    <span className="font-bold text-primary">4.</span>
+                    <span>Recarga la página y vuelve a iniciar la ruta</span>
+                  </li>
+                </ol>
+              </div>
+
+              <p className="text-xs text-slate-500">
+                Si el problema persiste, verifica que tu dispositivo tenga el
+                GPS activado y que el navegador tenga permisos de ubicación en
+                la configuración del sistema.
+              </p>
+
+              <div className="flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowUbicacionErrorModal(false)}
+                  className="rounded-lg bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-primary-hover"
+                >
+                  Entendido
+                </button>
+              </div>
+            </div>
+          </ModalMotion>
         )}
       </AnimatePresence>
     </div>
-  )
+  );
 }

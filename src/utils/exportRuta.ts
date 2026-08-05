@@ -1,0 +1,724 @@
+import * as XLSX from "xlsx";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import {
+  parseMultiField,
+  parseMultiFieldSuffix,
+  normalizeImageOrientationPublic,
+  imageFormatFromBase64,
+} from "./exportUtils";
+import { useGlobalLoadingStore } from "../store/globalLoadingStore";
+
+interface JsPdfWithAutoTable extends jsPDF {
+  lastAutoTable?: { finalY?: number };
+}
+
+// OPT-1: Aplica transformaciones Cloudinary (w_1200, c_limit, q_70, f_jpg)
+// para reducir peso de imágenes antes de descargarlas para el PDF.
+function optimizeUrlForPDF(url: string): string {
+  if (!url) return url;
+  const idx = url.indexOf("/upload/");
+  if (idx === -1) return url; // No es Cloudinary
+  const afterUpload = url.slice(idx + 8);
+  if (
+    afterUpload.startsWith("w_") ||
+    afterUpload.includes(",q_") ||
+    afterUpload.includes(",f_")
+  ) {
+    return url; // Ya tiene transforms, no duplicar
+  }
+  return url.slice(0, idx + 8) + "w_1200,c_limit,q_70,f_jpg/" + afterUpload;
+}
+
+// Helper para convertir imagen URL a base64
+async function urlToBase64(url: string): Promise<string> {
+  try {
+    const optimizedUrl = optimizeUrlForPDF(url); // OPT-1
+    const response = await fetch(optimizedUrl);
+    const blob = await response.blob();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } catch (error) {
+    console.error("Error convirtiendo imagen a base64:", error);
+    throw error;
+  }
+}
+
+interface RutaExport {
+  id: string;
+  fecha: string;
+  estado: string;
+  nombre?: string | null;
+  hojaRuta?: string | null;
+  lugarOrigen?: string | null;
+  lugarDestino?: string | null;
+  chofer: { nombre: string; cedula: string };
+  stops: Array<{
+    orden: number;
+    direccion: string;
+    cliente: { nombre: string };
+    guias: Array<{
+      numeroGuia: string | null;
+      descripcion: string;
+      estado: string;
+      receptorNombre?: string | null;
+      temperatura?: string | null;
+      horaLlegada?: string | null;
+      horaSalida?: string | null;
+      observaciones?: string | null;
+      fotos?: Array<{ urlPreview: string }>;
+    }>;
+  }>;
+  guias: Array<{
+    numeroGuia: string | null;
+    descripcion: string;
+    estado: string;
+    receptorNombre?: string | null;
+    temperatura?: string | null;
+    horaLlegada?: string | null;
+    horaSalida?: string | null;
+    observaciones?: string | null;
+    fotos?: Array<{ urlPreview: string }>;
+  }>;
+  fotos?: Array<{ urlPreview: string; tipo: string }>;
+}
+
+export function exportarRutaExcel(ruta: RutaExport) {
+  const wb = XLSX.utils.book_new();
+
+  // Hoja 1: Resumen
+  const entregadas = ruta.guias.filter((g) => g.estado === "ENTREGADO").length;
+  const incidencias = ruta.guias.filter(
+    (g) => g.estado === "INCIDENCIA",
+  ).length;
+  const pendientes = ruta.guias.filter((g) => g.estado === "PENDIENTE").length;
+
+  const resumen = [
+    ["REPORTE DE RUTA"],
+    [],
+    ["ID Ruta", ruta.id],
+    ["Nombre ruta", ruta.nombre ?? "—"],
+    ["Hoja de ruta", ruta.hojaRuta ?? "—"],
+    ["Lugar origen", ruta.lugarOrigen ?? "—"],
+    ["Lugar destino", ruta.lugarDestino ?? "—"],
+    ["Fecha", new Date(ruta.fecha).toLocaleDateString("es-ES")],
+    ["Chofer", ruta.chofer.nombre],
+    ["Cédula Chofer", ruta.chofer.cedula],
+    ["Estado Ruta", ruta.estado],
+    [],
+    ["RESUMEN DE GUÍAS"],
+    ["Total Guías", ruta.guias.length],
+    ["Entregadas", entregadas],
+    ["Incidencias", incidencias],
+    ["Pendientes", pendientes],
+  ];
+
+  const wsResumen = XLSX.utils.aoa_to_sheet(resumen);
+  XLSX.utils.book_append_sheet(wb, wsResumen, "Resumen");
+
+  // Hoja 2: Detalle de Guías
+  const guiasData = ruta.stops.flatMap((stop) =>
+    stop.guias.map((g) => ({
+      Parada: `#${stop.orden}`,
+      Cliente: stop.cliente.nombre,
+      Dirección: stop.direccion,
+      "Número Guía": g.numeroGuia ?? "Sin guía",
+      Descripción: g.descripcion,
+      Estado: g.estado,
+      "Recibido por": parseMultiField(g.receptorNombre),
+      "Temperatura (°C)": parseMultiFieldSuffix(g.temperatura, "°C"),
+      "Hora Llegada": g.horaLlegada || "-",
+      "Hora Salida": g.horaSalida || "-",
+      Observaciones: g.observaciones || "-",
+      Fotos: g.fotos?.length || 0,
+    })),
+  );
+
+  const wsGuias = XLSX.utils.json_to_sheet(guiasData);
+  XLSX.utils.book_append_sheet(wb, wsGuias, "Detalle Guías");
+
+  // Hoja 3: Incidencias (si hay)
+  if (incidencias > 0) {
+    const incidenciasData = ruta.stops.flatMap((stop) =>
+      stop.guias
+        .filter((g) => g.estado === "INCIDENCIA")
+        .map((g) => {
+          // Extraer tipo de incidencia del receptorNombre
+          const tipoIncidencia = g.receptorNombre?.startsWith("INCIDENCIA:")
+            ? g.receptorNombre.replace("INCIDENCIA: ", "")
+            : "No especificado";
+
+          return {
+            Parada: `#${stop.orden}`,
+            Cliente: stop.cliente.nombre,
+            "Número Guía": g.numeroGuia ?? "Sin guía",
+            "Tipo Incidencia": tipoIncidencia,
+            "Temperatura (°C)": g.temperatura || "-",
+            "Hora Llegada": g.horaLlegada || "-",
+            "Hora Salida": g.horaSalida || "-",
+            Observaciones: g.observaciones || "-",
+          };
+        }),
+    );
+
+    const wsIncidencias = XLSX.utils.json_to_sheet(incidenciasData);
+    XLSX.utils.book_append_sheet(wb, wsIncidencias, "Incidencias");
+  }
+
+  // Hoja 4: URLs de Fotos
+  const fotosData: Array<{
+    Tipo: string;
+    Guía: string;
+    Parada: string;
+    Cliente: string;
+    URL: string;
+  }> = [];
+
+  // Fotos de guías
+  ruta.stops.forEach((stop) => {
+    stop.guias.forEach((g) => {
+      if (g.fotos && g.fotos.length > 0) {
+        g.fotos.forEach((foto) => {
+          fotosData.push({
+            Tipo: "Entrega",
+            Guía: g.numeroGuia ?? "Sin guía",
+            Parada: `#${stop.orden}`,
+            Cliente: stop.cliente.nombre,
+            URL: foto.urlPreview,
+          });
+        });
+      }
+    });
+  });
+
+  // Fotos de hoja de ruta
+  const fotosHojaRuta = ruta.fotos?.filter((f) => f.tipo === "HOJA_RUTA") || [];
+  fotosHojaRuta.forEach((foto) => {
+    fotosData.push({
+      Tipo: "Hoja de Ruta",
+      Guía: "-",
+      Parada: "-",
+      Cliente: "-",
+      URL: foto.urlPreview,
+    });
+  });
+
+  if (fotosData.length > 0) {
+    const wsFotos = XLSX.utils.json_to_sheet(fotosData);
+    XLSX.utils.book_append_sheet(wb, wsFotos, "URLs de Fotos");
+  }
+
+  // Descargar archivo
+  const fileName = `Ruta_${ruta.id.slice(-6)}_${new Date(ruta.fecha).toISOString().split("T")[0]}.xlsx`;
+  XLSX.writeFile(wb, fileName);
+}
+
+export async function exportarRutaPDF(ruta: RutaExport) {
+  const { setMessage } = useGlobalLoadingStore.getState();
+  setMessage("Preparando datos de la ruta...");
+
+
+  const doc = new jsPDF();
+  const pageHeight = doc.internal.pageSize.height;
+  const pageBottomMargin = 20;
+  const pageTopMargin = 20;
+  const safeFooterReserve = 12;
+
+  const ensurePageSpace = (neededHeight: number, currentY: number) => {
+    const availableBottom = pageHeight - pageBottomMargin - safeFooterReserve;
+    if (currentY + neededHeight > availableBottom) {
+      doc.addPage();
+      agregarMarcaDeAgua();
+      return pageTopMargin;
+    }
+    return currentY;
+  };
+
+  const entregadas = ruta.guias.filter((g) => g.estado === "ENTREGADO").length;
+  const incidencias = ruta.guias.filter(
+    (g) => g.estado === "INCIDENCIA",
+  ).length;
+  const pendientes = ruta.guias.filter((g) => g.estado === "PENDIENTE").length;
+
+  // Función para agregar marca de agua en cada página (debe llamarse ANTES de agregar contenido)
+  const agregarMarcaDeAgua = () => {
+    doc.setGState({ opacity: 0.008 });
+    doc.setFontSize(50);
+    doc.setTextColor(220, 220, 220);
+    doc.text(
+      "LOGISTRANS S.A.",
+      doc.internal.pageSize.width / 2,
+      doc.internal.pageSize.height / 2,
+      {
+        align: "center",
+        angle: 45,
+      },
+    );
+    doc.setGState({ opacity: 1 });
+    doc.setTextColor(0, 0, 0);
+  };
+
+  // Marca de agua en primera página (ANTES de agregar contenido)
+  agregarMarcaDeAgua();
+
+  // Título
+  doc.setFontSize(18);
+  doc.setFont("helvetica", "bold");
+  doc.text("REPORTE DE RUTA", 14, 20);
+
+  // Logo/Empresa
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "bold");
+  doc.text("LOGISTRANS S.A.", 14, 28);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.text("SERVICIO DE TRANSPORTE", 14, 32);
+
+  // Información general
+  doc.setFontSize(11);
+  doc.setFont("helvetica", "normal");
+  doc.text(`ID Ruta: ${ruta.id}`, 14, 42);
+  doc.text(
+    `Fecha: ${new Date(ruta.fecha).toLocaleDateString("es-ES")}`,
+    14,
+    49,
+  );
+  doc.text(`Chofer: ${ruta.chofer.nombre} (${ruta.chofer.cedula})`, 14, 56);
+  doc.text(`Estado: ${ruta.estado}`, 14, 63);
+
+  // Resumen
+  doc.setFontSize(12);
+  doc.setFont("helvetica", "bold");
+  doc.text("Resumen de Guías", 14, 75);
+
+  doc.setFontSize(10);
+  doc.setFont("helvetica", "normal");
+  doc.text(
+    `Total: ${ruta.guias.length} | Entregadas: ${entregadas} | Incidencias: ${incidencias} | Pendientes: ${pendientes}`,
+    14,
+    82,
+  );
+
+  // Tabla resumen de guías
+  const guiasResumen = ruta.stops.flatMap((stop) =>
+    stop.guias.map((g) => [
+      `#${stop.orden}`,
+      stop.cliente.nombre,
+      g.numeroGuia ?? "Sin guía",
+      g.estado,
+    ]),
+  );
+
+  setMessage("Generando tablas del documento...");
+  autoTable(doc, {
+    startY: 90,
+    head: [["Parada", "Cliente", "Número Guía", "Estado"]],
+    body: guiasResumen,
+    styles: { fontSize: 8, cellPadding: 2 },
+    headStyles: { fillColor: [41, 128, 185], fontStyle: "bold" },
+    alternateRowStyles: { fillColor: [245, 245, 245] },
+    columnStyles: {
+      0: { cellWidth: 20 },
+      1: { cellWidth: 70 },
+      2: { cellWidth: 50 },
+      3: { cellWidth: 40 },
+    },
+    didDrawPage: (data) => {
+      // Agregar marca de agua en páginas nuevas
+      if (data.pageNumber > 1) {
+        const currentPage = doc.getNumberOfPages();
+        doc.setPage(currentPage);
+        agregarMarcaDeAgua();
+      }
+    },
+  });
+
+  let currentY = (doc as JsPdfWithAutoTable).lastAutoTable?.finalY ?? 90;
+
+  // DETALLE COMPLETO DE CADA GUÍA
+  doc.addPage();
+  agregarMarcaDeAgua(); // Marca de agua ANTES del contenido
+
+  doc.setFontSize(14);
+  doc.setFont("helvetica", "bold");
+  doc.text("DETALLE COMPLETO DE GUÍAS", 14, 20);
+
+  currentY = 30;
+
+
+
+  // OPT-4: Pre-cargar todas las fotos de guías y hoja de ruta en lotes paralelos
+  // ANTES del bucle de escritura. Convierte O(N) fetches secuenciales en paralelos.
+  const imageCache = new Map<string, string>();
+  const allFotoUrls = [
+    ...new Set([
+      ...ruta.stops.flatMap((s) =>
+        s.guias.flatMap((g) => (g.fotos ?? []).map((f) => f.urlPreview)),
+      ),
+      ...(ruta.fotos
+        ?.filter((f) => f.tipo === "HOJA_RUTA")
+        .map((f) => f.urlPreview) ?? []),
+    ]),
+  ];
+  const FOTO_BATCH = 6; // lote conservador para ruta individual
+  let processedCount = 0;
+  const totalImages = allFotoUrls.length;
+  for (let bi = 0; bi < allFotoUrls.length; bi += FOTO_BATCH) {
+    const batch = allFotoUrls.slice(bi, bi + FOTO_BATCH);
+    const batchResults = await Promise.allSettled(
+      batch.map(async (url) => {
+        const raw = await urlToBase64(url);           // OPT-1 ya aplicado
+        const processed = await normalizeImageOrientationPublic(raw); // OPT-2
+        return { url, processed };
+      }),
+    );
+    for (const res of batchResults) {
+      if (res.status === "fulfilled") {
+        imageCache.set(res.value.url, res.value.processed);
+      }
+    }
+    processedCount += batch.length;
+    setMessage(`Procesando evidencias y mapas (${processedCount} de ${totalImages})`);
+  }
+
+
+  let stopIndex = 0;
+  for (const stop of ruta.stops) {
+    stopIndex++;
+    setMessage(`Generando paradas de la ruta (${stopIndex} de ${ruta.stops.length})`);
+
+
+    for (const guia of stop.guias) {
+
+
+      // Verificar si necesitamos nueva página
+      if (currentY > doc.internal.pageSize.height - 80) {
+        doc.addPage();
+        agregarMarcaDeAgua(); // Marca de agua ANTES del contenido
+        currentY = 20;
+      }
+
+      // Encabezado de la guía con fondo azul
+      doc.setFillColor(41, 128, 185);
+      doc.rect(14, currentY, 182, 8, "F");
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(255, 255, 255);
+      doc.text(
+        `GUÍA ${guia.numeroGuia ?? "SIN GUÍA"} - Parada #${stop.orden}`,
+        16,
+        currentY + 5.5,
+      );
+      doc.setTextColor(0, 0, 0);
+
+      currentY += 12;
+
+      // Información básica de la guía
+      doc.setFontSize(9);
+
+      // Cliente
+      doc.setFont("helvetica", "bold");
+      doc.text("Cliente:", 16, currentY);
+      doc.setFont("helvetica", "normal");
+      const clienteLines = doc.splitTextToSize(stop.cliente.nombre, 140);
+      doc.text(clienteLines, 50, currentY);
+      currentY += Math.max(clienteLines.length * 5, 5);
+
+      // Dirección
+      doc.setFont("helvetica", "bold");
+      doc.text("Dirección:", 16, currentY);
+      doc.setFont("helvetica", "normal");
+      const direccionLines = doc.splitTextToSize(stop.direccion, 140);
+      doc.text(direccionLines, 50, currentY);
+      currentY += Math.max(direccionLines.length * 5, 5);
+
+      // Descripción
+      doc.setFont("helvetica", "bold");
+      doc.text("Descripción:", 16, currentY);
+      doc.setFont("helvetica", "normal");
+      const descripcionLines = doc.splitTextToSize(guia.descripcion, 140);
+      doc.text(descripcionLines, 50, currentY);
+      currentY += Math.max(descripcionLines.length * 5, 5);
+
+      // Estado con color
+      doc.setFont("helvetica", "bold");
+      doc.text("Estado:", 16, currentY);
+      if (guia.estado === "ENTREGADO") {
+        doc.setTextColor(22, 163, 74);
+      } else if (guia.estado === "INCIDENCIA") {
+        doc.setTextColor(245, 158, 11);
+      } else {
+        doc.setTextColor(100, 116, 139);
+      }
+      doc.setFont("helvetica", "bold");
+      doc.text(guia.estado, 50, currentY);
+      doc.setTextColor(0, 0, 0);
+      currentY += 7;
+
+      // Sección de datos de entrega
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "bold");
+      doc.setFillColor(240, 240, 240);
+      doc.rect(14, currentY, 182, 6, "F");
+      doc.text("DATOS DE ENTREGA", 16, currentY + 4);
+      currentY += 9;
+
+      // Recibido por
+      doc.setFont("helvetica", "bold");
+      doc.text("Recibido por:", 18, currentY);
+      doc.setFont("helvetica", "normal");
+      const receptor =
+        parseMultiField(guia.receptorNombre, ", ") || "No registrado";
+      const receptorLines = doc.splitTextToSize(receptor, 130);
+      doc.text(receptorLines, 55, currentY);
+      currentY += Math.max(receptorLines.length * 5, 5);
+
+      // Temperatura
+      doc.setFont("helvetica", "bold");
+      doc.text("Temperatura:", 18, currentY);
+      doc.setFont("helvetica", "normal");
+      doc.text(
+        guia.temperatura
+          ? parseMultiFieldSuffix(guia.temperatura, "°C")
+          : "No registrada",
+        55,
+        currentY,
+      );
+      currentY += 5;
+
+      // Hora de llegada
+      doc.setFont("helvetica", "bold");
+      doc.text("Hora Llegada:", 18, currentY);
+      doc.setFont("helvetica", "normal");
+      doc.text(guia.horaLlegada || "No registrada", 55, currentY);
+      currentY += 5;
+
+      // Hora de salida
+      doc.setFont("helvetica", "bold");
+      doc.text("Hora Salida:", 18, currentY);
+      doc.setFont("helvetica", "normal");
+      doc.text(guia.horaSalida || "No registrada", 55, currentY);
+      currentY += 7;
+
+      // Observaciones
+      if (guia.observaciones && guia.observaciones.trim()) {
+        doc.setFont("helvetica", "bold");
+        doc.setFillColor(255, 250, 240);
+        doc.rect(14, currentY, 182, 6, "F");
+        doc.text("OBSERVACIONES", 16, currentY + 4);
+        currentY += 9;
+
+        doc.setFont("helvetica", "normal");
+        const obsLines = doc.splitTextToSize(guia.observaciones, 170);
+        doc.text(obsLines, 18, currentY);
+        currentY += obsLines.length * 5 + 3;
+      }
+
+      // Fotos de la guía
+      if (guia.fotos && guia.fotos.length > 0) {
+        doc.setFont("helvetica", "bold");
+        doc.setFillColor(240, 255, 240);
+        doc.rect(14, currentY, 182, 6, "F");
+        doc.text(`FOTOS DE ENTREGA (${guia.fotos.length})`, 16, currentY + 4);
+        currentY += 9;
+
+        for (let i = 0; i < guia.fotos.length; i++) {
+          const foto = guia.fotos[i];
+
+          try {
+            const maxImgWidth = 60;
+            const maxImgHeight = 45;
+            // OPT-4: leer de cache pre-cargada | OPT-5: liberar RAM tras uso
+            const imgBase64 = imageCache.get(foto.urlPreview) ?? "";
+            imageCache.delete(foto.urlPreview);
+            if (!imgBase64) throw new Error("foto not preloaded");
+            const imgProps = doc.getImageProperties(imgBase64);
+            const imgRatio = imgProps.width / imgProps.height;
+            let drawWidth = maxImgWidth;
+            let drawHeight = maxImgWidth / imgRatio;
+            if (drawHeight > maxImgHeight) {
+              drawHeight = maxImgHeight;
+              drawWidth = maxImgHeight * imgRatio;
+            }
+
+            // Reservar espacio para título + imagen + margen
+            currentY = ensurePageSpace(drawHeight + 8, currentY);
+            doc.setFontSize(8);
+            doc.setFont("helvetica", "normal");
+            doc.text(`Foto ${i + 1} de ${guia.fotos.length}`, 18, currentY);
+            currentY += 3;
+
+            doc.addImage(
+              imgBase64,
+              imageFormatFromBase64(imgBase64),
+              18,
+              currentY,
+              drawWidth,
+              drawHeight,
+            );
+            currentY += drawHeight + 3;
+          } catch (error) {
+            console.error("❌ Error al cargar imagen:", error);
+            doc.setFontSize(8);
+            doc.setFont("helvetica", "normal");
+            doc.setTextColor(220, 38, 38);
+            doc.text("Error al cargar imagen", 18, currentY);
+            doc.setTextColor(0, 0, 0);
+            currentY += 5;
+          }
+        }
+      } else {
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        doc.setTextColor(150, 150, 150);
+        doc.text("Sin fotos de entrega", 18, currentY);
+        doc.setTextColor(0, 0, 0);
+        currentY += 5;
+      }
+
+      // Línea separadora entre guías
+      currentY += 3;
+      doc.setDrawColor(200, 200, 200);
+      doc.line(14, currentY, 196, currentY);
+      currentY += 8;
+    }
+  }
+
+
+
+  // SECCIÓN DE INCIDENCIAS (resumen)
+  if (incidencias > 0) {
+    doc.addPage();
+    agregarMarcaDeAgua(); // Marca de agua ANTES del contenido
+
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.text("RESUMEN DE INCIDENCIAS", 14, 20);
+
+    currentY = 30;
+
+    const incidenciasData = ruta.stops.flatMap((stop) =>
+      stop.guias
+        .filter((g) => g.estado === "INCIDENCIA")
+        .map((g) => {
+          const tipoIncidencia = g.receptorNombre?.startsWith("INCIDENCIA:")
+            ? g.receptorNombre.replace("INCIDENCIA: ", "")
+            : "No especificado";
+
+          return [
+            `#${stop.orden}`,
+            stop.cliente.nombre,
+            g.numeroGuia ?? "Sin guía",
+            tipoIncidencia,
+            g.observaciones || "-",
+          ];
+        }),
+    );
+
+    autoTable(doc, {
+      startY: currentY,
+      head: [["Parada", "Cliente", "Guía", "Tipo", "Observaciones"]],
+      body: incidenciasData,
+      styles: { fontSize: 8, cellPadding: 2 },
+      headStyles: { fillColor: [230, 126, 34], fontStyle: "bold" },
+      alternateRowStyles: { fillColor: [245, 245, 245] },
+      columnStyles: {
+        0: { cellWidth: 20 },
+        1: { cellWidth: 50 },
+        2: { cellWidth: 35 },
+        3: { cellWidth: 35 },
+        4: { cellWidth: 42 },
+      },
+      didDrawPage: (data) => {
+        // Agregar marca de agua en páginas nuevas
+        if (data.pageNumber > 1) {
+          const currentPage = doc.getNumberOfPages();
+          doc.setPage(currentPage);
+          agregarMarcaDeAgua();
+        }
+      },
+    });
+
+    currentY = (doc as JsPdfWithAutoTable).lastAutoTable?.finalY ?? currentY;
+  }
+
+  // HOJA DE RUTA FINALIZADA
+  const fotosHojaRuta = ruta.fotos?.filter((f) => f.tipo === "HOJA_RUTA") || [];
+  if (fotosHojaRuta.length > 0) {
+    doc.addPage();
+    agregarMarcaDeAgua(); // Marca de agua ANTES del contenido
+
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.text("HOJA DE RUTA FINALIZADA", 14, 20);
+
+    let yPos = 30;
+    const maxImageWidth = 170;
+    const maxImageHeight = 220;
+
+    for (let i = 0; i < fotosHojaRuta.length; i++) {
+      const foto = fotosHojaRuta[i];
+
+      try {
+        // OPT-4: leer de cache pre-cargada | OPT-5: liberar RAM tras uso
+        const imgBase64 = imageCache.get(foto.urlPreview) ?? "";
+        imageCache.delete(foto.urlPreview);
+        if (!imgBase64) throw new Error("foto hoja ruta not preloaded");
+        const imgProps = doc.getImageProperties(imgBase64);
+        const imgRatio = imgProps.width / imgProps.height;
+        let drawWidth = maxImageWidth;
+        let drawHeight = maxImageWidth / imgRatio;
+        if (drawHeight > maxImageHeight) {
+          drawHeight = maxImageHeight;
+          drawWidth = maxImageHeight * imgRatio;
+        }
+
+        // Texto de documento + imagen + separación
+        yPos = ensurePageSpace(drawHeight + 10, yPos);
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "bold");
+        doc.text(`Documento ${i + 1} de ${fotosHojaRuta.length}`, 14, yPos);
+        yPos += 5;
+
+        doc.addImage(
+          imgBase64,
+          imageFormatFromBase64(imgBase64),
+          14,
+          yPos,
+          drawWidth,
+          drawHeight,
+        );
+
+        yPos += drawHeight + 15;
+      } catch (error) {
+        console.error("Error al cargar imagen de hoja de ruta:", error);
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "normal");
+        doc.text("Error al cargar imagen", 14, yPos);
+        yPos += 20;
+      }
+    }
+  }
+
+  // Pie de página en todas las páginas
+  const pageCount = doc.getNumberOfPages();
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "normal");
+    doc.text(
+      `Página ${i} de ${pageCount} - Generado el ${new Date().toLocaleString("es-ES")}`,
+      14,
+      doc.internal.pageSize.height - 10,
+    );
+  }
+
+  // Descargar archivo
+  setMessage("Preparando archivo para descarga...");
+  const fileName = `Ruta_${ruta.id.slice(-6)}_${new Date(ruta.fecha).toISOString().split("T")[0]}.pdf`;
+  doc.save(fileName);
+}
